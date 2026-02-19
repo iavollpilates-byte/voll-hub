@@ -53,6 +53,13 @@ const DEFAULT_CONFIG = {
   phase3Q1Label: "Estamos em uma Mentoria, eu e você. Você pode fazer UMA pergunta pra mim. Qual seria?", phase3Q1Key: "perguntaMentoria", phase3Q1Type: "text", phase3Q1Options: "",
   phase3Q2Label: "Me diga qual o seu maior Sonho?", phase3Q2Key: "maiorSonho", phase3Q2Type: "text", phase3Q2Options: "",
   phase3Q3Label: "O profissional do Pilates que você mais admira:", phase3Q3Key: "profAdmira", phase3Q3Type: "text", phase3Q3Options: "",
+  // Bio / Linktree
+  bioPhotoUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/foto-rafa.webp",
+  bioName: "RAFAEL JULIANO",
+  bioLine1: "💼 Fundador | VOLL Pilates Group",
+  bioLine2: "🎯 Marketing, Gestão e Vendas no Pilates",
+  bioStat1: "+230", bioStat1Label: "Studios VOLL",
+  bioStat2: "+85 mil", bioStat2Label: "Instrutores Formados",
 };
 
 const MASTER_PIN = "9512";
@@ -94,8 +101,32 @@ function timeAgo(ts) {
 }
 
 export default function VollHub() {
-  const [view, setView] = useState("landing");
+  const [view, setView] = useState("linktree");
   const [theme, setTheme] = useState("light");
+
+  // Bio links data (stored as JSON in config.bioLinks)
+  const DEFAULT_BIO_LINKS = [
+    { id: "1", title: "Pós Internacional", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/Pos.webp", url: "https://vollpilates.com.br/rafael/cta/pos-internacional", active: true, clicks: 0 },
+    { id: "2", title: "Encontro Pilates 2026", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/10/banner_link_bio_encontro-2026_rafa-4.png", url: "https://encontropilates.com.br/", active: true, clicks: 0 },
+    { id: "3", title: "Pós Patologias e Biomecânica", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/07/acC60wLz.png", url: "https://materiais.vollpilates.com.br/pos-graduacao-pilates-para-patologias-e-biomecanica-aplicada-captacao", active: true, clicks: 0 },
+    { id: "4", title: "Jornada Pilates 2026", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/06/banner_link_bio_jornada_2026_insta_rafa.png", url: "https://jornadapilates.com.br/2026", active: true, clicks: 0 },
+    { id: "5", title: "Studio Blindado", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/Link_BIO_Studio_Blindado.png", url: "https://vollpilates.com.br/imersaostudioblindado/", active: true, clicks: 0 },
+    { id: "6", title: "Kit Documentos Jurídicos", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/Link_BIO_Kit_Documentos_Juridicos.png", url: "https://materiais.vollpilates.com.br/kit-juridico-pagina-de-venda", active: true, clicks: 0 },
+    { id: "7", title: "Pilates Connect", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/PILATES-CONNECT.webp", url: "https://vollpilates.com.br/rafael/cta/pilatesconnect", active: true, clicks: 0 },
+    { id: "8", title: "Formação Clássica", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/FORMACAO-CLASSICA.webp", url: "https://cursopilatesclassico.com.br/", active: true, clicks: 0 },
+    { id: "9", title: "MBA VOLL", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/MBA.webp", url: "https://vollpilates.com.br/rafael/cta/mbavoll", active: true, clicks: 0 },
+    { id: "10", title: "VOLL+", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/VOLL.webp", url: "https://vollpilates.com.br/rafael/cta/vollplus", active: true, clicks: 0 },
+    { id: "11", title: "Franquias", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/VOLL-FRANQUIAS.webp", url: "https://vollpilates.com.br/rafael/cta/franquiadepilates", active: true, clicks: 0 },
+    { id: "12", title: "Dúvidas Cursos", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/DUVIDAS-CURSOS.webp", url: "https://vollpilates.com.br/rafael/cta/duvidas-cursos", active: true, clicks: 0 },
+    { id: "13", title: "Grupos Exclusivos", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/card_grupos_exclusivos_rafa.webp", url: "https://vollpilates.com.br/rafael/grupos-exclusivos/", active: true, clicks: 0 },
+    { id: "hub", title: "🎁 Materiais Gratuitos", imageUrl: "", icon: "🎁", url: "_hub", active: true, clicks: 0 },
+  ];
+  const getBioLinks = () => {
+    try { const v = config.bioLinks; if (v) return JSON.parse(v); } catch(e) {}
+    return DEFAULT_BIO_LINKS;
+  };
+  const bioLinks = getBioLinks();
+  const saveBioLinks = (links) => db.updateConfig("bioLinks", JSON.stringify(links));
   // ─── SUPABASE ───
   const db = useSupabase();
   const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
@@ -200,7 +231,7 @@ export default function VollHub() {
   const T = THEMES[theme];
 
   useEffect(() => {
-    if (view === "hub" || view === "admin" || view === "profile") { setAnimateIn(false); setTimeout(() => setAnimateIn(true), 100); }
+    if (view === "hub" || view === "admin" || view === "profile" || view === "linktree") { setAnimateIn(false); setTimeout(() => setAnimateIn(true), 100); }
   }, [view, adminTab]);
   useEffect(() => { if (logoTaps >= 5) { setLogoTaps(0); setView("admin-login"); } }, [logoTaps]);
 
@@ -674,6 +705,84 @@ export default function VollHub() {
   };
 
   // ═══════════════════════════════════════
+  // LINKTREE (Bio Page)
+  // ═══════════════════════════════════════
+  if (view === "linktree") {
+    const activeLinks = bioLinks.filter(l => l.active);
+    const handleLinkClick = (link) => {
+      // Track click
+      const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
+      saveBioLinks(updated);
+      // Navigate
+      if (link.url === "_hub") {
+        // Check if user is logged in
+        try {
+          const saved = localStorage.getItem("vollhub_user");
+          if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.profile) setUserProfile(u.profile); setView("hub"); return; } }
+        } catch(e) {}
+        setView("landing");
+      } else {
+        window.open(link.url, "_blank");
+      }
+    };
+
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 16px 40px", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
+        <style>{getCSS(T)}</style>
+        <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
+        <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1 }}>
+          {/* Bio Header */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "30px 0 20px", opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
+            <div onClick={() => setLogoTaps(t => t + 1)} style={{ cursor: "pointer" }}>
+              {config.bioPhotoUrl ? (
+                <img src={config.bioPhotoUrl} alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: `3px solid ${T.accent}` }} />
+              ) : (
+                <div style={{ width: 100, height: 100, borderRadius: "50%", background: `linear-gradient(135deg, ${T.accent}, ${T.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, fontWeight: 800, color: "#060a09" }}>R</div>
+              )}
+            </div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text, marginTop: 14 }}>{config.bioName || "RAFAEL JULIANO"}</h1>
+            <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 4, textAlign: "center", lineHeight: 1.5 }}>{config.bioLine1}</p>
+            <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", lineHeight: 1.5 }}>{config.bioLine2}</p>
+            {(config.bioStat1 || config.bioStat2) && (
+              <div style={{ display: "flex", gap: 24, marginTop: 12 }}>
+                {config.bioStat1 && <div style={{ textAlign: "center" }}><span style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{config.bioStat1}</span><br/><span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{config.bioStat1Label}</span></div>}
+                {config.bioStat2 && <div style={{ textAlign: "center" }}><span style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{config.bioStat2}</span><br/><span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{config.bioStat2Label}</span></div>}
+              </div>
+            )}
+          </div>
+
+          {/* Link Cards */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {activeLinks.map((link, i) => (
+              <div key={link.id} onClick={() => handleLinkClick(link)} style={{ borderRadius: 14, overflow: "hidden", cursor: "pointer", border: `1px solid ${T.cardBorder}`, background: T.cardBg, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.4s ease ${i * 0.05}s`, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                {link.imageUrl ? (
+                  <img src={link.imageUrl} alt={link.title} style={{ width: "100%", display: "block", borderRadius: 14 }} />
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px" }}>
+                    {link.icon && <span style={{ fontSize: 24 }}>{link.icon}</span>}
+                    <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: T.text }}>{link.title}</span>
+                    <span style={{ fontSize: 14, color: T.accent }}>→</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Social links */}
+          <div style={{ display: "flex", justifyContent: "center", gap: 16, padding: "24px 0" }}>
+            <a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a>
+          </div>
+
+          <footer style={{ textAlign: "center", paddingBottom: 16 }}>
+            <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>© {new Date().getFullYear()} – VOLL Pilates Group</p>
+          </footer>
+        </div>
+        <Toast />
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════
   // LANDING
   // ═══════════════════════════════════════
   if (view === "landing") {
@@ -732,6 +841,7 @@ export default function VollHub() {
           <div style={{ width: "100%", marginBottom: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.whatsLabel}</label><input style={inp} type="tel" placeholder="(19) 99921-4116" value={userWhatsApp} onChange={(e) => setUserWhatsApp(fmtWA(e.target.value))} /><p style={{ fontSize: 10, color: waDigitsCount === 11 ? T.accent : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>{waDigitsCount === 11 ? "✅ Número válido" : `(DDD) 9XXXX-XXXX · ${waDigitsCount}/11 dígitos`}</p></div>
           <button onClick={handleLogin} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 16, fontWeight: 700, marginTop: 6, boxShadow: "0 4px 20px #34998033" }}>{dlMat ? `Baixar "${dlMat.title}" →` : config.ctaText}</button>
           <p style={{ fontSize: 11, color: T.textFaint, marginTop: 14, fontFamily: "'Plus Jakarta Sans'" }}>{config.safeText}</p>
+          <button onClick={() => setView("linktree")} style={{ background: "none", color: T.accent, fontSize: 13, marginTop: 12, fontFamily: "'Plus Jakarta Sans'", fontWeight: 600 }}>← Voltar</button>
         </div>
         <a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, marginTop: 18, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'", position: "relative", zIndex: 1 }}>{config.instagramHandle}</a>
         <Toast />
@@ -752,7 +862,7 @@ export default function VollHub() {
           <p style={{ fontSize: 14, color: T.textMuted, marginBottom: 20, fontFamily: "'Plus Jakarta Sans'" }}>Digite o PIN</p>
           <div style={{ width: "100%", marginBottom: 12 }}><input style={{ ...inp, textAlign: "center", letterSpacing: 12, fontSize: 28, fontWeight: 700 }} type="password" maxLength={4} placeholder="• • • •" value={adminPin} onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ""))} onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()} /></div>
           <button onClick={handleAdminLogin} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 16, fontWeight: 700, marginTop: 6 }}>Entrar</button>
-          <button onClick={() => setView("landing")} style={{ background: "none", color: T.textMuted, fontSize: 14, marginTop: 14, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar</button>
+          <button onClick={() => setView("linktree")} style={{ background: "none", color: T.textMuted, fontSize: 14, marginTop: 14, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar</button>
         </div>
         <Toast />
       </div>
@@ -779,7 +889,7 @@ export default function VollHub() {
               <button onClick={() => { db.reload(); showT("Dados atualizados! 🔄"); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>🔄</button>
               <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
               <button onClick={() => setView("hub")} style={{ padding: "8px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>👁 Preview</button>
-              <button onClick={() => { setView("landing"); setCurrentAdmin(null); }} style={{ padding: "8px 14px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 12, fontWeight: 600 }}>Sair</button>
+              <button onClick={() => { setView("linktree"); setCurrentAdmin(null); }} style={{ padding: "8px 14px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 12, fontWeight: 600 }}>Sair</button>
             </div>
           </header>
 
@@ -1100,6 +1210,37 @@ export default function VollHub() {
                   <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 6 }}>Acessos contabilizados desde a ativação do contador.</p>
                 </div>
 
+                {/* Bio Link Clicks */}
+                {(() => {
+                  const linksWithClicks = bioLinks.filter(l => l.active && (l.clicks || 0) > 0).sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+                  const totalClicks = bioLinks.reduce((s, l) => s + (l.clicks || 0), 0);
+                  const topClicks = linksWithClicks[0]?.clicks || 1;
+                  if (totalClicks === 0) return null;
+                  return (
+                    <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>🔗 Cliques nos Links</h3>
+                      <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 12 }}>Total: {totalClicks} cliques</p>
+                      {linksWithClicks.map((link, i) => {
+                        const pct = totalClicks > 0 ? ((link.clicks / totalClicks) * 100).toFixed(0) : 0;
+                        const barW = (link.clicks / topClicks) * 100;
+                        return (
+                          <div key={link.id} style={{ marginBottom: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: i < 3 ? T.gold : T.textFaint, width: 18 }}>#{i + 1}</span>
+                              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>{link.title}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>{link.clicks}</span>
+                              <span style={{ fontSize: 10, color: T.textFaint, width: 32, textAlign: "right" }}>{pct}%</span>
+                            </div>
+                            <div style={{ height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden", marginLeft: 26 }}>
+                              <div style={{ height: "100%", borderRadius: 2, background: i === 0 ? `linear-gradient(90deg, ${T.gold}, #FFD863)` : `linear-gradient(90deg, ${T.accent}, #7DE2C7)`, width: `${barW}%`, transition: "width 0.5s" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
                 {/* Overview stats */}
                 <div style={{ display: "flex", gap: 8 }}>
                   {[["📦", activeMats.length, "materiais"], ["📥", totalDl, "downloads"], ["📊", avgDl, "média/mat"]].map(([ic, val, lbl], i) => (
@@ -1217,6 +1358,50 @@ export default function VollHub() {
           {/* TEXTOS */}
           {adminTab === "textos" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {/* BIO / LINKTREE CMS */}
+              <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>👤 Bio / Linktree</h3>
+                <CmsField label="URL da foto" ck="bioPhotoUrl" />
+                <CmsField label="Nome" ck="bioName" />
+                <CmsField label="Linha 1" ck="bioLine1" />
+                <CmsField label="Linha 2" ck="bioLine2" />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <CmsField label="Stat 1 valor" ck="bioStat1" />
+                  <CmsField label="Stat 1 label" ck="bioStat1Label" />
+                  <CmsField label="Stat 2 valor" ck="bioStat2" />
+                  <CmsField label="Stat 2 label" ck="bioStat2Label" />
+                </div>
+              </div>
+
+              {/* BIO LINKS MANAGER */}
+              <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🔗 Meus Links</h3>
+                  <button onClick={() => { const nl = [...bioLinks, { id: String(Date.now()), title: "Novo Link", imageUrl: "", icon: "🔗", url: "", active: true, clicks: 0 }]; saveBioLinks(nl); }} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>＋ Adicionar</button>
+                </div>
+                {bioLinks.map((link, i) => (
+                  <div key={link.id} style={{ background: T.inputBg, border: `1px solid ${link.active ? T.inputBorder : T.dangerBrd}`, borderRadius: 10, padding: 10, marginBottom: 6, opacity: link.active ? 1 : 0.5 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{link.imageUrl ? "🖼" : link.icon || "🔗"} {link.title}</span>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <span style={{ fontSize: 10, color: T.textFaint, padding: "2px 6px", background: T.statBg, borderRadius: 4 }}>{link.clicks || 0} cliques</span>
+                        {i > 0 && <button onClick={() => { const nl = [...bioLinks]; [nl[i-1], nl[i]] = [nl[i], nl[i-1]]; saveBioLinks(nl); }} style={{ background: "none", fontSize: 12, color: T.textFaint, padding: "2px 4px" }}>↑</button>}
+                        {i < bioLinks.length - 1 && <button onClick={() => { const nl = [...bioLinks]; [nl[i], nl[i+1]] = [nl[i+1], nl[i]]; saveBioLinks(nl); }} style={{ background: "none", fontSize: 12, color: T.textFaint, padding: "2px 4px" }}>↓</button>}
+                        <button onClick={() => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, active: !l.active } : l); saveBioLinks(nl); }} style={{ background: "none", fontSize: 10, color: link.active ? T.accent : T.dangerTxt, padding: "2px 4px" }}>{link.active ? "👁" : "🚫"}</button>
+                        <button onClick={() => { if (confirm("Remover?")) { saveBioLinks(bioLinks.filter(l => l.id !== link.id)); } }} style={{ background: "none", fontSize: 10, color: T.dangerTxt, padding: "2px 4px" }}>🗑</button>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <input defaultValue={link.title} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, title: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} placeholder="Título" />
+                      <input defaultValue={link.url} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, url: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} placeholder="URL (use _hub para o Hub)" />
+                      <input defaultValue={link.imageUrl} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, imageUrl: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} placeholder="URL da imagem (vazio = card com texto)" />
+                      <input defaultValue={link.icon || ""} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, icon: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'", width: 60 }} placeholder="Ícone" />
+                    </div>
+                  </div>
+                ))}
+                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>Use "_hub" como URL para apontar pro Hub de materiais. Use ↑↓ para reordenar.</p>
+              </div>
+
               {[
                 ["🏠 Tela Inicial", [["Nome da marca", "brandName"], ["Subtítulo", "brandTag"], ["Texto principal", "landingSubtitle", true], ["Stat 1 label", "landingStat1Label"], ["Stat 2 valor", "landingStat2"], ["Stat 2 label", "landingStat2Label"], ["Stat 3 valor", "landingStat3"], ["Stat 3 label", "landingStat3Label"], ["Label nome", "nameLabel"], ["Placeholder nome", "namePlaceholder"], ["Label WhatsApp", "whatsLabel"], ["Placeholder WA", "whatsPlaceholder"], ["Botão CTA", "ctaText"], ["Texto segurança", "safeText"]]],
                 ["📱 Hub", [["Saudação", "hubGreetPrefix"], ["Emoji", "hubGreetEmoji"], ["Subtítulo", "hubSubtitle"], ["Progresso", "progressSuffix"], ["Dica", "progressHint"], ["Título seção", "sectionTitle"]]],
@@ -1640,7 +1825,7 @@ export default function VollHub() {
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
             </button>}
             <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
-            <button onClick={() => { setView("landing"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
+            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
           </div>
         </header>
