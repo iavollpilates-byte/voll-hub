@@ -169,7 +169,11 @@ export default function VollHub() {
 
   // ─── COUNTDOWN TIMER ───
   const [now, setNow] = useState(Date.now());
-  useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv); }, []);
+  useEffect(() => {
+    if (view === "admin") return; // no timer on admin to prevent input focus loss
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [view]);
 
   // Auto-expire: when expiresAt passes, convert to data unlock
   useEffect(() => {
@@ -460,7 +464,7 @@ export default function VollHub() {
     </div>
   );}, [T, sInp]);
 
-  const CmsField = ({ label, ck, multi }) => (<div style={{ marginBottom: 10 }}><label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{label}</label>{multi ? <textarea value={config[ck]} onChange={(e) => updCfg(ck, e.target.value)} style={{ ...inp, minHeight: 55, resize: "vertical" }} /> : <input value={config[ck]} onChange={(e) => updCfg(ck, e.target.value)} style={inp} />}</div>);
+  const CmsField = ({ label, ck, multi }) => (<div style={{ marginBottom: 10 }}><label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{label}</label>{multi ? <textarea defaultValue={config[ck]} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck]).slice(0,10)} style={{ ...inp, minHeight: 55, resize: "vertical" }} /> : <input defaultValue={config[ck]} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck]).slice(0,10)} style={inp} />}</div>);
 
   // ─── MATERIAL CARD (reusable) ───
   const MaterialCard = ({ m, index, isSpotlight, isNew }) => {
@@ -746,10 +750,10 @@ export default function VollHub() {
 
                     {can("materials_edit") && editId === m.id && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 10, borderTop: `1px solid ${T.cardBorder}` }}>
-                        <div style={{ display: "flex", gap: 8 }}><button onClick={() => setShowIconPicker(m.id)} style={{ width: 48, height: 48, borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.icon}</button><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Título</label><input value={m.title} onChange={(e) => updMat(m.id, "title", e.target.value)} style={sInp} /></div></div>
-                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Descrição</label><textarea value={m.description} onChange={(e) => updMat(m.id, "description", e.target.value)} style={{ ...sInp, minHeight: 45, resize: "vertical" }} /></div>
-                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔗 Link do material (Canva, Drive, PDF, etc)</label><input value={m.downloadUrl || ""} onChange={(e) => updMat(m.id, "downloadUrl", e.target.value)} style={sInp} placeholder="https://www.canva.com/..." /></div>
-                        <div style={{ display: "flex", gap: 8 }}><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Categoria</label><input value={m.category} onChange={(e) => updMat(m.id, "category", e.target.value)} style={sInp} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Data</label><input value={m.date} onChange={(e) => updMat(m.id, "date", e.target.value)} style={sInp} /></div></div>
+                        <div style={{ display: "flex", gap: 8 }}><button onClick={() => setShowIconPicker(m.id)} style={{ width: 48, height: 48, borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.icon}</button><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Título</label><input defaultValue={m.title} onBlur={(e) => updMat(m.id, "title", e.target.value)} key={"mt-" + m.id} style={sInp} /></div></div>
+                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Descrição</label><textarea defaultValue={m.description} onBlur={(e) => updMat(m.id, "description", e.target.value)} key={"md-" + m.id} style={{ ...sInp, minHeight: 45, resize: "vertical" }} /></div>
+                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔗 Link do material (Canva, Drive, PDF, etc)</label><input defaultValue={m.downloadUrl || ""} onBlur={(e) => updMat(m.id, "downloadUrl", e.target.value)} key={"mdu-" + m.id} style={sInp} placeholder="https://www.canva.com/..." /></div>
+                        <div style={{ display: "flex", gap: 8 }}><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Categoria</label><input defaultValue={m.category} onBlur={(e) => updMat(m.id, "category", e.target.value)} key={"mc-" + m.id} style={sInp} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Data</label><input defaultValue={m.date} onBlur={(e) => updMat(m.id, "date", e.target.value)} key={"mda-" + m.id} style={sInp} /></div></div>
                         <UnlockEditor mat={m} onChange={(k, v) => updMat(m.id, k, v)} />
                         {confirmDeleteId === m.id ? (
                           <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}` }}>
@@ -775,7 +779,7 @@ export default function VollHub() {
           {adminTab === "leads" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Search + Bulk Actions Bar */}
-              <input style={{ ...inp, marginBottom: 2 }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} />
+              <input style={{ ...inp, marginBottom: 2 }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} key="lead-search" />
 
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {can("leads_export") && <button onClick={() => exportCSV(segmentedLeads)} style={{ padding: "8px 14px", borderRadius: 9, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📊 Exportar CSV</button>}
@@ -871,7 +875,7 @@ export default function VollHub() {
 
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>Mensagem <span style={{ fontWeight: 400, color: T.textFaint }}>( use {"{nome}"} para personalizar )</span></label>
-                  <textarea value={bulkMsg} onChange={(e) => setBulkMsg(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} />
+                  <textarea defaultValue={bulkMsg} onBlur={(e) => setBulkMsg(e.target.value)} key="bulk-msg" style={{ ...inp, minHeight: 80, resize: "vertical" }} />
                 </div>
 
                 <div style={{ padding: "10px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}` }}>
@@ -920,7 +924,7 @@ export default function VollHub() {
                     {(config.socialProofMode === "downloads" || config.socialProofMode === "both") && (
                       <div style={{ marginBottom: 10 }}>
                         <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Boost de downloads <span style={{ fontWeight: 400, color: T.textFaint }}>(somado ao real)</span></label>
-                        <input type="number" value={config.socialProofBoost} onChange={(e) => updCfg("socialProofBoost", parseInt(e.target.value) || 0)} style={inp} placeholder="150" />
+                        <input type="number" defaultValue={config.socialProofBoost} onBlur={(e) => updCfg("socialProofBoost", parseInt(e.target.value) || 0)} key={"spb-" + config.socialProofBoost} style={inp} placeholder="150" />
                         <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Número base somado aos downloads reais de cada material. Ex: 150 → "167 downloads"</p>
                       </div>
                     )}
@@ -929,11 +933,11 @@ export default function VollHub() {
                       <>
                         <div style={{ marginBottom: 10 }}>
                           <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Nomes simulados <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
-                          <textarea value={(config.socialProofNames || []).join(", ")} onChange={(e) => updCfg("socialProofNames", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="Maria, João, Ana, Pedro..." />
+                          <textarea defaultValue={(config.socialProofNames || []).join(", ")} onBlur={(e) => updCfg("socialProofNames", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} key={"spn"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="Maria, João, Ana, Pedro..." />
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Tempos (minutos) <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
-                          <textarea value={(config.socialProofMinutes || []).join(", ")} onChange={(e) => updCfg("socialProofMinutes", e.target.value.split(",").map((s) => parseInt(s.trim())).filter(Boolean))} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="3, 12, 25, 47, 68..." />
+                          <textarea defaultValue={(config.socialProofMinutes || []).join(", ")} onBlur={(e) => updCfg("socialProofMinutes", e.target.value.split(",").map((s) => parseInt(s.trim())).filter(Boolean))} key={"spm"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="3, 12, 25, 47, 68..." />
                           <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Cada material usa um par nome+tempo. Ex: "Maria baixou há 12min"</p>
                         </div>
                       </>
@@ -1072,8 +1076,8 @@ export default function VollHub() {
                     {isEditing && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 10, borderTop: `1px solid ${T.cardBorder}` }}>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <div style={{ flex: 2 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Nome</label><input value={u.name} onChange={(e) => db.updateAdminUser(u.id, { name: e.target.value })} style={sInp} /></div>
-                          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>PIN</label><input value={u.pin} onChange={(e) => db.updateAdminUser(u.id, { pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} style={{ ...sInp, textAlign: "center", letterSpacing: 6, fontWeight: 700 }} maxLength={4} /></div>
+                          <div style={{ flex: 2 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Nome</label><input defaultValue={u.name} onBlur={(e) => db.updateAdminUser(u.id, { name: e.target.value })} key={"un-" + u.id} style={sInp} /></div>
+                          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>PIN</label><input defaultValue={u.pin} onBlur={(e) => db.updateAdminUser(u.id, { pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} key={"up-" + u.id} style={{ ...sInp, textAlign: "center", letterSpacing: 6, fontWeight: 700 }} maxLength={4} /></div>
                         </div>
 
                         <label style={{ fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Plus Jakarta Sans'" }}>Permissões</label>
@@ -1252,6 +1256,7 @@ export default function VollHub() {
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
             </button>
             <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
+            <button onClick={() => { setView("landing"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
           </div>
         </header>
