@@ -297,8 +297,9 @@ export default function VollHub() {
     return real + (config.socialProofBoost || 0) + (matId * 17 % 50); // deterministic variation per material
   };
   const getRecentPerson = (matId) => {
-    const names = config.socialProofNames || [];
-    const mins = config.socialProofMinutes || [];
+    const toArr = (v) => Array.isArray(v) ? v : typeof v === "string" ? v.split(",").map(s => s.trim()).filter(Boolean) : [];
+    const names = toArr(config.socialProofNames);
+    const mins = toArr(config.socialProofMinutes).map(Number);
     const idx = matId % names.length;
     const m = mins[idx] || 30;
     const name = names[idx] || "Alguém";
@@ -990,11 +991,11 @@ export default function VollHub() {
                       <>
                         <div style={{ marginBottom: 10 }}>
                           <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Nomes simulados <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
-                          <textarea defaultValue={(config.socialProofNames || []).join(", ")} onBlur={(e) => updCfg("socialProofNames", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} key={"spn"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="Maria, João, Ana, Pedro..." />
+                          <textarea defaultValue={Array.isArray(config.socialProofNames) ? config.socialProofNames.join(", ") : (config.socialProofNames || "")} onBlur={(e) => updCfg("socialProofNames", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} key={"spn"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="Maria, João, Ana, Pedro..." />
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Tempos (minutos) <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
-                          <textarea defaultValue={(config.socialProofMinutes || []).join(", ")} onBlur={(e) => updCfg("socialProofMinutes", e.target.value.split(",").map((s) => parseInt(s.trim())).filter(Boolean))} key={"spm"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="3, 12, 25, 47, 68..." />
+                          <textarea defaultValue={Array.isArray(config.socialProofMinutes) ? config.socialProofMinutes.join(", ") : (config.socialProofMinutes || "")} onBlur={(e) => updCfg("socialProofMinutes", e.target.value.split(",").map((s) => parseInt(s.trim())).filter(Boolean))} key={"spm"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="3, 12, 25, 47, 68..." />
                           <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Cada material usa um par nome+tempo. Ex: "Maria baixou há 12min"</p>
                         </div>
                       </>
