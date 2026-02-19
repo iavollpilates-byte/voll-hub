@@ -267,9 +267,14 @@ export default function VollHub() {
   const isUrgent = (target) => target && (target - now) < 86400000 && (target - now) > 0;
 
   const fmtWA = (v) => { const n = v.replace(/\D/g, "").slice(0, 11); if (n.length <= 2) return n; if (n.length <= 7) return `(${n.slice(0, 2)}) ${n.slice(2)}`; return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`; };
+  const waDigitsCount = userWhatsApp.replace(/\D/g, "").length;
   const handleLogin = async () => {
     if (!userName.trim() || !userWhatsApp.trim()) return showT("Preencha todos os campos!");
-    if (userWhatsApp.replace(/\D/g, "").length < 10) return showT("WhatsApp inválido!");
+    const waDigits = userWhatsApp.replace(/\D/g, "");
+    if (waDigits.length !== 11) return showT("WhatsApp deve ter DDD (2 dígitos) + número (9 dígitos)");
+    if (waDigits[2] !== "9") return showT("Número de celular deve começar com 9 após o DDD");
+    const ddd = parseInt(waDigits.slice(0, 2));
+    if (ddd < 11 || ddd > 99) return showT("DDD inválido");
     // Check if lead exists, update visits; else create
     const existing = await db.findLeadByWhatsApp(userWhatsApp);
     const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
@@ -720,7 +725,7 @@ export default function VollHub() {
           )}
 
           <div style={{ width: "100%", marginBottom: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.nameLabel}</label><input style={inp} placeholder={config.namePlaceholder} value={userName} onChange={(e) => setUserName(e.target.value)} /></div>
-          <div style={{ width: "100%", marginBottom: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.whatsLabel}</label><input style={inp} type="tel" placeholder={config.whatsPlaceholder} value={userWhatsApp} onChange={(e) => setUserWhatsApp(fmtWA(e.target.value))} /></div>
+          <div style={{ width: "100%", marginBottom: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.whatsLabel}</label><input style={inp} type="tel" placeholder="(19) 99921-4116" value={userWhatsApp} onChange={(e) => setUserWhatsApp(fmtWA(e.target.value))} /><p style={{ fontSize: 10, color: waDigitsCount === 11 ? T.accent : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>{waDigitsCount === 11 ? "✅ Número válido" : `(DDD) 9XXXX-XXXX · ${waDigitsCount}/11 dígitos`}</p></div>
           <button onClick={handleLogin} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 16, fontWeight: 700, marginTop: 6, boxShadow: "0 4px 20px #34998033" }}>{dlMat ? `Baixar "${dlMat.title}" →` : config.ctaText}</button>
           <p style={{ fontSize: 11, color: T.textFaint, marginTop: 14, fontFamily: "'Plus Jakarta Sans'" }}>{config.safeText}</p>
         </div>
