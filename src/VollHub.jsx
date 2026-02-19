@@ -42,13 +42,11 @@ const DEFAULT_CONFIG = {
   profileEnabled: "true",
   profileBonusTitle: "Complete seu perfil e ganhe um material bônus",
   profileBonusDone: "Perfil completo! Material bônus liberado",
-  profileFields: JSON.stringify([
-    { key: "city", label: "Sua cidade", placeholder: "Ex: São Paulo - SP", icon: "📍" },
-    { key: "role", label: "Sua atuação", placeholder: "Ex: Instrutor, dono de studio...", icon: "💼" },
-    { key: "studioName", label: "Nome do studio / empresa", placeholder: "Ex: Studio Pilates Vida", icon: "🏢" },
-    { key: "studentsCount", label: "Quantos alunos atende?", placeholder: "Ex: 30, 50, 100+", icon: "👥" },
-    { key: "goals", label: "Seu maior objetivo agora", placeholder: "Ex: Aumentar alunos, abrir franquia...", icon: "🎯" },
-  ]),
+  profileQ1Label: "Sua cidade", profileQ1Placeholder: "Ex: São Paulo - SP", profileQ1Icon: "📍", profileQ1Key: "city",
+  profileQ2Label: "Sua atuação", profileQ2Placeholder: "Ex: Instrutor, dono de studio...", profileQ2Icon: "💼", profileQ2Key: "role",
+  profileQ3Label: "Nome do studio / empresa", profileQ3Placeholder: "Ex: Studio Pilates Vida", profileQ3Icon: "🏢", profileQ3Key: "studioName",
+  profileQ4Label: "Quantos alunos atende?", profileQ4Placeholder: "Ex: 30, 50, 100+", profileQ4Icon: "👥", profileQ4Key: "studentsCount",
+  profileQ5Label: "Seu maior objetivo agora", profileQ5Placeholder: "Ex: Aumentar alunos, abrir franquia...", profileQ5Icon: "🎯", profileQ5Key: "goals",
 };
 
 const MASTER_PIN = "9512";
@@ -166,20 +164,12 @@ export default function VollHub() {
   // ─── USER PROFILE ───
   const [userProfile, setUserProfile] = useState({ city: "", role: "", studioName: "", studentsCount: "", goals: "", completed: false });
   const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
-  const profileFields = (() => {
-    try {
-      const raw = config.profileFields;
-      if (typeof raw === "string") return JSON.parse(raw);
-      if (Array.isArray(raw)) return raw;
-    } catch (e) {}
-    return [
-      { key: "city", label: "Sua cidade", placeholder: "Ex: São Paulo - SP", icon: "📍" },
-      { key: "role", label: "Sua atuação", placeholder: "Ex: Instrutor, dono de studio...", icon: "💼" },
-      { key: "studioName", label: "Nome do studio / empresa", placeholder: "Ex: Studio Pilates Vida", icon: "🏢" },
-      { key: "studentsCount", label: "Quantos alunos atende?", placeholder: "Ex: 30, 50, 100+", icon: "👥" },
-      { key: "goals", label: "Seu maior objetivo agora", placeholder: "Ex: Aumentar alunos, abrir franquia...", icon: "🎯" },
-    ];
-  })();
+  const profileFields = [1,2,3,4,5].map(n => ({
+    key: config[`profileQ${n}Key`] || "",
+    label: config[`profileQ${n}Label`] || "",
+    placeholder: config[`profileQ${n}Placeholder`] || "",
+    icon: config[`profileQ${n}Icon`] || "📝",
+  })).filter(f => f.key && f.label);
   const profileEnabled = config.profileEnabled !== "false";
   const profileFilledCount = profileFields.filter((f) => userProfile[f.key]?.trim()).length;
   const profileComplete = profileFilledCount === profileFields.length;
@@ -959,9 +949,19 @@ export default function VollHub() {
                 </div>
                 <CmsField label="Título do presente" ck="profileBonusTitle" />
                 <CmsField label="Texto após completar" ck="profileBonusDone" />
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Perguntas (JSON)</label>
-                <textarea defaultValue={typeof config.profileFields === "string" ? config.profileFields : JSON.stringify(profileFields, null, 2)} onBlur={(e) => { try { JSON.parse(e.target.value); updCfg("profileFields", e.target.value); } catch(err) { showT("JSON inválido!"); } }} key={"pf-" + String(config.profileFields || "").slice(0,15)} style={{ ...inp, minHeight: 120, resize: "vertical", fontFamily: "monospace", fontSize: 11 }} />
-                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>Cada pergunta: {"{"} "key": "campo", "label": "Pergunta", "placeholder": "Exemplo", "icon": "📍" {"}"}</p>
+                <p style={{ fontSize: 11, fontWeight: 700, color: T.text, marginTop: 12, marginBottom: 8 }}>Perguntas do perfil (até 5)</p>
+                {[1,2,3,4,5].map(n => (
+                  <div key={n} style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Pergunta {n} {config[`profileQ${n}Icon`] || ""}</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      <CmsField label="Pergunta" ck={`profileQ${n}Label`} />
+                      <CmsField label="Placeholder" ck={`profileQ${n}Placeholder`} />
+                      <CmsField label="Ícone (emoji)" ck={`profileQ${n}Icon`} />
+                      <CmsField label="Campo (key)" ck={`profileQ${n}Key`} />
+                    </div>
+                  </div>
+                ))}
+                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>Deixe a "Pergunta" em branco para desativar um campo.</p>
               </div>
 
               {/* SOCIAL PROOF CMS */}
@@ -1229,7 +1229,7 @@ export default function VollHub() {
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <span style={{ fontSize: 28 }}>{bonusUnlocked ? "🎁" : "🔓"}</span>
               <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{bonusUnlocked ? "Perfil completo! Material bônus liberado" : "Complete seu perfil e ganhe um material bônus"}</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{bonusUnlocked ? (config.profileBonusDone || "Perfil completo! Material bônus liberado") : (config.profileBonusTitle || "Complete seu perfil e ganhe um material bônus")}</h3>
                 <p style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{bonusUnlocked ? "Obrigado pelas informações! Seu conteúdo exclusivo está disponível no Hub." : `Preencha ${profileFields.length - profileFilledCount} campo${profileFields.length - profileFilledCount !== 1 ? "s" : ""} para desbloquear`}</p>
               </div>
             </div>
