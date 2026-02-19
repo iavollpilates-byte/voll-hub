@@ -40,9 +40,19 @@ const DEFAULT_CONFIG = {
   logoUrl: "",
   // Profile phases
   profileEnabled: "true",
-  phase1Title: "Fase 1 · Sobre você", phase1Prize: "🎁 Pack de Exercícios em Vídeo",
-  phase2Title: "Fase 2 · Seu negócio", phase2Prize: "🎁 Guia: Como Montar seu Studio",
-  phase3Title: "Fase 3 · Mentoria", phase3Prize: "🎁 Áudio exclusivo de Mentoria",
+  phase1Title: "Fase 1 · Sobre você", phase1Prize: "🎁 Pack de Exercícios em Vídeo", phase1PrizeUrl: "", phase1Icon: "🎓",
+  phase2Title: "Fase 2 · Seu negócio", phase2Prize: "🎁 Guia: Como Montar seu Studio", phase2PrizeUrl: "", phase2Icon: "💼",
+  phase3Title: "Fase 3 · Mentoria", phase3Prize: "🎁 Áudio exclusivo de Mentoria", phase3PrizeUrl: "", phase3Icon: "✨",
+  // Phase questions (pipe-separated for selects: "opt1|opt2|opt3")
+  phase1Q1Label: "Você é:", phase1Q1Key: "grau", phase1Q1Type: "select", phase1Q1Options: "Estudante|Graduado|Pós-Graduado",
+  phase1Q2Label: "Formação:", phase1Q2Key: "formacao", phase1Q2Type: "select", phase1Q2Options: "Fisioterapia|Educação Física|Enfermagem|Dança|Outros",
+  phase1Q3Label: "Atua com Pilates?", phase1Q3Key: "atuaPilates", phase1Q3Type: "select", phase1Q3Options: "Não|Sim há menos de 1 ano|Sim entre 1 a 3 anos|Sim entre 3 a 5 anos|Sim entre 5 a 8 anos|Sim há mais de 8 anos",
+  phase2Q1Label: "Você tem Studio?", phase2Q1Key: "temStudio", phase2Q1Type: "select", phase2Q1Options: "Não e não pretendo|Não, mas pretendo|Sim",
+  phase2Q2Label: "Qual é o seu maior desafio hoje?", phase2Q2Key: "maiorDesafio", phase2Q2Type: "text", phase2Q2Options: "",
+  phase2Q3Label: "Que tipo de conteúdo te ajudaria mais hoje?", phase2Q3Key: "tipoConteudo", phase2Q3Type: "text", phase2Q3Options: "",
+  phase3Q1Label: "Estamos em uma Mentoria, eu e você. Você pode fazer UMA pergunta pra mim. Qual seria?", phase3Q1Key: "perguntaMentoria", phase3Q1Type: "text", phase3Q1Options: "",
+  phase3Q2Label: "Me diga qual o seu maior Sonho?", phase3Q2Key: "maiorSonho", phase3Q2Type: "text", phase3Q2Options: "",
+  phase3Q3Label: "O profissional do Pilates que você mais admira:", phase3Q3Key: "profAdmira", phase3Q3Type: "text", phase3Q3Options: "",
 };
 
 const MASTER_PIN = "9512";
@@ -161,23 +171,18 @@ export default function VollHub() {
   const [userProfile, setUserProfile] = useState({ grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1: false, phase2: false, phase3: false });
   const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
   const [activePhase, setActivePhase] = useState(null);
-  const PHASES = [
-    { id: 1, icon: "🎓", fields: [
-      { key: "grau", label: "Você é:", type: "select", options: ["Estudante", "Graduado", "Pós-Graduado"] },
-      { key: "formacao", label: "Formação:", type: "select", options: ["Fisioterapia", "Educação Física", "Enfermagem", "Dança", "Outros"] },
-      { key: "atuaPilates", label: "Atua com Pilates?", type: "select", options: ["Não", "Sim há menos de 1 ano", "Sim entre 1 a 3 anos", "Sim entre 3 a 5 anos", "Sim entre 5 a 8 anos", "Sim há mais de 8 anos"] },
-    ]},
-    { id: 2, icon: "💼", fields: [
-      { key: "temStudio", label: "Você tem Studio?", type: "select", options: ["Não e não pretendo", "Não, mas pretendo", "Sim"] },
-      { key: "maiorDesafio", label: "Qual é o seu maior desafio hoje?", type: "text", placeholder: "Conte o que mais te trava..." },
-      { key: "tipoConteudo", label: "Que tipo de conteúdo te ajudaria mais hoje?", type: "text", placeholder: "Ex: vídeos de exercícios, gestão..." },
-    ]},
-    { id: 3, icon: "✨", fields: [
-      { key: "perguntaMentoria", label: "Estamos em uma Mentoria, eu e você. Você pode fazer UMA pergunta pra mim. Qual seria?", type: "text", placeholder: "Pode ser que eu responda aqui..." },
-      { key: "maiorSonho", label: "Me diga qual o seu maior Sonho?", type: "text", placeholder: "Sonhe grande..." },
-      { key: "profAdmira", label: "O profissional do Pilates que você mais admira:", type: "text", placeholder: "Nome do profissional..." },
-    ]},
-  ];
+  const PHASES = [1,2,3].map(n => ({
+    id: n,
+    icon: config[`phase${n}Icon`] || ["🎓","💼","✨"][n-1],
+    fields: [1,2,3].map(q => {
+      const label = config[`phase${n}Q${q}Label`] || "";
+      const key = config[`phase${n}Q${q}Key`] || "";
+      const type = config[`phase${n}Q${q}Type`] || "text";
+      const optStr = config[`phase${n}Q${q}Options`] || "";
+      const options = type === "select" && optStr ? (Array.isArray(optStr) ? optStr : optStr.split("|").map(s => s.trim()).filter(Boolean)) : [];
+      return { key, label, type, options, placeholder: type === "text" ? "Digite aqui..." : "" };
+    }).filter(f => f.key && f.label),
+  }));
   const isPhaseFieldsComplete = (phaseId) => PHASES.find(p => p.id === phaseId)?.fields.every(f => userProfile[f.key]?.trim()) || false;
   const isPhaseUnlocked = (phaseId) => userProfile[`phase${phaseId}`];
   const completedPhases = [1,2,3].filter(n => isPhaseUnlocked(n)).length;
@@ -961,11 +966,24 @@ export default function VollHub() {
                 {[1,2,3].map(n => (
                   <div key={n} style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: T.gold, marginBottom: 8 }}>Fase {n}</p>
-                    <CmsField label={`Título Fase ${n}`} ck={`phase${n}Title`} />
-                    <CmsField label={`Prêmio Fase ${n}`} ck={`phase${n}Prize`} />
+                    <CmsField label="Título" ck={`phase${n}Title`} />
+                    <CmsField label="Ícone (emoji)" ck={`phase${n}Icon`} />
+                    <CmsField label="Nome do prêmio" ck={`phase${n}Prize`} />
+                    <CmsField label="🔗 Link do prêmio (PDF, Drive, etc)" ck={`phase${n}PrizeUrl`} />
+                    <p style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, marginTop: 8, marginBottom: 6 }}>Perguntas:</p>
+                    {[1,2,3].map(q => (
+                      <div key={q} style={{ background: T.statBg, borderRadius: 8, padding: 8, marginBottom: 6, border: `1px solid ${T.statBorder}` }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: T.textFaint, marginBottom: 4 }}>Pergunta {q}</p>
+                        <CmsField label="Texto da pergunta" ck={`phase${n}Q${q}Label`} />
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                          <CmsField label="Campo (key)" ck={`phase${n}Q${q}Key`} />
+                          <CmsField label="Tipo (select ou text)" ck={`phase${n}Q${q}Type`} />
+                        </div>
+                        <CmsField label="Opções (separar com |)" ck={`phase${n}Q${q}Options`} />
+                      </div>
+                    ))}
                   </div>
                 ))}
-                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>As perguntas de cada fase são fixas. Edite os títulos e prêmios aqui.</p>
               </div>
 
               {/* SOCIAL PROOF CMS */}
@@ -1272,6 +1290,7 @@ export default function VollHub() {
                 const unlocked = isPhaseUnlocked(phase.id);
                 const canStart = phase.id === 1 || isPhaseUnlocked(phase.id - 1);
                 const prize = config[`phase${phase.id}Prize`] || `Prêmio Fase ${phase.id}`;
+                const prizeUrl = config[`phase${phase.id}PrizeUrl`] || "";
                 return (
                   <div key={phase.id} onClick={() => { if (!unlocked && canStart) setActivePhase(phase.id); }} style={{ background: unlocked ? T.dlBg : canStart ? T.cardBg : T.statBg, border: `1px solid ${unlocked ? T.accent + "44" : canStart ? T.cardBorder : T.statBorder}`, borderRadius: 16, padding: "16px 18px", cursor: unlocked ? "default" : canStart ? "pointer" : "default", opacity: animateIn ? (canStart || unlocked ? 1 : 0.5) : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.4s ease ${i * 0.1}s` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1282,6 +1301,9 @@ export default function VollHub() {
                       </div>
                       {!unlocked && canStart && <span style={{ fontSize: 14, color: T.gold, fontWeight: 700 }}>→</span>}
                     </div>
+                    {unlocked && prizeUrl && (
+                      <a href={prizeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: "block", width: "100%", padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, textAlign: "center", textDecoration: "none", marginTop: 10 }}>📥 Baixar prêmio</a>
+                    )}
                   </div>
                 );
               })}
