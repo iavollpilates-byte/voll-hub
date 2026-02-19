@@ -37,6 +37,18 @@ const DEFAULT_CONFIG = {
   surveyModalTitle: "Pesquisa Rápida",
   instagramUrl: "https://instagram.com/rafael.voll", instagramHandle: "@rafael.voll",
   baseUrl: "https://seuapp.com",
+  logoUrl: "",
+  // Profile
+  profileEnabled: "true",
+  profileBonusTitle: "Complete seu perfil e ganhe um material bônus",
+  profileBonusDone: "Perfil completo! Material bônus liberado",
+  profileFields: JSON.stringify([
+    { key: "city", label: "Sua cidade", placeholder: "Ex: São Paulo - SP", icon: "📍" },
+    { key: "role", label: "Sua atuação", placeholder: "Ex: Instrutor, dono de studio...", icon: "💼" },
+    { key: "studioName", label: "Nome do studio / empresa", placeholder: "Ex: Studio Pilates Vida", icon: "🏢" },
+    { key: "studentsCount", label: "Quantos alunos atende?", placeholder: "Ex: 30, 50, 100+", icon: "👥" },
+    { key: "goals", label: "Seu maior objetivo agora", placeholder: "Ex: Aumentar alunos, abrir franquia...", icon: "🎯" },
+  ]),
 };
 
 const MASTER_PIN = "9512";
@@ -79,6 +91,21 @@ function timeAgo(ts) {
 
 export default function VollHub() {
   const [view, setView] = useState("landing");
+  // Auto-login from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("vollhub_user");
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u.name && u.whatsapp) {
+          setUserName(u.name);
+          setUserWhatsApp(u.whatsapp);
+          if (u.downloaded) setDownloaded(u.downloaded);
+          setView("hub");
+        }
+      }
+    } catch (e) {}
+  }, []);
   const [theme, setTheme] = useState("light");
   // ─── SUPABASE ───
   const db = useSupabase();
@@ -97,6 +124,11 @@ export default function VollHub() {
   const [refWA, setRefWA] = useState("");
   const [adminPin, setAdminPin] = useState("");
   const [adminTab, setAdminTab] = useState("materials");
+  const [activityLog, setActivityLog] = useState([]);
+  const addLog = (action) => {
+    const entry = { who: currentAdmin?.name || "?", action, time: new Date().toLocaleString("pt-BR") };
+    setActivityLog((p) => [entry, ...p].slice(0, 100));
+  };
   const [searchLead, setSearchLead] = useState("");
 
   // ─── ADMIN USERS ───
@@ -134,13 +166,21 @@ export default function VollHub() {
   // ─── USER PROFILE ───
   const [userProfile, setUserProfile] = useState({ city: "", role: "", studioName: "", studentsCount: "", goals: "", completed: false });
   const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
-  const profileFields = [
-    { key: "city", label: "Sua cidade", placeholder: "Ex: São Paulo - SP", icon: "📍" },
-    { key: "role", label: "Sua atuação", placeholder: "Ex: Instrutor, dono de studio...", icon: "💼" },
-    { key: "studioName", label: "Nome do studio / empresa", placeholder: "Ex: Studio Pilates Vida", icon: "🏢" },
-    { key: "studentsCount", label: "Quantos alunos atende?", placeholder: "Ex: 30, 50, 100+", icon: "👥" },
-    { key: "goals", label: "Seu maior objetivo agora", placeholder: "Ex: Aumentar alunos, abrir franquia...", icon: "🎯" },
-  ];
+  const profileFields = (() => {
+    try {
+      const raw = config.profileFields;
+      if (typeof raw === "string") return JSON.parse(raw);
+      if (Array.isArray(raw)) return raw;
+    } catch (e) {}
+    return [
+      { key: "city", label: "Sua cidade", placeholder: "Ex: São Paulo - SP", icon: "📍" },
+      { key: "role", label: "Sua atuação", placeholder: "Ex: Instrutor, dono de studio...", icon: "💼" },
+      { key: "studioName", label: "Nome do studio / empresa", placeholder: "Ex: Studio Pilates Vida", icon: "🏢" },
+      { key: "studentsCount", label: "Quantos alunos atende?", placeholder: "Ex: 30, 50, 100+", icon: "👥" },
+      { key: "goals", label: "Seu maior objetivo agora", placeholder: "Ex: Aumentar alunos, abrir franquia...", icon: "🎯" },
+    ];
+  })();
+  const profileEnabled = config.profileEnabled !== "false";
   const profileFilledCount = profileFields.filter((f) => userProfile[f.key]?.trim()).length;
   const profileComplete = profileFilledCount === profileFields.length;
 
@@ -213,11 +253,13 @@ export default function VollHub() {
       await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", city: "", role: "", studioName: "", studentsCount: "", goals: "", surveyResponses: {} });
     }
     setView("hub");
+    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [] }));
   };
   const handleDownload = async (mat) => {
     if (!downloaded.includes(mat.id)) {
       const newDl = [...downloaded, mat.id];
       setDownloaded(newDl);
+      localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: newDl }));
       // Find current lead and update downloads
       const lead = await db.findLeadByWhatsApp(userWhatsApp);
       if (lead) { await db.updateLead(lead.id, { downloads: [...new Set([...(lead.downloads || []), mat.id])] }); }
@@ -239,13 +281,14 @@ export default function VollHub() {
     if (found) { setCurrentAdmin(found); setView("admin"); setAdminPin(""); setAdminTab(found.permissions.materials_view ? "materials" : found.permissions.leads_view ? "leads" : "textos"); return; }
     showT("PIN incorreto!");
   };
-  const updCfg = (k, v) => { db.updateConfig(k, v); };
-  const updMat = (id, k, v) => { db.updateMaterial(id, { [k]: v }); };
+  const updCfg = (k, v) => { db.updateConfig(k, v); addLog(`Editou config: ${k}`); };
+  const updMat = (id, k, v) => { const mat = materials.find(m => m.id === id); db.updateMaterial(id, { [k]: v }); addLog(`Editou material "${mat?.title || id}": ${k}`); };
   const deleteMat = async (id) => { await db.deleteMaterial(id); setConfirmDeleteId(null); setEditId(null); showT("Excluído! 🗑️"); };
   const addMat = async () => {
     if (!newMat.title.trim()) return showT("Preencha o título!");
     const today = new Date(); const d = `${String(today.getDate()).padStart(2, "0")} ${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][today.getMonth()]} ${today.getFullYear()}`;
     await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
+    addLog(`Criou material "${newMat.title}"`);
     setNewMat({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] }); setShowNewForm(false); showT("Criado! ✅");
   };
   const copyLink = (id) => {
@@ -344,7 +387,7 @@ export default function VollHub() {
   const inp = { width: "100%", padding: "12px 14px", borderRadius: 11, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "all 0.2s" };
   const sInp = { ...inp, padding: "8px 10px", fontSize: 13 };
 
-  const InfLogo = ({ size = 52 }) => (<svg width={size} height={size * 0.54} viewBox="0 0 52 28" fill="none"><path d="M14 14C14 14 14 4 7 4C0 4 0 14 0 14C0 14 0 24 7 24C14 24 14 14 14 14ZM14 14C14 14 14 4 21 4C28 4 28 14 28 14" stroke="#7DE2C7" strokeWidth="3" strokeLinecap="round" /><path d="M28 14C28 14 28 24 35 24C42 24 42 14 42 14C42 14 42 4 35 4C28 4 28 14 28 14" stroke="#349980" strokeWidth="3" strokeLinecap="round" /><path d="M42 14C42 14 42 24 48 24" stroke="#FFD863" strokeWidth="3" strokeLinecap="round" /></svg>);
+  const InfLogo = ({ size = 52 }) => config.logoUrl ? <img src={config.logoUrl} alt="Logo" style={{ width: size, height: size, objectFit: "contain" }} /> : (<svg width={size} height={size * 0.54} viewBox="0 0 52 28" fill="none"><path d="M14 14C14 14 14 4 7 4C0 4 0 14 0 14C0 14 0 24 7 24C14 24 14 14 14 14ZM14 14C14 14 14 4 21 4C28 4 28 14 28 14" stroke="#7DE2C7" strokeWidth="3" strokeLinecap="round" /><path d="M28 14C28 14 28 24 35 24C42 24 42 14 42 14C42 14 42 4 35 4C28 4 28 14 28 14" stroke="#349980" strokeWidth="3" strokeLinecap="round" /><path d="M42 14C42 14 42 24 48 24" stroke="#FFD863" strokeWidth="3" strokeLinecap="round" /></svg>);
 
   const Toast = () => toast ? <div style={{ position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", padding: "11px 22px", borderRadius: 14, background: T.toastBg, border: `1px solid ${T.toastBorder}`, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", zIndex: 200, animation: "toastIn 0.3s ease", boxShadow: "0 10px 40px rgba(0,0,0,0.4)", whiteSpace: "nowrap", maxWidth: "90vw", overflow: "hidden", textOverflow: "ellipsis" }}>{toast}</div> : null;
 
@@ -464,7 +507,7 @@ export default function VollHub() {
     </div>
   );}, [T, sInp]);
 
-  const CmsField = ({ label, ck, multi }) => (<div style={{ marginBottom: 10 }}><label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{label}</label>{multi ? <textarea defaultValue={config[ck]} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck]).slice(0,10)} style={{ ...inp, minHeight: 55, resize: "vertical" }} /> : <input defaultValue={config[ck]} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck]).slice(0,10)} style={inp} />}</div>);
+  const CmsField = ({ label, ck, multi }) => (<div style={{ marginBottom: 10 }}><label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{label}</label>{multi ? <textarea defaultValue={config[ck] || ""} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck] || "").slice(0,10)} style={{ ...inp, minHeight: 55, resize: "vertical" }} /> : <input defaultValue={config[ck] || ""} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck] || "").slice(0,10)} style={inp} />}</div>);
 
   // ─── MATERIAL CARD (reusable) ───
   const MaterialCard = ({ m, index, isSpotlight, isNew }) => {
@@ -540,8 +583,8 @@ export default function VollHub() {
           <p style={{ fontSize: 12, marginTop: 3, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5, color: isFree || isFlashActive ? T.textMuted : T.textFaint }}>{m.description}</p>
         </div>
 
-        {/* Urgency bar */}
-        {(hasExpiry || hasLimit || isFlashActive) && (
+        {/* Urgency bar - only show if actually configured */}
+        {(hasExpiry || (hasLimit && m.limitQty > 0) || (isFlashActive && !isFree)) && (
           <div style={{ width: "100%", display: "flex", gap: 8, flexWrap: "wrap" }}>
             {hasExpiry && (
               <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, background: expiryUrgent ? "#e8443a15" : T.gold + "15", border: `1px solid ${expiryUrgent ? "#e8443a33" : T.gold + "33"}` }}>
@@ -714,6 +757,7 @@ export default function VollHub() {
               can("leads_view") && ["leads", "👥 Leads"],
               can("textos_edit") && ["textos", "✏️ Textos"],
               isMaster && ["users", "👑 Usuários"],
+              isMaster && ["log", "📜 Log"],
             ].filter(Boolean).map(([t, lbl]) => (<button key={t} onClick={() => setAdminTab(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 9, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 12, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent" }}>{lbl}</button>))}
           </div>
 
@@ -904,8 +948,21 @@ export default function VollHub() {
                 ["🏠 Tela Inicial", [["Nome da marca", "brandName"], ["Subtítulo", "brandTag"], ["Texto principal", "landingSubtitle", true], ["Stat 1 label", "landingStat1Label"], ["Stat 2 valor", "landingStat2"], ["Stat 2 label", "landingStat2Label"], ["Stat 3 valor", "landingStat3"], ["Stat 3 label", "landingStat3Label"], ["Label nome", "nameLabel"], ["Placeholder nome", "namePlaceholder"], ["Label WhatsApp", "whatsLabel"], ["Placeholder WA", "whatsPlaceholder"], ["Botão CTA", "ctaText"], ["Texto segurança", "safeText"]]],
                 ["📱 Hub", [["Saudação", "hubGreetPrefix"], ["Emoji", "hubGreetEmoji"], ["Subtítulo", "hubSubtitle"], ["Progresso", "progressSuffix"], ["Dica", "progressHint"], ["Título seção", "sectionTitle"]]],
                 ["🔓 Modais", [["Título indicação", "shareModalTitle"], ["Desc indicação", "shareModalDesc", true], ["Título comentário", "commentModalTitle"], ["Desc comentário", "commentModalDesc", true], ["Título pesquisa", "surveyModalTitle"]]],
-                ["🔗 Links", [["URL Instagram", "instagramUrl"], ["Handle", "instagramHandle"], ["URL base do app", "baseUrl"]]],
+                ["🔗 Links", [["URL Instagram", "instagramUrl"], ["Handle", "instagramHandle"], ["URL base do app", "baseUrl"], ["URL da logo (imagem)", "logoUrl"]]],
               ].map(([title, fields]) => (<div key={title} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>{title}</h3>{fields.map(([l, k, m]) => <CmsField key={k} label={l} ck={k} multi={m} />)}</div>))}
+
+              {/* PROFILE CONFIG */}
+              <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>📋 Perfil do Usuário</h3>
+                  <button onClick={() => updCfg("profileEnabled", config.profileEnabled === "false" ? "true" : "false")} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: config.profileEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.profileEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.profileEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.profileEnabled !== "false" ? "✅ Ativo" : "🚫 Oculto"}</button>
+                </div>
+                <CmsField label="Título do presente" ck="profileBonusTitle" />
+                <CmsField label="Texto após completar" ck="profileBonusDone" />
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Perguntas (JSON)</label>
+                <textarea defaultValue={typeof config.profileFields === "string" ? config.profileFields : JSON.stringify(profileFields, null, 2)} onBlur={(e) => { try { JSON.parse(e.target.value); updCfg("profileFields", e.target.value); } catch(err) { showT("JSON inválido!"); } }} key={"pf-" + String(config.profileFields || "").slice(0,15)} style={{ ...inp, minHeight: 120, resize: "vertical", fontFamily: "monospace", fontSize: 11 }} />
+                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>Cada pergunta: {"{"} "key": "campo", "label": "Pergunta", "placeholder": "Exemplo", "icon": "📍" {"}"}</p>
+              </div>
 
               {/* SOCIAL PROOF CMS */}
               <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
@@ -1099,6 +1156,27 @@ export default function VollHub() {
               {adminUsers.length === 0 && <p style={{ textAlign: "center", fontSize: 13, color: T.textFaint, padding: 20, fontFamily: "'Plus Jakarta Sans'" }}>Nenhum admin criado ainda. Você é o único com acesso.</p>}
             </div>
           )}
+
+          {/* LOG */}
+          {adminTab === "log" && isMaster && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>📜 Atividades desta sessão</h3>
+                <button onClick={() => setActivityLog([])} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>Limpar</button>
+              </div>
+              {activityLog.length === 0 && <p style={{ textAlign: "center", fontSize: 13, color: T.textFaint, padding: 30, fontFamily: "'Plus Jakarta Sans'" }}>Nenhuma atividade registrada ainda.</p>}
+              {activityLog.map((log, i) => (
+                <div key={i} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: T.avBg, border: `1px solid ${T.avBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.accent, flexShrink: 0 }}>{log.who.charAt(0)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{log.who}</p>
+                    <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.action}</p>
+                  </div>
+                  <span style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", whiteSpace: "nowrap" }}>{log.time}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {showIconPicker && <IconPicker onSelect={(ic) => { if (showIconPicker === "new") setNewMat((p) => ({ ...p, icon: ic })); else updMat(showIconPicker, "icon", ic); }} onClose={() => setShowIconPicker(null)} />}
         <Toast />
@@ -1251,12 +1329,12 @@ export default function VollHub() {
             <div><p style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{config.hubGreetPrefix} {userName.split(" ")[0]}! {config.hubGreetEmoji}</p><p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 1 }}>{config.hubSubtitle}</p></div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={() => setView("profile")} style={{ width: 34, height: 34, borderRadius: "50%", background: profileComplete ? T.accent + "22" : T.statBg, border: `1px solid ${profileComplete ? T.accent + "44" : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, position: "relative" }}>
+            {profileEnabled && <button onClick={() => setView("profile")} style={{ width: 34, height: 34, borderRadius: "50%", background: profileComplete ? T.accent + "22" : T.statBg, border: `1px solid ${profileComplete ? T.accent + "44" : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, position: "relative" }}>
               👤
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
-            </button>
+            </button>}
             <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
-            <button onClick={() => { setView("landing"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
+            <button onClick={() => { setView("landing"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
           </div>
         </header>
