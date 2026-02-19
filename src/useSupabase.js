@@ -232,6 +232,18 @@ export function useSupabase() {
     authenticateAdmin, addAdminUser, updateAdminUser, deleteAdminUser,
     // Config
     updateConfig, updateConfigBatch,
+    // Page views
+    incrementPageView: async () => {
+      try {
+        const { data } = await supabase.from('config').select('*').eq('key', 'pageViews').limit(1)
+        const current = data && data[0] ? parseInt(data[0].value) || 0 : 0
+        if (data && data[0]) {
+          await supabase.from('config').update({ value: String(current + 1) }).eq('key', 'pageViews')
+        } else {
+          await supabase.from('config').insert({ key: 'pageViews', value: '1' })
+        }
+      } catch(e) {}
+    },
     // Reload
     reload: loadAll,
   }

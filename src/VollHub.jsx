@@ -225,6 +225,8 @@ export default function VollHub() {
     const params = new URLSearchParams(window.location.search);
     const mParam = params.get("m");
     if (mParam) setDeepLinkMatId(parseInt(mParam, 10));
+    // Track page view
+    db.incrementPageView();
   }, []);
 
   // Scroll to spotlight when entering hub with deep link
@@ -932,9 +934,9 @@ export default function VollHub() {
                     {[[l.downloads.length, "downloads"], [l.visits, "visitas"], [l.firstVisit, "1ª visita"], [l.lastVisit, "última"]].map(([v, lb], j) => (<div key={j} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}><span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{v}</span><span style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{lb}</span></div>))}
                   </div>
                   {l.downloads.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{l.downloads.map((d) => { const mt = materials.find((mm) => mm.id === d); return mt ? <span key={d} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: T.successBg, border: `1px solid ${T.cardBorder}`, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{mt.icon} {mt.title}</span> : null; })}</div>}
-                  {(l.grau || l.formacao || l.atuaPilates || l.temStudio || l.maiorDesafio) && (
+                  {(l.grau || l.formacao || l.atuaPilates || l.temStudio || l.maiorDesafio || l.tipoConteudo || l.perguntaMentoria || l.maiorSonho || l.profAdmira) && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {[["🎓", l.grau], ["📚", l.formacao], ["🧘", l.atuaPilates], ["🏢", l.temStudio], ["🎯", l.maiorDesafio]].filter(([, v]) => v).map(([ic, v], j) => (
+                      {[["🎓", l.grau], ["📚", l.formacao], ["🧘", l.atuaPilates], ["🏢", l.temStudio], ["🎯", l.maiorDesafio], ["📦", l.tipoConteudo], ["❓", l.perguntaMentoria], ["💭", l.maiorSonho], ["⭐", l.profAdmira]].filter(([, v]) => v).map(([ic, v], j) => (
                         <span key={j} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{ic} {v}</span>
                       ))}
                     </div>
@@ -1068,8 +1070,36 @@ export default function VollHub() {
               }).filter(f => f.entries.length > 0);
             };
 
+            const pageViews = parseInt(config.pageViews) || 0;
+            const registeredLeads = leads.length;
+            const leadsWithDl = leads.filter(l => (l.downloads || []).length > 0).length;
+            const leadsPhase1 = leads.filter(l => l.phase1Complete).length;
+            const regRate = pageViews > 0 ? ((registeredLeads / pageViews) * 100).toFixed(1) : "—";
+            const dlRate = registeredLeads > 0 ? ((leadsWithDl / registeredLeads) * 100).toFixed(1) : "—";
+
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Funnel */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>🔄 Funil de Conversão</h3>
+                  {[[pageViews, "Acessaram a página", "100%", T.textFaint],
+                    [registeredLeads, "Se cadastraram", regRate + "%", T.accent],
+                    [leadsWithDl, "Baixaram algo", dlRate + "%", T.gold],
+                    [leadsPhase1, "Completaram Fase 1", registeredLeads > 0 ? ((leadsPhase1 / registeredLeads) * 100).toFixed(1) + "%" : "—", "#E87C3A"],
+                  ].map(([val, label, pct, color], i) => (
+                    <div key={i} style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                        <span style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>{label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color }}>{val} <span style={{ fontSize: 10, fontWeight: 400, color: T.textFaint }}>({pct})</span></span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: T.progressTrack, overflow: "hidden" }}>
+                        <div style={{ height: "100%", borderRadius: 3, background: color, width: `${pageViews > 0 ? (val / pageViews) * 100 : 0}%`, transition: "width 0.5s" }} />
+                      </div>
+                    </div>
+                  ))}
+                  <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 6 }}>Acessos contabilizados desde a ativação do contador.</p>
+                </div>
+
                 {/* Overview stats */}
                 <div style={{ display: "flex", gap: 8 }}>
                   {[["📦", activeMats.length, "materiais"], ["📥", totalDl, "downloads"], ["📊", avgDl, "média/mat"]].map(([ic, val, lbl], i) => (
