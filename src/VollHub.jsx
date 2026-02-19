@@ -844,6 +844,7 @@ export default function VollHub() {
                             <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>👁 Views</label><input type="number" defaultValue={m.instaViews || 0} onBlur={(e) => updMat(m.id, "instaViews", parseInt(e.target.value) || 0)} key={"miv-" + m.id} style={sInp} /></div>
                             <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>❤️ Curtidas</label><input type="number" defaultValue={m.instaLikes || 0} onBlur={(e) => updMat(m.id, "instaLikes", parseInt(e.target.value) || 0)} key={"mil-" + m.id} style={sInp} /></div>
                             <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>💬 Coments</label><input type="number" defaultValue={m.instaComments || 0} onBlur={(e) => updMat(m.id, "instaComments", parseInt(e.target.value) || 0)} key={"mic-" + m.id} style={sInp} /></div>
+                            <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔖 Salvam.</label><input type="number" defaultValue={m.instaSaves || 0} onBlur={(e) => updMat(m.id, "instaSaves", parseInt(e.target.value) || 0)} key={"mis-" + m.id} style={sInp} /></div>
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Categoria</label><input defaultValue={m.category} onBlur={(e) => updMat(m.id, "category", e.target.value)} key={"mc-" + m.id} style={sInp} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Data</label><input defaultValue={m.date} onBlur={(e) => updMat(m.id, "date", e.target.value)} key={"mda-" + m.id} style={sInp} /></div></div>
@@ -1128,7 +1129,7 @@ export default function VollHub() {
                       {instaMatsSorted.map((m) => {
                         const dlCount = matDlCounts.find(x => x.id === m.id)?.dlCount || 0;
                         const convRate = m.instaViews > 0 ? ((dlCount / m.instaViews) * 100).toFixed(1) : "—";
-                        const engRate = m.instaViews > 0 ? (((m.instaLikes + m.instaComments) / m.instaViews) * 100).toFixed(1) : "—";
+                        const engRate = m.instaViews > 0 ? (((m.instaLikes + m.instaComments + (m.instaSaves || 0)) / m.instaViews) * 100).toFixed(1) : "—";
                         return (
                           <div key={m.id} style={{ padding: "10px 0", borderBottom: `1px solid ${T.inputBorder}` }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1137,7 +1138,7 @@ export default function VollHub() {
                               {m.instaPostUrl && <a href={m.instaPostUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: T.accent, textDecoration: "none" }}>Ver post ↗</a>}
                             </div>
                             <div style={{ display: "flex", gap: 6 }}>
-                              {[["👁", m.instaViews, "views"], ["❤️", m.instaLikes, "likes"], ["💬", m.instaComments, "coments"], ["📥", dlCount, "downloads"], ["🎯", convRate + "%", "conversão"], ["📈", engRate + "%", "engajam."]].map(([ic, val, lbl], j) => (
+                              {[["👁", m.instaViews, "views"], ["❤️", m.instaLikes, "likes"], ["💬", m.instaComments, "coments"], ["🔖", m.instaSaves || 0, "salvam."], ["📥", dlCount, "downl."], ["🎯", convRate + "%", "convers."], ["📈", engRate + "%", "engaj."]].map(([ic, val, lbl], j) => (
                                 <div key={j} style={{ flex: 1, textAlign: "center", background: T.statBg, borderRadius: 8, padding: "6px 2px" }}>
                                   <span style={{ display: "block", fontSize: 9 }}>{ic}</span>
                                   <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.text }}>{typeof val === "number" ? val.toLocaleString() : val}</span>
