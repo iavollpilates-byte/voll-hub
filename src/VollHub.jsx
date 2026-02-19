@@ -95,6 +95,15 @@ function timeAgo(ts) {
 
 export default function VollHub() {
   const [view, setView] = useState("landing");
+  const [theme, setTheme] = useState("light");
+  // ─── SUPABASE ───
+  const db = useSupabase();
+  const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
+  const config = { ...DEFAULT_CONFIG, ...db.config };
+
+  const [userName, setUserName] = useState("");
+  const [userWhatsApp, setUserWhatsApp] = useState("");
+  const [downloaded, setDownloaded] = useState([]);
   // Auto-login from localStorage
   useEffect(() => {
     try {
@@ -110,15 +119,6 @@ export default function VollHub() {
       }
     } catch (e) {}
   }, []);
-  const [theme, setTheme] = useState("light");
-  // ─── SUPABASE ───
-  const db = useSupabase();
-  const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
-  const config = { ...DEFAULT_CONFIG, ...db.config };
-
-  const [userName, setUserName] = useState("");
-  const [userWhatsApp, setUserWhatsApp] = useState("");
-  const [downloaded, setDownloaded] = useState([]);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const setUnlock = (m) => { setUnlockTarget(m); setPreviewImgIdx(0); };
