@@ -902,15 +902,16 @@ export default function VollHub() {
           </div>
 
           {/* Permission-based tabs */}
-          <div style={{ display: "flex", gap: 4, marginBottom: 16, background: T.tabBg, borderRadius: 12, padding: 4, border: `1px solid ${T.tabBorder}` }}>
+          <div style={{ display: "flex", gap: 3, marginBottom: 16, background: T.tabBg, borderRadius: 12, padding: 4, border: `1px solid ${T.tabBorder}`, flexWrap: "wrap" }}>
             {[
-              can("materials_view") && ["materials", "📄 Materiais"],
-              can("leads_view") && ["leads", "👥 Leads"],
-              can("leads_view") && ["insights", "📊 Insights"],
-              can("textos_edit") && ["textos", "✏️ Textos"],
-              isMaster && ["users", "👑 Usuários"],
-              isMaster && ["log", "📜 Log"],
-            ].filter(Boolean).map(([t, lbl]) => (<button key={t} onClick={() => setAdminTab(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 9, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 12, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent" }}>{lbl}</button>))}
+              can("materials_view") && ["materials", "📄"],
+              can("leads_view") && ["leads", "👥"],
+              can("leads_view") && ["insights", "📊"],
+              can("textos_edit") && ["bio", "🔗"],
+              can("textos_edit") && ["textos", "✏️"],
+              isMaster && ["users", "👑"],
+              isMaster && ["log", "📜"],
+            ].filter(Boolean).map(([t, lbl]) => (<button key={t} onClick={() => setAdminTab(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 9, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 14, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent", minWidth: 40 }}>{lbl}</button>))}
           </div>
 
           {/* MATERIALS */}
@@ -1355,53 +1356,65 @@ export default function VollHub() {
             );
           })()}
 
+          {/* BIO & LINKS */}
+          {adminTab === "bio" && (() => {
+            const linkInp = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", width: "100%" };
+            const updateLink = (id, key, val) => { const nl = bioLinks.map(l => l.id === id ? { ...l, [key]: val } : l); saveBioLinks(nl); };
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Bio */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>👤 Meu Perfil</h3>
+                  <CmsField label="URL da foto" ck="bioPhotoUrl" />
+                  <CmsField label="Nome" ck="bioName" />
+                  <CmsField label="Linha 1" ck="bioLine1" />
+                  <CmsField label="Linha 2" ck="bioLine2" />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                    <CmsField label="Stat 1 valor" ck="bioStat1" />
+                    <CmsField label="Stat 1 label" ck="bioStat1Label" />
+                    <CmsField label="Stat 2 valor" ck="bioStat2" />
+                    <CmsField label="Stat 2 label" ck="bioStat2Label" />
+                  </div>
+                </div>
+
+                {/* Links */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🔗 Meus Links</h3>
+                    <button onClick={() => { const nl = [...bioLinks, { id: String(Date.now()), title: "Novo Link", imageUrl: "", icon: "🔗", url: "", active: true, clicks: 0 }]; saveBioLinks(nl); }} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>＋ Novo link</button>
+                  </div>
+                  {bioLinks.map((link, i) => (
+                    <div key={link.id + "-" + i} style={{ background: T.statBg, border: `1px solid ${link.active ? T.statBorder : T.dangerBrd}`, borderRadius: 12, padding: 12, marginBottom: 8, opacity: link.active ? 1 : 0.6 }}>
+                      {/* Header */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {i > 0 && <button onClick={() => { const nl = [...bioLinks]; [nl[i-1], nl[i]] = [nl[i], nl[i-1]]; saveBioLinks(nl); }} style={{ width: 28, height: 28, borderRadius: 6, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", color: T.textFaint }}>↑</button>}
+                          {i < bioLinks.length - 1 && <button onClick={() => { const nl = [...bioLinks]; [nl[i], nl[i+1]] = [nl[i+1], nl[i]]; saveBioLinks(nl); }} style={{ width: 28, height: 28, borderRadius: 6, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", color: T.textFaint }}>↓</button>}
+                          <span style={{ fontSize: 10, color: T.textFaint, background: T.inputBg, padding: "2px 8px", borderRadius: 6 }}>{link.clicks || 0} cliques</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => updateLink(link.id, "active", !link.active)} style={{ width: 28, height: 28, borderRadius: 6, background: link.active ? T.accent + "22" : T.dangerBg, border: `1px solid ${link.active ? T.accent + "44" : T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{link.active ? "👁" : "🚫"}</button>
+                          <button onClick={() => { if (confirm("Remover este link?")) { saveBioLinks(bioLinks.filter(l => l.id !== link.id)); } }} style={{ width: 28, height: 28, borderRadius: 6, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
+                        </div>
+                      </div>
+                      {/* Fields */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Título</label><input value={link.title} onChange={(e) => updateLink(link.id, "title", e.target.value)} style={linkInp} /></div>
+                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>URL destino</label><input value={link.url} onChange={(e) => updateLink(link.id, "url", e.target.value)} style={linkInp} placeholder="https://... ou _hub" /></div>
+                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>URL da imagem <span style={{ color: T.accent }}>(vazio = card com ícone + texto)</span></label><input value={link.imageUrl || ""} onChange={(e) => updateLink(link.id, "imageUrl", e.target.value)} style={linkInp} placeholder="https://..." /></div>
+                        {!link.imageUrl && <div style={{ width: 80 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Ícone</label><input value={link.icon || ""} onChange={(e) => updateLink(link.id, "icon", e.target.value)} style={{ ...linkInp, width: 60 }} /></div>}
+                      </div>
+                    </div>
+                  ))}
+                  <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>💡 <b>_hub</b> = link pro Hub · Imagem vazia = card texto · ↑↓ reordena</p>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* TEXTOS */}
           {adminTab === "textos" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {/* BIO / LINKTREE CMS */}
-              <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>👤 Bio / Linktree</h3>
-                <CmsField label="URL da foto" ck="bioPhotoUrl" />
-                <CmsField label="Nome" ck="bioName" />
-                <CmsField label="Linha 1" ck="bioLine1" />
-                <CmsField label="Linha 2" ck="bioLine2" />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <CmsField label="Stat 1 valor" ck="bioStat1" />
-                  <CmsField label="Stat 1 label" ck="bioStat1Label" />
-                  <CmsField label="Stat 2 valor" ck="bioStat2" />
-                  <CmsField label="Stat 2 label" ck="bioStat2Label" />
-                </div>
-              </div>
-
-              {/* BIO LINKS MANAGER */}
-              <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🔗 Meus Links</h3>
-                  <button onClick={() => { const nl = [...bioLinks, { id: String(Date.now()), title: "Novo Link", imageUrl: "", icon: "🔗", url: "", active: true, clicks: 0 }]; saveBioLinks(nl); }} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>＋ Adicionar</button>
-                </div>
-                {bioLinks.map((link, i) => (
-                  <div key={link.id} style={{ background: T.inputBg, border: `1px solid ${link.active ? T.inputBorder : T.dangerBrd}`, borderRadius: 10, padding: 10, marginBottom: 6, opacity: link.active ? 1 : 0.5 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{link.imageUrl ? "🖼" : link.icon || "🔗"} {link.title}</span>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <span style={{ fontSize: 10, color: T.textFaint, padding: "2px 6px", background: T.statBg, borderRadius: 4 }}>{link.clicks || 0} cliques</span>
-                        {i > 0 && <button onClick={() => { const nl = [...bioLinks]; [nl[i-1], nl[i]] = [nl[i], nl[i-1]]; saveBioLinks(nl); }} style={{ background: "none", fontSize: 12, color: T.textFaint, padding: "2px 4px" }}>↑</button>}
-                        {i < bioLinks.length - 1 && <button onClick={() => { const nl = [...bioLinks]; [nl[i], nl[i+1]] = [nl[i+1], nl[i]]; saveBioLinks(nl); }} style={{ background: "none", fontSize: 12, color: T.textFaint, padding: "2px 4px" }}>↓</button>}
-                        <button onClick={() => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, active: !l.active } : l); saveBioLinks(nl); }} style={{ background: "none", fontSize: 10, color: link.active ? T.accent : T.dangerTxt, padding: "2px 4px" }}>{link.active ? "👁" : "🚫"}</button>
-                        <button onClick={() => { if (confirm("Remover?")) { saveBioLinks(bioLinks.filter(l => l.id !== link.id)); } }} style={{ background: "none", fontSize: 10, color: T.dangerTxt, padding: "2px 4px" }}>🗑</button>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <input defaultValue={link.title} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, title: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} placeholder="Título" />
-                      <input defaultValue={link.url} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, url: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} placeholder="URL (use _hub para o Hub)" />
-                      <input defaultValue={link.imageUrl} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, imageUrl: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} placeholder="URL da imagem (vazio = card com texto)" />
-                      <input defaultValue={link.icon || ""} onBlur={(e) => { const nl = bioLinks.map(l => l.id === link.id ? { ...l, icon: e.target.value } : l); saveBioLinks(nl); }} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'", width: 60 }} placeholder="Ícone" />
-                    </div>
-                  </div>
-                ))}
-                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>Use "_hub" como URL para apontar pro Hub de materiais. Use ↑↓ para reordenar.</p>
-              </div>
-
               {[
                 ["🏠 Tela Inicial", [["Nome da marca", "brandName"], ["Subtítulo", "brandTag"], ["Texto principal", "landingSubtitle", true], ["Stat 1 label", "landingStat1Label"], ["Stat 2 valor", "landingStat2"], ["Stat 2 label", "landingStat2Label"], ["Stat 3 valor", "landingStat3"], ["Stat 3 label", "landingStat3Label"], ["Label nome", "nameLabel"], ["Placeholder nome", "namePlaceholder"], ["Label WhatsApp", "whatsLabel"], ["Placeholder WA", "whatsPlaceholder"], ["Botão CTA", "ctaText"], ["Texto segurança", "safeText"]]],
                 ["📱 Hub", [["Saudação", "hubGreetPrefix"], ["Emoji", "hubGreetEmoji"], ["Subtítulo", "hubSubtitle"], ["Progresso", "progressSuffix"], ["Dica", "progressHint"], ["Título seção", "sectionTitle"]]],
