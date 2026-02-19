@@ -860,6 +860,16 @@ export default function VollHub() {
                 ))}
               </div>
 
+              {/* Profile Phase Stats */}
+              <div style={{ display: "flex", gap: 6 }}>
+                {[["🎓 Fase 1", leads.filter(l => l.phase1Complete).length], ["💼 Fase 2", leads.filter(l => l.phase2Complete).length], ["✨ Fase 3", leads.filter(l => l.phase3Complete).length]].map(([label, count]) => (
+                  <div key={label} style={{ flex: 1, background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                    <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: T.gold }}>{count}</span>
+                    <span style={{ fontSize: 9, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+
               {/* Lead Cards */}
               {segmentedLeads.map((l, i) => {
                 const seg = getLeadSegment(l);
