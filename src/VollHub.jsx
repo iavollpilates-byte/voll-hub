@@ -40,9 +40,9 @@ const DEFAULT_CONFIG = {
   logoUrl: "",
   // Profile phases
   profileEnabled: "true",
-  phase1Title: "Fase 1 · Sobre você", phase1Prize: "🎁 Pack de Exercícios em Vídeo", phase1PrizeUrl: "", phase1Icon: "🎓",
-  phase2Title: "Fase 2 · Seu negócio", phase2Prize: "🎁 Guia: Como Montar seu Studio", phase2PrizeUrl: "", phase2Icon: "💼",
-  phase3Title: "Fase 3 · Mentoria", phase3Prize: "🎁 Áudio exclusivo de Mentoria", phase3PrizeUrl: "", phase3Icon: "✨",
+  phase1Title: "Fase 1 · Sobre você", phase1Prize: "🎁 Pack de Exercícios em Vídeo", phase1PrizeUrl: "", phase1Icon: "🎓", phase1Enabled: "true",
+  phase2Title: "Fase 2 · Seu negócio", phase2Prize: "🎁 Guia: Como Montar seu Studio", phase2PrizeUrl: "", phase2Icon: "💼", phase2Enabled: "true",
+  phase3Title: "Fase 3 · Mentoria", phase3Prize: "🎁 Áudio exclusivo de Mentoria", phase3PrizeUrl: "", phase3Icon: "✨", phase3Enabled: "true",
   // Phase questions (pipe-separated for selects: "opt1|opt2|opt3")
   phase1Q1Label: "Você é:", phase1Q1Key: "grau", phase1Q1Type: "select", phase1Q1Options: "Estudante|Graduado|Pós-Graduado",
   phase1Q2Label: "Formação:", phase1Q2Key: "formacao", phase1Q2Type: "select", phase1Q2Options: "Fisioterapia|Educação Física|Enfermagem|Dança|Outros",
@@ -171,9 +171,10 @@ export default function VollHub() {
   const [userProfile, setUserProfile] = useState({ grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1: false, phase2: false, phase3: false });
   const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
   const [activePhase, setActivePhase] = useState(null);
-  const PHASES = [1,2,3].map(n => ({
+  const ALL_PHASES = [1,2,3].map(n => ({
     id: n,
     icon: config[`phase${n}Icon`] || ["🎓","💼","✨"][n-1],
+    enabled: config[`phase${n}Enabled`] !== "false",
     fields: [1,2,3].map(q => {
       const label = config[`phase${n}Q${q}Label`] || "";
       const key = config[`phase${n}Q${q}Key`] || "";
@@ -183,11 +184,12 @@ export default function VollHub() {
       return { key, label, type, options, placeholder: type === "text" ? "Digite aqui..." : "" };
     }).filter(f => f.key && f.label),
   }));
+  const PHASES = ALL_PHASES.filter(p => p.enabled);
   const isPhaseFieldsComplete = (phaseId) => PHASES.find(p => p.id === phaseId)?.fields.every(f => userProfile[f.key]?.trim()) || false;
   const isPhaseUnlocked = (phaseId) => userProfile[`phase${phaseId}`];
-  const completedPhases = [1,2,3].filter(n => isPhaseUnlocked(n)).length;
+  const completedPhases = PHASES.filter(p => isPhaseUnlocked(p.id)).length;
   const profileEnabled = config.profileEnabled !== "false";
-  const profileComplete = completedPhases === 3;
+  const profileComplete = PHASES.length > 0 && completedPhases === PHASES.length;
 
   const T = THEMES[theme];
 
@@ -965,7 +967,10 @@ export default function VollHub() {
                 </div>
                 {[1,2,3].map(n => (
                   <div key={n} style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: T.gold, marginBottom: 8 }}>Fase {n}</p>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: T.gold }}>Fase {n}</p>
+                      <button onClick={() => updCfg(`phase${n}Enabled`, config[`phase${n}Enabled`] === "false" ? "true" : "false")} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: config[`phase${n}Enabled`] !== "false" ? T.accent + "22" : T.dangerBg, color: config[`phase${n}Enabled`] !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config[`phase${n}Enabled`] !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config[`phase${n}Enabled`] !== "false" ? "✅ Visível" : "👁 Oculta"}</button>
+                    </div>
                     <CmsField label="Título" ck={`phase${n}Title`} />
                     <CmsField label="Ícone (emoji)" ck={`phase${n}Icon`} />
                     <CmsField label="Nome do prêmio" ck={`phase${n}Prize`} />
@@ -1243,14 +1248,14 @@ export default function VollHub() {
             <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{userWhatsApp}</p>
             {/* Phase progress dots */}
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-              {[1,2,3].map(n => (
-                <div key={n} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: isPhaseUnlocked(n) ? `linear-gradient(135deg, ${T.accent}, #7DE2C7)` : T.statBg, border: `2px solid ${isPhaseUnlocked(n) ? T.accent : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: isPhaseUnlocked(n) ? "#060a09" : T.textFaint }}>{isPhaseUnlocked(n) ? "✓" : n}</div>
-                  {n < 3 && <div style={{ width: 20, height: 2, background: isPhaseUnlocked(n) ? T.accent : T.progressTrack, borderRadius: 1 }} />}
+              {PHASES.map((p, idx) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: isPhaseUnlocked(p.id) ? `linear-gradient(135deg, ${T.accent}, #7DE2C7)` : T.statBg, border: `2px solid ${isPhaseUnlocked(p.id) ? T.accent : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: isPhaseUnlocked(p.id) ? "#060a09" : T.textFaint }}>{isPhaseUnlocked(p.id) ? "✓" : idx + 1}</div>
+                  {idx < PHASES.length - 1 && <div style={{ width: 20, height: 2, background: isPhaseUnlocked(p.id) ? T.accent : T.progressTrack, borderRadius: 1 }} />}
                 </div>
               ))}
             </div>
-            <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{completedPhases}/3 fases completas</p>
+            <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{completedPhases}/{PHASES.length} fases completas</p>
           </div>
 
           {/* Active Phase Form */}
@@ -1288,7 +1293,8 @@ export default function VollHub() {
               <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 2 }}>🏆 Desbloqueie prêmios</h3>
               {PHASES.map((phase, i) => {
                 const unlocked = isPhaseUnlocked(phase.id);
-                const canStart = phase.id === 1 || isPhaseUnlocked(phase.id - 1);
+                const phaseIdx = PHASES.findIndex(p => p.id === phase.id);
+                const canStart = phaseIdx === 0 || isPhaseUnlocked(PHASES[phaseIdx - 1]?.id);
                 const prize = config[`phase${phase.id}Prize`] || `Prêmio Fase ${phase.id}`;
                 const prizeUrl = config[`phase${phase.id}PrizeUrl`] || "";
                 return (
@@ -1358,10 +1364,10 @@ export default function VollHub() {
           <div onClick={() => setView("profile")} style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", opacity: animateIn ? 1 : 0, transition: "opacity 0.5s ease" }}>
             <span style={{ fontSize: 22 }}>🎁</span>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{completedPhases === 3 ? "Todas as fases completas! 🏆" : `Desbloqueie prêmios! ${completedPhases}/3 fases`}</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{completedPhases === PHASES.length ? "Todas as fases completas! 🏆" : `Desbloqueie prêmios! ${completedPhases}/${PHASES.length} fases`}</p>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-                <div style={{ flex: 1, height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: `linear-gradient(90deg, ${T.gold}, #FFD863)`, width: `${(completedPhases / 3) * 100}%`, transition: "width 0.5s" }} /></div>
-                <span style={{ fontSize: 11, fontWeight: 600, color: T.gold }}>{completedPhases}/3</span>
+                <div style={{ flex: 1, height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: `linear-gradient(90deg, ${T.gold}, #FFD863)`, width: `${(completedPhases / (PHASES.length || 1)) * 100}%`, transition: "width 0.5s" }} /></div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.gold }}>{completedPhases}/{PHASES.length}</span>
               </div>
             </div>
             <span style={{ fontSize: 12, color: T.gold, fontWeight: 600 }}>→</span>
