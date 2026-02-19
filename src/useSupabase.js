@@ -28,6 +28,10 @@ const leadFromDb = (r) => ({
   visits: r.visits, firstVisit: r.first_visit, lastVisit: r.last_visit, source: r.source,
   city: r.city, role: r.role, studioName: r.studio_name, studentsCount: r.students_count,
   goals: r.goals, surveyResponses: r.survey_responses || {},
+  grau: r.grau || '', formacao: r.formacao || '', atuaPilates: r.atua_pilates || '',
+  temStudio: r.tem_studio || '', maiorDesafio: r.maior_desafio || '', tipoConteudo: r.tipo_conteudo || '',
+  perguntaMentoria: r.pergunta_mentoria || '', maiorSonho: r.maior_sonho || '', profAdmira: r.prof_admira || '',
+  phase1Complete: !!r.phase1_complete, phase2Complete: !!r.phase2_complete, phase3Complete: !!r.phase3_complete,
 })
 
 const leadToDb = (l) => ({
@@ -36,6 +40,10 @@ const leadToDb = (l) => ({
   source: l.source || 'direct', city: l.city || '', role: l.role || '',
   studio_name: l.studioName || '', students_count: l.studentsCount || '',
   goals: l.goals || '', survey_responses: l.surveyResponses || {},
+  grau: l.grau || '', formacao: l.formacao || '', atua_pilates: l.atuaPilates || '',
+  tem_studio: l.temStudio || '', maior_desafio: l.maiorDesafio || '', tipo_conteudo: l.tipoConteudo || '',
+  pergunta_mentoria: l.perguntaMentoria || '', maior_sonho: l.maiorSonho || '', prof_admira: l.profAdmira || '',
+  phase1_complete: !!l.phase1Complete, phase2_complete: !!l.phase2Complete, phase3_complete: !!l.phase3Complete,
 })
 
 const adminFromDb = (r) => ({
@@ -135,6 +143,10 @@ export function useSupabase() {
       firstVisit: 'first_visit', lastVisit: 'last_visit', source: 'source',
       city: 'city', role: 'role', studioName: 'studio_name', studentsCount: 'students_count',
       goals: 'goals', surveyResponses: 'survey_responses',
+      grau: 'grau', formacao: 'formacao', atuaPilates: 'atua_pilates',
+      temStudio: 'tem_studio', maiorDesafio: 'maior_desafio', tipoConteudo: 'tipo_conteudo',
+      perguntaMentoria: 'pergunta_mentoria', maiorSonho: 'maior_sonho', profAdmira: 'prof_admira',
+      phase1Complete: 'phase1_complete', phase2Complete: 'phase2_complete', phase3Complete: 'phase3_complete',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v
