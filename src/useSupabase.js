@@ -10,6 +10,7 @@ const matFromDb = (r) => ({
   isFlash: r.is_flash, flashUntil: r.flash_until,
   previewBullets: r.preview_bullets || [], previewImages: r.preview_images || [],
   sortOrder: r.sort_order, createdAt: new Date(r.created_at).getTime(),
+  instaPostUrl: r.insta_post_url || '', instaViews: r.insta_views || 0, instaLikes: r.insta_likes || 0, instaComments: r.insta_comments || 0,
 })
 
 const matToDb = (m) => ({
@@ -21,6 +22,7 @@ const matToDb = (m) => ({
   is_flash: m.isFlash || false, flash_until: m.flashUntil || null,
   preview_bullets: m.previewBullets || [], preview_images: m.previewImages || [],
   sort_order: m.sortOrder || 0,
+  insta_post_url: m.instaPostUrl || '', insta_views: m.instaViews || 0, insta_likes: m.instaLikes || 0, insta_comments: m.instaComments || 0,
 })
 
 const leadFromDb = (r) => ({
@@ -110,6 +112,7 @@ export function useSupabase() {
       expiresAt: 'expires_at', limitQty: 'limit_qty', limitUsed: 'limit_used',
       isFlash: 'is_flash', flashUntil: 'flash_until',
       previewBullets: 'preview_bullets', previewImages: 'preview_images', sortOrder: 'sort_order',
+      instaPostUrl: 'insta_post_url', instaViews: 'insta_views', instaLikes: 'insta_likes', instaComments: 'insta_comments',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v

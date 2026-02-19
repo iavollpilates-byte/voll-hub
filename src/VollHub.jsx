@@ -794,6 +794,7 @@ export default function VollHub() {
             {[
               can("materials_view") && ["materials", "📄 Materiais"],
               can("leads_view") && ["leads", "👥 Leads"],
+              can("leads_view") && ["insights", "📊 Insights"],
               can("textos_edit") && ["textos", "✏️ Textos"],
               isMaster && ["users", "👑 Usuários"],
               isMaster && ["log", "📜 Log"],
@@ -836,6 +837,15 @@ export default function VollHub() {
                         <div style={{ display: "flex", gap: 8 }}><button onClick={() => setShowIconPicker(m.id)} style={{ width: 48, height: 48, borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.icon}</button><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Título</label><input defaultValue={m.title} onBlur={(e) => updMat(m.id, "title", e.target.value)} key={"mt-" + m.id} style={sInp} /></div></div>
                         <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Descrição</label><textarea defaultValue={m.description} onBlur={(e) => updMat(m.id, "description", e.target.value)} key={"md-" + m.id} style={{ ...sInp, minHeight: 45, resize: "vertical" }} /></div>
                         <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔗 Link do material (Canva, Drive, PDF, etc)</label><input defaultValue={m.downloadUrl || ""} onBlur={(e) => updMat(m.id, "downloadUrl", e.target.value)} key={"mdu-" + m.id} style={sInp} placeholder="https://www.canva.com/..." /></div>
+                        <div style={{ background: T.inputBg, borderRadius: 8, padding: 8, border: `1px solid ${T.inputBorder}` }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: T.gold, marginBottom: 6 }}>📸 Instagram do post</p>
+                          <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Link do post</label><input defaultValue={m.instaPostUrl || ""} onBlur={(e) => updMat(m.id, "instaPostUrl", e.target.value)} key={"mip-" + m.id} style={sInp} placeholder="https://instagram.com/p/..." /></div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>👁 Views</label><input type="number" defaultValue={m.instaViews || 0} onBlur={(e) => updMat(m.id, "instaViews", parseInt(e.target.value) || 0)} key={"miv-" + m.id} style={sInp} /></div>
+                            <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>❤️ Curtidas</label><input type="number" defaultValue={m.instaLikes || 0} onBlur={(e) => updMat(m.id, "instaLikes", parseInt(e.target.value) || 0)} key={"mil-" + m.id} style={sInp} /></div>
+                            <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>💬 Coments</label><input type="number" defaultValue={m.instaComments || 0} onBlur={(e) => updMat(m.id, "instaComments", parseInt(e.target.value) || 0)} key={"mic-" + m.id} style={sInp} /></div>
+                          </div>
+                        </div>
                         <div style={{ display: "flex", gap: 8 }}><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Categoria</label><input defaultValue={m.category} onBlur={(e) => updMat(m.id, "category", e.target.value)} key={"mc-" + m.id} style={sInp} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Data</label><input defaultValue={m.date} onBlur={(e) => updMat(m.id, "date", e.target.value)} key={"mda-" + m.id} style={sInp} /></div></div>
                         <UnlockEditor mat={m} onChange={(k, v) => updMat(m.id, k, v)} />
                         {confirmDeleteId === m.id ? (
@@ -1022,6 +1032,153 @@ export default function VollHub() {
                   </>)}
                   <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", textAlign: "center" }}>{sending ? "Envie no WhatsApp antes de ir pro próximo." : "Filtre os leads antes para segmentar."}</p>
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* INSIGHTS */}
+          {adminTab === "insights" && (() => {
+            const activeMats = materials.filter(m => m.active);
+            const matDlCounts = activeMats.map(m => ({ ...m, dlCount: leads.filter(l => (l.downloads || []).includes(m.id)).length })).sort((a, b) => b.dlCount - a.dlCount);
+            const totalDl = matDlCounts.reduce((s, m) => s + m.dlCount, 0);
+            const avgDl = activeMats.length > 0 ? (totalDl / activeMats.length).toFixed(1) : 0;
+            const topMat = matDlCounts[0];
+            const categories = [...new Set(activeMats.map(m => m.category).filter(Boolean))];
+            const catStats = categories.map(c => {
+              const mats = matDlCounts.filter(m => m.category === c);
+              return { name: c, count: mats.length, totalDl: mats.reduce((s, m) => s + m.dlCount, 0), avgDl: mats.length > 0 ? (mats.reduce((s, m) => s + m.dlCount, 0) / mats.length).toFixed(1) : 0 };
+            }).sort((a, b) => b.totalDl - a.totalDl);
+
+            // Profile cross-data for top material
+            const getProfileBreakdown = (matId) => {
+              const dlLeads = leads.filter(l => (l.downloads || []).includes(matId));
+              if (dlLeads.length === 0) return [];
+              const fields = [
+                { key: "grau", label: "Grau" },
+                { key: "formacao", label: "Formação" },
+                { key: "atuaPilates", label: "Atua c/ Pilates" },
+                { key: "temStudio", label: "Tem Studio" },
+              ];
+              return fields.map(f => {
+                const vals = {};
+                dlLeads.forEach(l => { const v = l[f.key]; if (v) vals[v] = (vals[v] || 0) + 1; });
+                const entries = Object.entries(vals).sort((a, b) => b[1] - a[1]);
+                return { ...f, entries, total: dlLeads.length };
+              }).filter(f => f.entries.length > 0);
+            };
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Overview stats */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["📦", activeMats.length, "materiais"], ["📥", totalDl, "downloads"], ["📊", avgDl, "média/mat"]].map(([ic, val, lbl], i) => (
+                    <div key={i} style={{ flex: 1, background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 12, padding: "12px 10px", textAlign: "center" }}>
+                      <span style={{ fontSize: 14 }}>{ic}</span>
+                      <span style={{ display: "block", fontSize: 22, fontWeight: 800, color: T.accent, marginTop: 2 }}>{val}</span>
+                      <span style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{lbl}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Ranking de materiais */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>🏆 Ranking de Downloads</h3>
+                  {matDlCounts.map((m, i) => {
+                    const pct = totalDl > 0 ? ((m.dlCount / totalDl) * 100).toFixed(0) : 0;
+                    const barW = topMat && topMat.dlCount > 0 ? (m.dlCount / topMat.dlCount) * 100 : 0;
+                    return (
+                      <div key={m.id} style={{ marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: i < 3 ? T.gold : T.textFaint, width: 18 }}>#{i + 1}</span>
+                          <span style={{ fontSize: 16 }}>{m.icon}</span>
+                          <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>{m.title}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>{m.dlCount}</span>
+                          <span style={{ fontSize: 10, color: T.textFaint, width: 32, textAlign: "right" }}>{pct}%</span>
+                        </div>
+                        <div style={{ height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden", marginLeft: 26 }}>
+                          <div style={{ height: "100%", borderRadius: 2, background: i === 0 ? `linear-gradient(90deg, ${T.gold}, #FFD863)` : `linear-gradient(90deg, ${T.accent}, #7DE2C7)`, width: `${barW}%`, transition: "width 0.5s" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Categorias */}
+                {catStats.length > 0 && (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📂 Performance por Categoria</h3>
+                    {catStats.map((c, i) => (
+                      <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < catStats.length - 1 ? `1px solid ${T.inputBorder}` : "none" }}>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
+                        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{c.count} mat.</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{c.totalDl} DL</span>
+                        <span style={{ fontSize: 11, color: T.gold, fontFamily: "'Plus Jakarta Sans'" }}>~{c.avgDl}/mat</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Instagram stats */}
+                {(() => {
+                  const instaMatsSorted = activeMats.filter(m => m.instaPostUrl).sort((a, b) => (b.instaViews || 0) - (a.instaViews || 0));
+                  if (instaMatsSorted.length === 0) return <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, textAlign: "center" }}><p style={{ fontSize: 13, color: T.textFaint }}>📸 Nenhum post do Instagram cadastrado ainda.</p><p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>Adicione o link do post e as métricas em cada material.</p></div>;
+                  return (
+                    <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📸 Instagram vs Downloads</h3>
+                      {instaMatsSorted.map((m) => {
+                        const dlCount = matDlCounts.find(x => x.id === m.id)?.dlCount || 0;
+                        const convRate = m.instaViews > 0 ? ((dlCount / m.instaViews) * 100).toFixed(1) : "—";
+                        const engRate = m.instaViews > 0 ? (((m.instaLikes + m.instaComments) / m.instaViews) * 100).toFixed(1) : "—";
+                        return (
+                          <div key={m.id} style={{ padding: "10px 0", borderBottom: `1px solid ${T.inputBorder}` }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                              <span style={{ fontSize: 16 }}>{m.icon}</span>
+                              <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: T.text }}>{m.title}</span>
+                              {m.instaPostUrl && <a href={m.instaPostUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: T.accent, textDecoration: "none" }}>Ver post ↗</a>}
+                            </div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              {[["👁", m.instaViews, "views"], ["❤️", m.instaLikes, "likes"], ["💬", m.instaComments, "coments"], ["📥", dlCount, "downloads"], ["🎯", convRate + "%", "conversão"], ["📈", engRate + "%", "engajam."]].map(([ic, val, lbl], j) => (
+                                <div key={j} style={{ flex: 1, textAlign: "center", background: T.statBg, borderRadius: 8, padding: "6px 2px" }}>
+                                  <span style={{ display: "block", fontSize: 9 }}>{ic}</span>
+                                  <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.text }}>{typeof val === "number" ? val.toLocaleString() : val}</span>
+                                  <span style={{ fontSize: 8, color: T.textFaint }}>{lbl}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {/* Profile cross-data for top 3 materials */}
+                {matDlCounts.slice(0, 3).filter(m => m.dlCount > 0).map(m => {
+                  const breakdown = getProfileBreakdown(m.id);
+                  if (breakdown.length === 0) return null;
+                  return (
+                    <div key={m.id} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                      <h3 style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>🔍 Quem baixou: {m.icon} {m.title}</h3>
+                      {breakdown.map(f => (
+                        <div key={f.key} style={{ marginBottom: 10 }}>
+                          <p style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{f.label}</p>
+                          {f.entries.map(([val, count]) => {
+                            const pct = ((count / f.total) * 100).toFixed(0);
+                            return (
+                              <div key={val} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                                <div style={{ flex: 1, height: 18, borderRadius: 4, background: T.progressTrack, overflow: "hidden", position: "relative" }}>
+                                  <div style={{ height: "100%", borderRadius: 4, background: T.accent + "44", width: `${pct}%` }} />
+                                  <span style={{ position: "absolute", left: 6, top: 2, fontSize: 10, fontWeight: 600, color: T.text }}>{val}</span>
+                                </div>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, width: 36, textAlign: "right" }}>{pct}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}
