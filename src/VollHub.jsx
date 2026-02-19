@@ -172,6 +172,9 @@ export default function VollHub() {
   const [userProfile, setUserProfile] = useState({ grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1: false, phase2: false, phase3: false });
   const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
   const [activePhase, setActivePhase] = useState(null);
+  const [phaseStartTime, setPhaseStartTime] = useState(null);
+  const [phaseTimer, setPhaseTimer] = useState(0);
+  const openPhase = (id) => { setActivePhase(id); setPhaseStartTime(Date.now()); setPhaseTimer(0); };
   const ALL_PHASES = [1,2,3].map(n => ({
     id: n,
     icon: config[`phase${n}Icon`] || ["🎓","💼","✨"][n-1],
@@ -198,6 +201,22 @@ export default function VollHub() {
     if (view === "hub" || view === "admin" || view === "profile") { setAnimateIn(false); setTimeout(() => setAnimateIn(true), 100); }
   }, [view, adminTab]);
   useEffect(() => { if (logoTaps >= 5) { setLogoTaps(0); setView("admin-login"); } }, [logoTaps]);
+
+  // Auto-refresh data every 30s when in admin
+  useEffect(() => {
+    if (view !== "admin") return;
+    const interval = setInterval(() => { db.reload(); }, 30000);
+    return () => clearInterval(interval);
+  }, [view]);
+
+  // Phase timer countdown
+  useEffect(() => {
+    if (!phaseStartTime || !activePhase) return;
+    const interval = setInterval(() => {
+      setPhaseTimer(Math.floor((Date.now() - phaseStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phaseStartTime, activePhase]);
 
   // Read URL param on mount
   useEffect(() => {
@@ -748,6 +767,7 @@ export default function VollHub() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => { db.reload(); showT("Dados atualizados! 🔄"); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>🔄</button>
               <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
               <button onClick={() => setView("hub")} style={{ padding: "8px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>👁 Preview</button>
               <button onClick={() => { setView("landing"); setCurrentAdmin(null); }} style={{ padding: "8px 14px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 12, fontWeight: 600 }}>Sair</button>
@@ -1229,8 +1249,30 @@ export default function VollHub() {
   // USER PROFILE
   // ═══════════════════════════════════════
   if (view === "profile") {
+    const MIN_TEXT_LEN = 10;
+    const PHASE_TIMER = 15; // seconds
+
+    const validatePhaseText = (phaseId) => {
+      const phase = PHASES.find(p => p.id === phaseId);
+      if (!phase) return null;
+      for (const f of phase.fields) {
+        if (f.type === "text") {
+          const val = (userProfile[f.key] || "").trim();
+          if (val.length < MIN_TEXT_LEN) return `"${f.label.slice(0, 30)}..." precisa ter pelo menos ${MIN_TEXT_LEN} caracteres.`;
+          // Check if all chars are the same
+          if (new Set(val.replace(/\s/g, "")).size <= 2) return `Resposta inválida em "${f.label.slice(0, 30)}..."`;
+        }
+      }
+      // Check duplicates across text fields
+      const textVals = phase.fields.filter(f => f.type === "text").map(f => (userProfile[f.key] || "").trim().toLowerCase());
+      if (textVals.length > 1 && new Set(textVals).size === 1 && textVals[0]) return "As respostas não podem ser todas iguais.";
+      return null;
+    };
+
     const handlePhaseSubmit = async (phaseId) => {
       if (!isPhaseFieldsComplete(phaseId)) return showT("Preencha todos os campos!");
+      const textErr = validatePhaseText(phaseId);
+      if (textErr) return showT(textErr);
       const newProfile = { ...userProfile, [`phase${phaseId}`]: true };
       setUserProfile(newProfile);
       // Save to localStorage
@@ -1303,7 +1345,11 @@ export default function VollHub() {
                     )}
                   </div>
                 ))}
-                <button onClick={() => handlePhaseSubmit(activePhase)} style={{ width: "100%", padding: "14px", borderRadius: 14, background: isPhaseFieldsComplete(activePhase) ? `linear-gradient(135deg, #c49500, #FFD863)` : T.inputBg, color: isPhaseFieldsComplete(activePhase) ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: isPhaseFieldsComplete(activePhase) ? 1 : 0.5, transition: "all 0.3s" }}>🎁 Desbloquear prêmio!</button>
+                {(() => {
+                  const timeLeft = Math.max(0, PHASE_TIMER - phaseTimer);
+                  const canSubmit = isPhaseFieldsComplete(activePhase) && timeLeft === 0;
+                  return <button onClick={() => { if (timeLeft > 0) return showT(`Aguarde ${timeLeft}s para enviar...`); handlePhaseSubmit(activePhase); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: canSubmit ? `linear-gradient(135deg, #c49500, #FFD863)` : T.inputBg, color: canSubmit ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: canSubmit ? 1 : 0.5, transition: "all 0.3s" }}>{timeLeft > 0 ? `⏳ Aguarde ${timeLeft}s...` : "🎁 Desbloquear prêmio!"}</button>;
+                })()}
               </div>
             );
           })()}
@@ -1319,7 +1365,7 @@ export default function VollHub() {
                 const prize = config[`phase${phase.id}Prize`] || `Prêmio Fase ${phase.id}`;
                 const prizeUrl = config[`phase${phase.id}PrizeUrl`] || "";
                 return (
-                  <div key={phase.id} onClick={() => { if (!unlocked && canStart) setActivePhase(phase.id); }} style={{ background: unlocked ? T.dlBg : canStart ? T.cardBg : T.statBg, border: `1px solid ${unlocked ? T.accent + "44" : canStart ? T.cardBorder : T.statBorder}`, borderRadius: 16, padding: "16px 18px", cursor: unlocked ? "default" : canStart ? "pointer" : "default", opacity: animateIn ? (canStart || unlocked ? 1 : 0.5) : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.4s ease ${i * 0.1}s` }}>
+                  <div key={phase.id} onClick={() => { if (!unlocked && canStart) openPhase(phase.id); }} style={{ background: unlocked ? T.dlBg : canStart ? T.cardBg : T.statBg, border: `1px solid ${unlocked ? T.accent + "44" : canStart ? T.cardBorder : T.statBorder}`, borderRadius: 16, padding: "16px 18px", cursor: unlocked ? "default" : canStart ? "pointer" : "default", opacity: animateIn ? (canStart || unlocked ? 1 : 0.5) : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.4s ease ${i * 0.1}s` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: unlocked ? T.accent + "22" : canStart ? T.gold + "15" : T.statBg, border: `1px solid ${unlocked ? T.accent + "44" : canStart ? T.gold + "33" : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{unlocked ? "✅" : phase.icon}</div>
                       <div style={{ flex: 1 }}>
