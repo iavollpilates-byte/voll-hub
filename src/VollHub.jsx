@@ -114,6 +114,7 @@ export default function VollHub() {
           setUserName(u.name);
           setUserWhatsApp(u.whatsapp);
           if (u.downloaded) setDownloaded(u.downloaded);
+          if (u.profile) setUserProfile(u.profile);
           setView("hub");
         }
       }
@@ -260,7 +261,10 @@ export default function VollHub() {
       await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1Complete: false, phase2Complete: false, phase3Complete: false, surveyResponses: {} });
     }
     setView("hub");
-    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [] }));
+    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], profile: existing ? { grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete } : {} }));
+    if (existing) {
+      setUserProfile({ grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete });
+    }
   };
   const handleDownload = async (mat) => {
     if (!downloaded.includes(mat.id)) {
@@ -1217,7 +1221,14 @@ export default function VollHub() {
   if (view === "profile") {
     const handlePhaseSubmit = async (phaseId) => {
       if (!isPhaseFieldsComplete(phaseId)) return showT("Preencha todos os campos!");
-      setUserProfile(p => ({ ...p, [`phase${phaseId}`]: true }));
+      const newProfile = { ...userProfile, [`phase${phaseId}`]: true };
+      setUserProfile(newProfile);
+      // Save to localStorage
+      try {
+        const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}");
+        saved.profile = newProfile;
+        localStorage.setItem("vollhub_user", JSON.stringify(saved));
+      } catch(e) {}
       // Save to lead in Supabase
       const lead = await db.findLeadByWhatsApp(userWhatsApp);
       if (lead) {
