@@ -160,6 +160,8 @@ export default function VollHub() {
   const [leadFilter, setLeadFilter] = useState("all"); // all, hot, warm, cold, referral
   const [showBulkWA, setShowBulkWA] = useState(false);
   const [bulkMsg, setBulkMsg] = useState("Olá {nome}! 👋 Temos novos materiais exclusivos no VOLL Pilates Hub. Acesse agora!");
+  const [bulkWAIndex, setBulkWAIndex] = useState(-1);
+  const [bulkWASent, setBulkWASent] = useState([]);
 
   // ─── DEEP LINK & RETURN TRIGGERS ───
   const [deepLinkMatId, setDeepLinkMatId] = useState(null);
@@ -948,45 +950,81 @@ export default function VollHub() {
           )}
 
           {/* BULK WHATSAPP MODAL */}
-          {showBulkWA && (
-            <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 16 }} onClick={() => setShowBulkWA(false)}>
-              <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "28px 22px", maxWidth: 420, width: "100%", display: "flex", flexDirection: "column", gap: 14, animation: "fadeInUp 0.3s ease", maxHeight: "85vh", overflowY: "auto" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text }}>💬 Envio em Massa</h3>
-                  <button onClick={() => setShowBulkWA(false)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
-                </div>
-
-                <div style={{ padding: "12px 14px", borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Destinatários</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{segmentedLeads.length} leads</span>
+          {showBulkWA && (() => {
+            const sending = bulkWAIndex >= 0;
+            const currentLead = sending ? segmentedLeads[bulkWAIndex] : null;
+            const total = segmentedLeads.length;
+            const sentCount = bulkWASent.length;
+            const progress = total > 0 ? (sentCount / total) * 100 : 0;
+            const startSending = () => { setBulkWAIndex(0); setBulkWASent([]); };
+            const sendCurrent = () => { if (!currentLead) return; openWA(currentLead, bulkMsg); setBulkWASent(p => [...p, currentLead.id]); };
+            const goNext = () => { if (bulkWAIndex < total - 1) setBulkWAIndex(p => p + 1); else { setBulkWAIndex(-1); showT(`✅ ${sentCount} mensagens enviadas!`); } };
+            const closeBulk = () => { setShowBulkWA(false); setBulkWAIndex(-1); setBulkWASent([]); };
+            return (
+              <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 16 }} onClick={closeBulk}>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "28px 22px", maxWidth: 420, width: "100%", display: "flex", flexDirection: "column", gap: 14, animation: "fadeInUp 0.3s ease", maxHeight: "85vh", overflowY: "auto" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text }}>💬 Envio Sequencial</h3>
+                    <button onClick={closeBulk} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
                   </div>
-                  <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Filtro ativo: <span style={{ color: T.accent, fontWeight: 600 }}>{leadFilter === "all" ? "Todos" : leadFilter === "hot" ? "🔥 Quentes" : leadFilter === "warm" ? "Engajados" : leadFilter === "cold" ? "❄️ Frios" : "🔗 Indicados"}</span></p>
+                  {!sending ? (<>
+                    <div style={{ padding: "12px 14px", borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Destinatários</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{total} leads</span>
+                      </div>
+                      <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Filtro: <span style={{ color: T.accent, fontWeight: 600 }}>{leadFilter === "all" ? "Todos" : leadFilter === "hot" ? "🔥 Quentes" : leadFilter === "warm" ? "Engajados" : leadFilter === "cold" ? "❄️ Frios" : "🔗 Indicados"}</span></p>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>Mensagem <span style={{ fontWeight: 400, color: T.textFaint }}>( use {"\"{nome}\""} )</span></label>
+                      <textarea defaultValue={bulkMsg} onBlur={(e) => setBulkMsg(e.target.value)} key="bulk-msg" style={{ ...inp, minHeight: 80, resize: "vertical" }} />
+                    </div>
+                    <div style={{ padding: "10px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Preview:</p>
+                      <p style={{ fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{bulkMsg.replace("{nome}", segmentedLeads[0]?.name.split(" ")[0] || "Nome")}</p>
+                    </div>
+                    <button onClick={startSending} style={{ padding: "14px", borderRadius: 12, background: "#25D366", color: "#fff", fontSize: 14, fontWeight: 700 }}>💬 Iniciar envio ({total} leads)</button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => { copyAllNumbers(segmentedLeads); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📋 Copiar números</button>
+                      <button onClick={() => { exportCSV(segmentedLeads); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📊 Exportar CSV</button>
+                    </div>
+                  </>) : (<>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>Progresso</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: T.accent, fontFamily: "'Plus Jakarta Sans'" }}>{sentCount}/{total}</span>
+                      </div>
+                      <div style={{ height: 8, borderRadius: 4, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #25D366, #7DE2C7)", width: `${progress}%`, transition: "width 0.4s" }} /></div>
+                    </div>
+                    {currentLead && (
+                      <div style={{ padding: "16px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, textAlign: "center" }}>
+                        <div style={{ width: 50, height: 50, borderRadius: "50%", background: `linear-gradient(135deg, ${T.accent}, ${T.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: "#060a09", margin: "0 auto 10px" }}>{currentLead.name.charAt(0).toUpperCase()}</div>
+                        <h4 style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{currentLead.name}</h4>
+                        <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{currentLead.whatsapp}</p>
+                        <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>{currentLead.downloads?.length || 0} downloads · {currentLead.visits || 0} visitas</p>
+                        <div style={{ fontSize: 11, color: T.accent, marginTop: 6 }}>{bulkWAIndex + 1} de {total}</div>
+                      </div>
+                    )}
+                    <div style={{ padding: "10px 14px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}` }}>
+                      <p style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{bulkMsg.replace("{nome}", currentLead?.name.split(" ")[0] || "")}</p>
+                    </div>
+                    {!bulkWASent.includes(currentLead?.id) ? (
+                      <button onClick={sendCurrent} style={{ padding: "14px", borderRadius: 12, background: "#25D366", color: "#fff", fontSize: 14, fontWeight: 700 }}>💬 Abrir WhatsApp de {currentLead?.name.split(" ")[0]}</button>
+                    ) : (
+                      <div style={{ padding: "10px 14px", borderRadius: 10, background: T.dlBg, border: `1px solid ${T.accent}44`, textAlign: "center" }}>
+                        <span style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>✅ Aberto! Envie e clique Próximo</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => goNext()} style={{ flex: 1, padding: "12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600 }}>⏭ Pular</button>
+                      <button onClick={() => goNext()} style={{ flex: 1, padding: "12px", borderRadius: 10, background: bulkWASent.includes(currentLead?.id) ? "#25D366" : T.statBg, border: `1px solid ${bulkWASent.includes(currentLead?.id) ? "#25D36644" : T.statBorder}`, color: bulkWASent.includes(currentLead?.id) ? "#fff" : T.textFaint, fontSize: 13, fontWeight: 700 }}>{bulkWAIndex < total - 1 ? "Próximo →" : "✅ Finalizar"}</button>
+                    </div>
+                  </>)}
+                  <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", textAlign: "center" }}>{sending ? "Envie no WhatsApp antes de ir pro próximo." : "Filtre os leads antes para segmentar."}</p>
                 </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>Mensagem <span style={{ fontWeight: 400, color: T.textFaint }}>( use {"{nome}"} para personalizar )</span></label>
-                  <textarea defaultValue={bulkMsg} onBlur={(e) => setBulkMsg(e.target.value)} key="bulk-msg" style={{ ...inp, minHeight: 80, resize: "vertical" }} />
-                </div>
-
-                <div style={{ padding: "10px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}` }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Preview:</p>
-                  <p style={{ fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{bulkMsg.replace("{nome}", segmentedLeads[0]?.name.split(" ")[0] || "Nome")}</p>
-                </div>
-
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => { segmentedLeads.forEach((l, i) => { setTimeout(() => openWA(l, bulkMsg), i * 800); }); setShowBulkWA(false); showT(`Abrindo ${segmentedLeads.length} conversas...`); }} style={{ flex: 1, padding: "14px", borderRadius: 12, background: "#25D366", color: "#fff", fontSize: 14, fontWeight: 700 }}>💬 Abrir {segmentedLeads.length} conversas</button>
-                </div>
-
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => { copyAllNumbers(segmentedLeads); setShowBulkWA(false); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📋 Copiar todos os números</button>
-                  <button onClick={() => { exportCSV(segmentedLeads); setShowBulkWA(false); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📊 Exportar CSV</button>
-                </div>
-
-                <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", textAlign: "center" }}>Dica: Filtre os leads antes de enviar para segmentar melhor a mensagem.</p>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TEXTOS */}
           {adminTab === "textos" && (
