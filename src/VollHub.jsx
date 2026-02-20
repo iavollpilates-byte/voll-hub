@@ -137,7 +137,7 @@ export default function VollHub() {
   const [userName, setUserName] = useState("");
   const [userWhatsApp, setUserWhatsApp] = useState("");
   const [downloaded, setDownloaded] = useState([]);
-  // Auto-login from localStorage
+  // Auto-login from localStorage (restore user data but stay on linktree)
   useEffect(() => {
     try {
       const saved = localStorage.getItem("vollhub_user");
@@ -148,7 +148,7 @@ export default function VollHub() {
           setUserWhatsApp(u.whatsapp);
           if (u.downloaded) setDownloaded(u.downloaded);
           if (u.profile) setUserProfile(u.profile);
-          setView("hub");
+          // Don't auto-navigate to hub - stay on linktree
         }
       }
     } catch (e) {}
@@ -257,7 +257,15 @@ export default function VollHub() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mParam = params.get("m");
-    if (mParam) setDeepLinkMatId(parseInt(mParam, 10));
+    if (mParam) {
+      setDeepLinkMatId(parseInt(mParam, 10));
+      // If deep link, go straight to hub (or landing if not logged in)
+      try {
+        const saved = localStorage.getItem("vollhub_user");
+        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setView("hub"); } else { setView("landing"); } }
+        else { setView("landing"); }
+      } catch(e) { setView("landing"); }
+    }
     // Track page view
     db.incrementPageView();
   }, []);
@@ -331,7 +339,7 @@ export default function VollHub() {
     if (!downloaded.includes(mat.id)) {
       const newDl = [...downloaded, mat.id];
       setDownloaded(newDl);
-      localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: newDl }));
+      try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.downloaded = newDl; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) { localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: newDl })); }
       // Find current lead and update downloads
       const lead = await db.findLeadByWhatsApp(userWhatsApp);
       if (lead) { await db.updateLead(lead.id, { downloads: [...new Set([...(lead.downloads || []), mat.id])] }); }
@@ -1835,6 +1843,7 @@ export default function VollHub() {
             <div><p style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{config.hubGreetPrefix} {userName.split(" ")[0]}! {config.hubGreetEmoji}</p><p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 1 }}>{config.hubSubtitle}</p></div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => setView("linktree")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Voltar">←</button>
             {profileEnabled && <button onClick={() => setView("profile")} style={{ width: 34, height: 34, borderRadius: "50%", background: profileComplete ? T.accent + "22" : T.statBg, border: `1px solid ${profileComplete ? T.accent + "44" : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, position: "relative" }}>
               👤
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
