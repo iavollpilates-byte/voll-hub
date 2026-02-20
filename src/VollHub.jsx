@@ -787,28 +787,29 @@ export default function VollHub() {
             {activeLinks.map((link, i) => {
               const isHL = link.highlight;
               const hasImg = !!link.imageUrl;
+              const isHero = isHL && i === 0;
               const grad = link.color || (isHL ? "linear-gradient(135deg, #1a3a30, #0d2920)" : "");
               return (
-                <div key={link.id} onClick={() => handleLinkClick(link)} className="bio-card" style={{
+                <div key={link.id} onClick={() => handleLinkClick(link)} className={`bio-card${isHero ? " bio-hero" : ""}`} style={{
                   borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative",
                   border: isHL ? `2px solid ${T.gold}` : `1px solid ${T.cardBorder}`,
                   background: hasImg ? "transparent" : (grad || T.cardBg),
                   opacity: animateIn ? 1 : 0,
                   transform: animateIn ? "translateY(0) scale(1)" : "translateY(15px) scale(0.97)",
                   transition: `all 0.4s ease ${i * 0.06}s`,
-                  boxShadow: isHL ? `0 4px 20px ${T.gold}33` : "0 2px 8px rgba(0,0,0,0.06)",
+                  boxShadow: isHero ? `0 6px 30px ${T.gold}44, 0 0 0 1px ${T.gold}22` : isHL ? `0 4px 20px ${T.gold}33` : "0 2px 8px rgba(0,0,0,0.06)",
                 }}>
-                  {isHL && <div style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: T.gold, background: `${T.gold}18`, padding: "3px 8px", borderRadius: 6, zIndex: 2, fontFamily: "'Plus Jakarta Sans'", letterSpacing: 0.5 }}>{link.badge || "🔥 DESTAQUE"}</div>}
+                  {isHL && <div style={{ position: "absolute", top: isHero ? 10 : 8, right: isHero ? 12 : 10, fontSize: isHero ? 11 : 10, fontWeight: 700, color: T.gold, background: `${T.gold}22`, padding: isHero ? "4px 10px" : "3px 8px", borderRadius: 6, zIndex: 2, fontFamily: "'Plus Jakarta Sans'", letterSpacing: 0.5, border: `1px solid ${T.gold}33` }}>{link.badge || "🔥 DESTAQUE"}</div>}
                   {hasImg ? (
                     <img src={link.imageUrl} alt={link.title} style={{ width: "100%", display: "block", maxHeight: 120, objectFit: "cover" }} />
                   ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 20px" }}>
-                      {link.icon && <div style={{ width: 44, height: 44, borderRadius: 12, background: isHL ? `${T.gold}22` : `${T.accent}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{link.icon}</div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: isHero ? 16 : 14, padding: isHero ? "22px 22px" : "16px 18px" }}>
+                      {link.icon && <div style={{ width: isHero ? 52 : 44, height: isHero ? 52 : 44, borderRadius: isHero ? 14 : 12, background: isHL ? `${T.gold}22` : `${T.accent}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: isHero ? 26 : 22, flexShrink: 0 }}>{link.icon}</div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: isHL ? "#fff" : T.text, display: "block" }}>{link.title}</span>
-                        {link.subtitle && <span style={{ fontSize: 11, color: isHL ? "#ffffffaa" : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 2, display: "block" }}>{link.subtitle}</span>}
+                        <span style={{ fontSize: isHero ? 16 : 14, fontWeight: 800, color: isHL ? "#fff" : T.text, display: "block", lineHeight: 1.3 }}>{link.title}</span>
+                        {link.subtitle && <span style={{ fontSize: isHero ? 12 : 11, color: isHL ? "#ffffffaa" : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 3, display: "block", lineHeight: 1.3 }}>{link.subtitle}</span>}
                       </div>
-                      <span style={{ fontSize: 16, color: isHL ? T.gold : T.accent, flexShrink: 0 }}>›</span>
+                      <span style={{ fontSize: isHero ? 20 : 16, color: isHL ? T.gold : T.accent, flexShrink: 0 }}>›</span>
                     </div>
                   )}
                 </div>
@@ -2072,9 +2073,12 @@ function getCSS(T) {
     textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+    @keyframes heroGlow { 0%, 100% { box-shadow: 0 6px 30px rgba(196,149,0,0.25), 0 0 0 1px rgba(196,149,0,0.13); } 50% { box-shadow: 0 8px 40px rgba(196,149,0,0.4), 0 0 0 2px rgba(196,149,0,0.25); } }
     .bio-card { transition: transform 0.25s ease, box-shadow 0.25s ease !important; }
     .bio-card:hover { transform: translateY(-2px) scale(1.01) !important; box-shadow: 0 6px 24px rgba(0,0,0,0.12) !important; }
     .bio-card:active { transform: scale(0.98) !important; }
+    .bio-hero { animation: heroGlow 2.5s ease-in-out infinite !important; }
+    .bio-hero:hover { animation: none !important; transform: translateY(-3px) scale(1.02) !important; box-shadow: 0 8px 40px rgba(196,149,0,0.4) !important; }
     @keyframes urgencyGlow { 0%, 100% { box-shadow: 0 0 0px transparent; } 50% { box-shadow: 0 0 12px #e8443a22; } }
     @keyframes slideUp { from { opacity: 0; transform: translateY(100px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
