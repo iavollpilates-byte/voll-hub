@@ -121,12 +121,14 @@ export default function VollHub() {
     { id: "13", title: "Grupos Exclusivos", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/card_grupos_exclusivos_rafa.webp", url: "https://vollpilates.com.br/rafael/grupos-exclusivos/", active: true, clicks: 0 },
     { id: "hub", title: "🎁 Materiais Gratuitos", imageUrl: "", icon: "🎁", url: "_hub", active: true, clicks: 0 },
   ];
-  const getBioLinks = () => {
-    try { const v = config.bioLinks; if (v) return JSON.parse(v); } catch(e) {}
-    return DEFAULT_BIO_LINKS;
-  };
-  const bioLinks = getBioLinks();
-  const saveBioLinks = (links) => db.updateConfig("bioLinks", JSON.stringify(links));
+  const [bioLinks, setBioLinks] = useState(DEFAULT_BIO_LINKS);
+  const bioLinksLoaded = useRef(false);
+  useEffect(() => {
+    if (config.bioLinks && !bioLinksLoaded.current) {
+      try { setBioLinks(JSON.parse(config.bioLinks)); bioLinksLoaded.current = true; } catch(e) {}
+    }
+  }, [config.bioLinks]);
+  const saveBioLinks = (links) => { setBioLinks(links); db.updateConfig("bioLinks", JSON.stringify(links)); };
   // ─── SUPABASE ───
   const db = useSupabase();
   const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
@@ -1393,8 +1395,8 @@ export default function VollHub() {
                           <span style={{ fontSize: 10, color: T.textFaint, background: T.inputBg, padding: "2px 8px", borderRadius: 6 }}>{link.clicks || 0} cliques</span>
                         </div>
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button onClick={() => updateLink(link.id, "active", !link.active)} style={{ width: 28, height: 28, borderRadius: 6, background: link.active ? T.accent + "22" : T.dangerBg, border: `1px solid ${link.active ? T.accent + "44" : T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{link.active ? "👁" : "🚫"}</button>
-                          <button onClick={() => { if (confirm("Remover este link?")) { saveBioLinks(bioLinks.filter(l => l.id !== link.id)); } }} style={{ width: 28, height: 28, borderRadius: 6, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
+                          <button onClick={() => updateLink(link.id, "active", !link.active)} title={link.active ? "Ocultar link" : "Mostrar link"} style={{ width: 28, height: 28, borderRadius: 6, background: link.active ? T.accent + "22" : T.dangerBg, border: `1px solid ${link.active ? T.accent + "44" : T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{link.active ? "👁" : "🚫"}</button>
+                          <button onClick={() => { saveBioLinks(bioLinks.filter(l => l.id !== link.id)); showT("Link removido"); }} title="Remover link" style={{ width: 28, height: 28, borderRadius: 6, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
                         </div>
                       </div>
                       {/* Fields */}
