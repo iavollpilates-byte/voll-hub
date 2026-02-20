@@ -63,6 +63,23 @@ const DEFAULT_CONFIG = {
 };
 
 const MASTER_PIN = "9512";
+
+const DEFAULT_BIO_LINKS = [
+  { id: "1", title: "Pós Internacional", subtitle: "Formação internacional em Pilates", icon: "🌎", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/pos-internacional", active: true, clicks: 0, highlight: true, badge: "🔥 NOVO", color: "linear-gradient(135deg, #1a3a30, #0d2920)" },
+  { id: "2", title: "Encontro Pilates 2026", subtitle: "O maior evento de Pilates do Brasil", icon: "🎪", imageUrl: "", url: "https://encontropilates.com.br/", active: true, clicks: 0, highlight: true, badge: "⭐ IMPERDÍVEL", color: "linear-gradient(135deg, #2a1a3a, #1a0d29)" },
+  { id: "3", title: "Pós Patologias e Biomecânica", subtitle: "Pós-graduação especializada", icon: "🧬", imageUrl: "", url: "https://materiais.vollpilates.com.br/pos-graduacao-pilates-para-patologias-e-biomecanica-aplicada-captacao", active: true, clicks: 0 },
+  { id: "4", title: "Jornada Pilates 2026", subtitle: "Evento online e gratuito", icon: "🚀", imageUrl: "", url: "https://jornadapilates.com.br/2026", active: true, clicks: 0 },
+  { id: "5", title: "Studio Blindado", subtitle: "Imersão em gestão de studio", icon: "🛡️", imageUrl: "", url: "https://vollpilates.com.br/imersaostudioblindado/", active: true, clicks: 0 },
+  { id: "6", title: "Kit Documentos Jurídicos", subtitle: "Contratos e termos prontos", icon: "📋", imageUrl: "", url: "https://materiais.vollpilates.com.br/kit-juridico-pagina-de-venda", active: true, clicks: 0 },
+  { id: "7", title: "Pilates Connect", subtitle: "Comunidade exclusiva", icon: "🤝", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/pilatesconnect", active: true, clicks: 0 },
+  { id: "8", title: "Formação Clássica", subtitle: "Curso de Pilates Clássico", icon: "🏛️", imageUrl: "", url: "https://cursopilatesclassico.com.br/", active: true, clicks: 0 },
+  { id: "9", title: "MBA VOLL", subtitle: "MBA em gestão de Pilates", icon: "🎓", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/mbavoll", active: true, clicks: 0 },
+  { id: "10", title: "VOLL+", subtitle: "Plataforma de conteúdo", icon: "▶️", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/vollplus", active: true, clicks: 0 },
+  { id: "11", title: "Franquias", subtitle: "Abra seu studio VOLL", icon: "🏢", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/franquiadepilates", active: true, clicks: 0 },
+  { id: "12", title: "Dúvidas Cursos", subtitle: "Fale com nosso time", icon: "💬", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/duvidas-cursos", active: true, clicks: 0 },
+  { id: "13", title: "Grupos Exclusivos", subtitle: "WhatsApp e Telegram", icon: "👥", imageUrl: "", url: "https://vollpilates.com.br/rafael/grupos-exclusivos/", active: true, clicks: 0 },
+  { id: "hub", title: "Materiais Gratuitos", subtitle: "E-books, guias e vídeos exclusivos", icon: "🎁", imageUrl: "", url: "_hub", active: true, clicks: 0, highlight: true, badge: "GRÁTIS", color: "linear-gradient(135deg, #0d2920, #1a3a20)" },
+];
 const MASTER_USER = { id: 0, name: "MASTER PICA", pin: MASTER_PIN, role: "master", permissions: { materials_view: true, materials_edit: true, leads_view: true, leads_export: true, leads_whatsapp: true, textos_edit: true, users_manage: true } };
 
 const PERM_LABELS = {
@@ -104,36 +121,19 @@ export default function VollHub() {
   const [view, setView] = useState("linktree");
   const [theme, setTheme] = useState("light");
 
-  // Bio links data (stored as JSON in config.bioLinks)
-  const DEFAULT_BIO_LINKS = [
-    { id: "1", title: "Pós Internacional", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/Pos.webp", url: "https://vollpilates.com.br/rafael/cta/pos-internacional", active: true, clicks: 0 },
-    { id: "2", title: "Encontro Pilates 2026", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/10/banner_link_bio_encontro-2026_rafa-4.png", url: "https://encontropilates.com.br/", active: true, clicks: 0 },
-    { id: "3", title: "Pós Patologias e Biomecânica", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/07/acC60wLz.png", url: "https://materiais.vollpilates.com.br/pos-graduacao-pilates-para-patologias-e-biomecanica-aplicada-captacao", active: true, clicks: 0 },
-    { id: "4", title: "Jornada Pilates 2026", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/06/banner_link_bio_jornada_2026_insta_rafa.png", url: "https://jornadapilates.com.br/2026", active: true, clicks: 0 },
-    { id: "5", title: "Studio Blindado", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/Link_BIO_Studio_Blindado.png", url: "https://vollpilates.com.br/imersaostudioblindado/", active: true, clicks: 0 },
-    { id: "6", title: "Kit Documentos Jurídicos", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/Link_BIO_Kit_Documentos_Juridicos.png", url: "https://materiais.vollpilates.com.br/kit-juridico-pagina-de-venda", active: true, clicks: 0 },
-    { id: "7", title: "Pilates Connect", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/PILATES-CONNECT.webp", url: "https://vollpilates.com.br/rafael/cta/pilatesconnect", active: true, clicks: 0 },
-    { id: "8", title: "Formação Clássica", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/FORMACAO-CLASSICA.webp", url: "https://cursopilatesclassico.com.br/", active: true, clicks: 0 },
-    { id: "9", title: "MBA VOLL", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/MBA.webp", url: "https://vollpilates.com.br/rafael/cta/mbavoll", active: true, clicks: 0 },
-    { id: "10", title: "VOLL+", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/VOLL.webp", url: "https://vollpilates.com.br/rafael/cta/vollplus", active: true, clicks: 0 },
-    { id: "11", title: "Franquias", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/VOLL-FRANQUIAS.webp", url: "https://vollpilates.com.br/rafael/cta/franquiadepilates", active: true, clicks: 0 },
-    { id: "12", title: "Dúvidas Cursos", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/DUVIDAS-CURSOS.webp", url: "https://vollpilates.com.br/rafael/cta/duvidas-cursos", active: true, clicks: 0 },
-    { id: "13", title: "Grupos Exclusivos", imageUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/card_grupos_exclusivos_rafa.webp", url: "https://vollpilates.com.br/rafael/grupos-exclusivos/", active: true, clicks: 0 },
-    { id: "hub", title: "🎁 Materiais Gratuitos", imageUrl: "", icon: "🎁", url: "_hub", active: true, clicks: 0 },
-  ];
-  const [bioLinks, setBioLinks] = useState(DEFAULT_BIO_LINKS);
-  const bioLinksLoaded = useRef(false);
-  // ─── SUPABASE ───
+  // ─── SUPABASE (must be before anything that uses config) ───
   const db = useSupabase();
   const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
   const config = { ...DEFAULT_CONFIG, ...db.config };
 
-  // Load bioLinks from config after it's available
+  // Bio links
+  const [bioLinks, setBioLinks] = useState(DEFAULT_BIO_LINKS);
+  const bioLinksLoaded = useRef(false);
   useEffect(() => {
-    if (config.bioLinks && !bioLinksLoaded.current) {
-      try { setBioLinks(JSON.parse(config.bioLinks)); bioLinksLoaded.current = true; } catch(e) {}
+    if (db.config.bioLinks && !bioLinksLoaded.current) {
+      try { setBioLinks(JSON.parse(db.config.bioLinks)); bioLinksLoaded.current = true; } catch(e) {}
     }
-  }, [config.bioLinks]);
+  }, [db.config.bioLinks]);
   const saveBioLinks = (links) => { setBioLinks(links); db.updateConfig("bioLinks", JSON.stringify(links)); };
 
   const [userName, setUserName] = useState("");
@@ -784,19 +784,36 @@ export default function VollHub() {
 
           {/* Link Cards */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {activeLinks.map((link, i) => (
-              <div key={link.id} onClick={() => handleLinkClick(link)} style={{ borderRadius: 14, overflow: "hidden", cursor: "pointer", border: `1px solid ${T.cardBorder}`, background: T.cardBg, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.4s ease ${i * 0.05}s`, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-                {link.imageUrl ? (
-                  <img src={link.imageUrl} alt={link.title} style={{ width: "100%", display: "block", borderRadius: 14 }} />
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px" }}>
-                    {link.icon && <span style={{ fontSize: 24 }}>{link.icon}</span>}
-                    <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: T.text }}>{link.title}</span>
-                    <span style={{ fontSize: 14, color: T.accent }}>→</span>
-                  </div>
-                )}
-              </div>
-            ))}
+            {activeLinks.map((link, i) => {
+              const isHL = link.highlight;
+              const hasImg = !!link.imageUrl;
+              const grad = link.color || (isHL ? "linear-gradient(135deg, #1a3a30, #0d2920)" : "");
+              return (
+                <div key={link.id} onClick={() => handleLinkClick(link)} className="bio-card" style={{
+                  borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative",
+                  border: isHL ? `2px solid ${T.gold}` : `1px solid ${T.cardBorder}`,
+                  background: hasImg ? "transparent" : (grad || T.cardBg),
+                  opacity: animateIn ? 1 : 0,
+                  transform: animateIn ? "translateY(0) scale(1)" : "translateY(15px) scale(0.97)",
+                  transition: `all 0.4s ease ${i * 0.06}s`,
+                  boxShadow: isHL ? `0 4px 20px ${T.gold}33` : "0 2px 8px rgba(0,0,0,0.06)",
+                }}>
+                  {isHL && <div style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: T.gold, background: `${T.gold}18`, padding: "3px 8px", borderRadius: 6, zIndex: 2, fontFamily: "'Plus Jakarta Sans'", letterSpacing: 0.5 }}>{link.badge || "🔥 DESTAQUE"}</div>}
+                  {hasImg ? (
+                    <img src={link.imageUrl} alt={link.title} style={{ width: "100%", display: "block", maxHeight: 120, objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 20px" }}>
+                      {link.icon && <div style={{ width: 44, height: 44, borderRadius: 12, background: isHL ? `${T.gold}22` : `${T.accent}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{link.icon}</div>}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: isHL ? "#fff" : T.text, display: "block" }}>{link.title}</span>
+                        {link.subtitle && <span style={{ fontSize: 11, color: isHL ? "#ffffffaa" : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 2, display: "block" }}>{link.subtitle}</span>}
+                      </div>
+                      <span style={{ fontSize: 16, color: isHL ? T.gold : T.accent, flexShrink: 0 }}>›</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Social links */}
@@ -1414,9 +1431,17 @@ export default function VollHub() {
                       {/* Fields */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Título</label><input value={link.title} onChange={(e) => updateLink(link.id, "title", e.target.value)} style={linkInp} /></div>
+                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Subtítulo</label><input value={link.subtitle || ""} onChange={(e) => updateLink(link.id, "subtitle", e.target.value)} style={linkInp} placeholder="Descrição curta" /></div>
                         <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>URL destino</label><input value={link.url} onChange={(e) => updateLink(link.id, "url", e.target.value)} style={linkInp} placeholder="https://... ou _hub" /></div>
-                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>URL da imagem <span style={{ color: T.accent }}>(vazio = card com ícone + texto)</span></label><input value={link.imageUrl || ""} onChange={(e) => updateLink(link.id, "imageUrl", e.target.value)} style={linkInp} placeholder="https://..." /></div>
-                        {!link.imageUrl && <div style={{ width: 80 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Ícone</label><input value={link.icon || ""} onChange={(e) => updateLink(link.id, "icon", e.target.value)} style={{ ...linkInp, width: 60 }} /></div>}
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <div style={{ width: 70 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Ícone</label><input value={link.icon || ""} onChange={(e) => updateLink(link.id, "icon", e.target.value)} style={{ ...linkInp, width: 60 }} /></div>
+                          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>URL da imagem <span style={{ color: T.textFaint }}>(opcional)</span></label><input value={link.imageUrl || ""} onChange={(e) => updateLink(link.id, "imageUrl", e.target.value)} style={linkInp} placeholder="https://..." /></div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          <button onClick={() => updateLink(link.id, "highlight", !link.highlight)} style={{ padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: link.highlight ? `${T.gold}22` : T.inputBg, border: `1px solid ${link.highlight ? T.gold : T.inputBorder}`, color: link.highlight ? T.gold : T.textFaint }}>{link.highlight ? "⭐ Destaque ON" : "☆ Destaque"}</button>
+                          {link.highlight && <input value={link.badge || ""} onChange={(e) => updateLink(link.id, "badge", e.target.value)} style={{ ...linkInp, width: 120 }} placeholder="Badge (ex: 🔥 NOVO)" />}
+                          {link.highlight && <input value={link.color || ""} onChange={(e) => updateLink(link.id, "color", e.target.value)} style={{ ...linkInp, width: 140 }} placeholder="Gradiente (CSS)" />}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2047,6 +2072,9 @@ function getCSS(T) {
     textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+    .bio-card { transition: transform 0.25s ease, box-shadow 0.25s ease !important; }
+    .bio-card:hover { transform: translateY(-2px) scale(1.01) !important; box-shadow: 0 6px 24px rgba(0,0,0,0.12) !important; }
+    .bio-card:active { transform: scale(0.98) !important; }
     @keyframes urgencyGlow { 0%, 100% { box-shadow: 0 0 0px transparent; } 50% { box-shadow: 0 0 12px #e8443a22; } }
     @keyframes slideUp { from { opacity: 0; transform: translateY(100px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
