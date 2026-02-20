@@ -788,7 +788,7 @@ export default function VollHub() {
               const isHL = link.highlight;
               const hasImg = !!link.imageUrl;
               const isHero = isHL && i === 0;
-              const grad = link.color || (isHL ? "linear-gradient(135deg, #1a3a30, #0d2920)" : "");
+              const grad = isHL ? (link.color || "linear-gradient(135deg, #1a3a30, #0d2920)") : "";
               return (
                 <div key={link.id} onClick={() => handleLinkClick(link)} className={`bio-card${isHero ? " bio-hero" : ""}`} style={{
                   borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative",
