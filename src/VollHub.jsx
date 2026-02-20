@@ -123,16 +123,18 @@ export default function VollHub() {
   ];
   const [bioLinks, setBioLinks] = useState(DEFAULT_BIO_LINKS);
   const bioLinksLoaded = useRef(false);
+  // ─── SUPABASE ───
+  const db = useSupabase();
+  const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
+  const config = { ...DEFAULT_CONFIG, ...db.config };
+
+  // Load bioLinks from config after it's available
   useEffect(() => {
     if (config.bioLinks && !bioLinksLoaded.current) {
       try { setBioLinks(JSON.parse(config.bioLinks)); bioLinksLoaded.current = true; } catch(e) {}
     }
   }, [config.bioLinks]);
   const saveBioLinks = (links) => { setBioLinks(links); db.updateConfig("bioLinks", JSON.stringify(links)); };
-  // ─── SUPABASE ───
-  const db = useSupabase();
-  const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
-  const config = { ...DEFAULT_CONFIG, ...db.config };
 
   const [userName, setUserName] = useState("");
   const [userWhatsApp, setUserWhatsApp] = useState("");
@@ -714,6 +716,25 @@ export default function VollHub() {
     );
   };
 
+  // ─── LOADING ───
+  if (dbLoading) return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: T.bg, fontFamily: "'Outfit'" }}>
+      <style>{getCSS(T)}</style>
+      <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>⚡</div>
+      <p style={{ fontSize: 18, fontWeight: 600, color: T.text }}>Carregando...</p>
+    </div>
+  );
+
+  if (dbError) return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: T.bg, fontFamily: "'Outfit'", padding: 24 }}>
+      <style>{getCSS(T)}</style>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+      <p style={{ fontSize: 18, fontWeight: 600, color: T.text }}>Erro de conexão</p>
+      <p style={{ fontSize: 13, color: T.textFaint, marginTop: 4, textAlign: "center" }}>{dbError}</p>
+      <button onClick={() => db.reload()} style={{ marginTop: 16, padding: "12px 24px", borderRadius: 12, background: T.accent, color: "#060a09", fontSize: 14, fontWeight: 600 }}>Tentar novamente</button>
+    </div>
+  );
+
   // ═══════════════════════════════════════
   // LINKTREE (Bio Page)
   // ═══════════════════════════════════════
@@ -797,23 +818,6 @@ export default function VollHub() {
   // ═══════════════════════════════════════
   if (view === "landing") {
     const dlMat = deepLinkMatId ? materials.find((m) => m.id === deepLinkMatId && m.active) : null;
-  // ─── LOADING ───
-  if (dbLoading) return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: T.bg, fontFamily: "'Outfit'" }}>
-      <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>⚡</div>
-      <p style={{ fontSize: 18, fontWeight: 600, color: T.text }}>Carregando VOLL Hub...</p>
-      <p style={{ fontSize: 13, color: T.textFaint, marginTop: 4 }}>Conectando ao servidor</p>
-    </div>
-  );
-
-  if (dbError) return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: T.bg, fontFamily: "'Outfit'", padding: 24 }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-      <p style={{ fontSize: 18, fontWeight: 600, color: T.text }}>Erro de conexão</p>
-      <p style={{ fontSize: 13, color: T.textFaint, marginTop: 4, textAlign: "center" }}>{dbError}</p>
-      <button onClick={() => db.reload()} style={{ marginTop: 16, padding: "12px 24px", borderRadius: 12, background: T.accent, color: "#060a09", fontSize: 14, fontWeight: 600 }}>Tentar novamente</button>
-    </div>
-  );
 
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
