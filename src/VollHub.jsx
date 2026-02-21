@@ -58,11 +58,8 @@ const DEFAULT_CONFIG = {
   // Credits system
   creditsEnabled: "true",
   creditsInitial: "3",
-  creditsPhase: "2",
-  creditsQuiz: "1",
-  creditsComment: "1",
+  phase1Credits: "2", phase2Credits: "2", phase3Credits: "2",
   creditsReferral: "2",
-  creditsCommentPostUrl: "",
   creditsReferralMsg: "Oi! Conheça o Hub de Materiais Gratuitos de Pilates do Rafael Juliano. Tem e-books, guias e vídeos incríveis! Acesse: {link}",
   bioName: "RAFAEL JULIANO",
   bioLine1: "💼 Fundador | VOLL Pilates Group",
@@ -180,6 +177,8 @@ export default function VollHub() {
   const creditsEnabled = config.creditsEnabled === "true";
   const getQuizzes = () => { try { return config.quizzes ? JSON.parse(config.quizzes) : []; } catch(e) { return []; } };
   const quizzes = getQuizzes();
+  const getInstaPosts = () => { try { return config.instaPosts ? JSON.parse(config.instaPosts) : []; } catch(e) { return []; } };
+  const instaPosts = getInstaPosts();
   const [toast, setToast] = useState(null);
   const [animateIn, setAnimateIn] = useState(false);
   const [refName, setRefName] = useState("");
@@ -1670,8 +1669,10 @@ export default function VollHub() {
           {adminTab === "quizzes" && (() => {
             const allQuizzes = getQuizzes();
             const saveQuizzes = (qs) => db.updateConfig("quizzes", JSON.stringify(qs));
+            const allInstaPosts = getInstaPosts();
+            const saveInstaPosts = (ps) => db.updateConfig("instaPosts", JSON.stringify(ps));
             const addQuiz = () => {
-              const nq = { id: String(Date.now()), title: "Novo Quiz", active: true, questions: [
+              const nq = { id: String(Date.now()), title: "Novo Quiz", active: true, credits: 1, questions: [
                 { question: "Pergunta 1?", options: ["A", "B", "C", "D"], correct: 0 },
                 { question: "Pergunta 2?", options: ["A", "B", "C", "D"], correct: 0 },
                 { question: "Pergunta 3?", options: ["A", "B", "C", "D"], correct: 0 },
@@ -1701,16 +1702,50 @@ export default function VollHub() {
                     <button onClick={() => db.updateConfig("creditsEnabled", creditsEnabled ? "false" : "true")} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: creditsEnabled ? T.accent + "22" : T.inputBg, color: creditsEnabled ? T.accent : T.textFaint, border: `1px solid ${creditsEnabled ? T.accent + "44" : T.inputBorder}` }}>{creditsEnabled ? "✅ Ativo" : "Desativado"}</button>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <CmsField label="Créditos iniciais" configKey="creditsInitial" />
-                    <CmsField label="Por fase do perfil" configKey="creditsPhase" />
-                    <CmsField label="Por quiz" configKey="creditsQuiz" />
-                    <CmsField label="Por comentário IG" configKey="creditsComment" />
-                    <CmsField label="Por indicação" configKey="creditsReferral" />
+                    <CmsField label="Créditos iniciais (cadastro)" configKey="creditsInitial" />
+                    <CmsField label="Por indicação WhatsApp" configKey="creditsReferral" />
                   </div>
+                  <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 6 }}>Créditos por fase, quiz e post IG são configurados individualmente abaixo.</p>
                   <div style={{ marginTop: 8 }}>
-                    <CmsField label="URL do post Instagram (comentário)" configKey="creditsCommentPostUrl" />
                     <CmsField label="Msg indicação WhatsApp ({link} = URL)" configKey="creditsReferralMsg" />
                   </div>
+
+                  {/* Per-phase credits */}
+                  <h4 style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginTop: 12, marginBottom: 6 }}>📋 Créditos por fase do perfil</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                    <CmsField label="Fase 1" configKey="phase1Credits" />
+                    <CmsField label="Fase 2" configKey="phase2Credits" />
+                    <CmsField label="Fase 3" configKey="phase3Credits" />
+                  </div>
+                </div>
+
+                {/* Instagram Posts */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>💬 Posts Instagram ({allInstaPosts.length})</h3>
+                    <button onClick={() => { const ps = [...allInstaPosts, { id: String(Date.now()), title: "Comentar no post", description: "", url: "", credits: 1, active: true }]; saveInstaPosts(ps); showT("Post adicionado!"); }} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Novo post</button>
+                  </div>
+                  {allInstaPosts.map(post => (
+                    <div key={post.id} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+                        <input value={post.title || ""} onChange={(e) => { saveInstaPosts(allInstaPosts.map(p => p.id === post.id ? { ...p, title: e.target.value } : p)); }} style={{ ...linkInp, flex: 1, fontWeight: 600 }} placeholder="Título (ex: Comente no post sobre Pilates)" />
+                        <div style={{ display: "flex", gap: 3 }}>
+                          <button onClick={() => saveInstaPosts(allInstaPosts.map(p => p.id === post.id ? { ...p, active: !p.active } : p))} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 11, background: post.active ? T.accent + "22" : T.inputBg, color: post.active ? T.accent : T.textFaint, border: `1px solid ${post.active ? T.accent + "44" : T.inputBorder}` }}>{post.active ? "👁" : "👁‍🗨"}</button>
+                          <button onClick={() => { saveInstaPosts(allInstaPosts.filter(p => p.id !== post.id)); showT("Post removido 🗑"); }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 11, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
+                        </div>
+                      </div>
+                      <input value={post.url || ""} onChange={(e) => saveInstaPosts(allInstaPosts.map(p => p.id === post.id ? { ...p, url: e.target.value } : p))} style={{ ...linkInp, marginBottom: 4 }} placeholder="URL do post (https://instagram.com/p/...)" />
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input value={post.description || ""} onChange={(e) => saveInstaPosts(allInstaPosts.map(p => p.id === post.id ? { ...p, description: e.target.value } : p))} style={{ ...linkInp, flex: 1 }} placeholder="Descrição (opcional)" />
+                        <div style={{ width: 70 }}>
+                          <input type="number" value={post.credits || 1} onChange={(e) => saveInstaPosts(allInstaPosts.map(p => p.id === post.id ? { ...p, credits: parseInt(e.target.value) || 1 } : p))} style={{ ...linkInp, width: 60, textAlign: "center" }} min="1" />
+                          <span style={{ fontSize: 9, color: T.textFaint }}>créditos</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {allInstaPosts.length === 0 && <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", padding: "8px 0" }}>Nenhum post. A opção de comentário não aparece para o usuário.</p>}
+                  <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>💡 O usuário verá apenas posts que ainda não comentou. Quando comentar em todos, a seção desaparece.</p>
                 </div>
 
                 {/* Quiz List */}
@@ -1727,6 +1762,10 @@ export default function VollHub() {
                         <button onClick={() => updateQuiz(q.id, "active", !q.active)} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 11, background: q.active ? T.accent + "22" : T.inputBg, color: q.active ? T.accent : T.textFaint, border: `1px solid ${q.active ? T.accent + "44" : T.inputBorder}` }}>{q.active ? "👁" : "👁‍🗨"}</button>
                         <button onClick={() => deleteQuiz(q.id)} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 11, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
                       </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🎯 Créditos ao acertar:</span>
+                      {[1, 2, 3, 5].map(c => (<button key={c} onClick={() => updateQuiz(q.id, "credits", c)} style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: (q.credits || 1) === c ? T.gold + "22" : T.inputBg, color: (q.credits || 1) === c ? T.gold : T.textFaint, border: `1px solid ${(q.credits || 1) === c ? T.gold + "44" : T.inputBorder}` }}>{c}</button>))}
                     </div>
 
                     {(q.questions || []).map((qq, qi) => (
@@ -1927,12 +1966,12 @@ export default function VollHub() {
         updates[`phase${phaseId}Complete`] = true;
         await db.updateLead(lead.id, updates);
         // Earn credits for phase completion
-        const creditsPerPhase = parseInt(config.creditsPhase) || 2;
+        const creditsPerPhase = parseInt(config[`phase${phaseId}Credits`]) || 2;
         await earnCredits(creditsPerPhase, `phase${phaseId}`);
       }
       setActivePhase(null);
-      const creditsPerPhase = parseInt(config.creditsPhase) || 2;
-      showT(`🎉 Fase ${phaseId} completa! +${creditsPerPhase} créditos!`);
+      const creditsPerPhase2 = parseInt(config[`phase${phaseId}Credits`]) || 2;
+      showT(`🎉 Fase ${phaseId} completa! +${creditsPerPhase2} créditos!`);
     };
 
     return (
@@ -2247,7 +2286,7 @@ export default function VollHub() {
                 const done = userCreditsEarned[`phase${p}`];
                 const phaseEnabled = config[`phase${p}Enabled`] !== "false";
                 if (!phaseEnabled) return null;
-                const amt = parseInt(config.creditsPhase) || 2;
+                const amt = parseInt(config[`phase${p}Credits`]) || 2;
                 return (
                   <div key={p} onClick={() => { if (!done) { setShowCreditStore(false); setView("profile"); setActivePhase(p); } }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, cursor: done ? "default" : "pointer", opacity: done ? 0.6 : 1 }}>
                     <span style={{ fontSize: 24 }}>{done ? "✅" : config[`phase${p}Icon`] || "📋"}</span>
@@ -2265,7 +2304,7 @@ export default function VollHub() {
                 const done = userCreditsEarned[`quiz_${q.id}`];
                 const failTs = userCreditsEarned[`quiz_${q.id}_fail`];
                 const canRetry = !failTs || (Date.now() - failTs > 86400000);
-                const amt = parseInt(config.creditsQuiz) || 1;
+                const amt = q.credits || 1;
                 return (
                   <div key={q.id} onClick={() => { if (!done && canRetry) { setShowCreditStore(false); setShowQuiz(q); setQuizAnswers({}); setQuizSubmitted(false); } }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, cursor: done || !canRetry ? "default" : "pointer", opacity: done || !canRetry ? 0.6 : 1 }}>
                     <span style={{ fontSize: 24 }}>{done ? "✅" : "🧠"}</span>
@@ -2278,28 +2317,28 @@ export default function VollHub() {
                 );
               })}
 
-              {/* Instagram Comment */}
-              {config.creditsCommentPostUrl && (() => {
-                const done = userCreditsEarned["comment_insta"];
-                const amt = parseInt(config.creditsComment) || 1;
+              {/* Instagram Comments */}
+              {instaPosts.filter(p => p.active !== false).map(post => {
+                const done = userCreditsEarned[`comment_${post.id}`];
+                const amt = post.credits || 1;
                 return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, opacity: done ? 0.6 : 1 }}>
+                  <div key={post.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, opacity: done ? 0.6 : 1 }}>
                     <span style={{ fontSize: 24 }}>{done ? "✅" : "💬"}</span>
                     <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>Comentar no Instagram</span>
-                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já verificado" : "Comente no post e volte aqui"}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{post.title || "Comentar no Instagram"}</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já verificado" : (post.description || "Comente no post e volte aqui")}</span>
                     </div>
                     {!done && !commentVerifying && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                        <a href={config.creditsCommentPostUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "4px 10px", borderRadius: 6, background: T.accent + "15", textAlign: "center" }}>Abrir post ↗</a>
-                        <button onClick={(e) => { e.stopPropagation(); setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, "comment_insta"); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 11, fontWeight: 600, color: T.gold, padding: "4px 10px", borderRadius: 6, background: T.gold + "15" }}>Comentei ✓</button>
+                        <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "4px 10px", borderRadius: 6, background: T.accent + "15", textAlign: "center" }}>Abrir post ↗</a>
+                        <button onClick={(e) => { e.stopPropagation(); setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, `comment_${post.id}`); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 11, fontWeight: 600, color: T.gold, padding: "4px 10px", borderRadius: 6, background: T.gold + "15" }}>Comentei ✓</button>
                       </div>
                     )}
                     {commentVerifying && <span style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>}
                     {!done && <span style={{ fontSize: 13, fontWeight: 800, color: T.gold, marginLeft: 4 }}>+{amt}</span>}
                   </div>
                 );
-              })()}
+              })}
 
               {/* Referral via WhatsApp */}
               {(() => {
@@ -2332,7 +2371,7 @@ export default function VollHub() {
         const questions = q.questions || [];
         const allAnswered = questions.every((_, i) => quizAnswers[i] !== undefined);
         const allCorrect = questions.every((qq, i) => quizAnswers[i] === qq.correct);
-        const amt = parseInt(config.creditsQuiz) || 1;
+        const amt = q.credits || 1;
         return (
           <div style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowQuiz(false)}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto", animation: "fadeInUp 0.3s ease" }}>
