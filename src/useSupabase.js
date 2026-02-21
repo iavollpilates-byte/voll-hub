@@ -11,6 +11,7 @@ const matFromDb = (r) => ({
   previewBullets: r.preview_bullets || [], previewImages: r.preview_images || [],
   sortOrder: r.sort_order, createdAt: new Date(r.created_at).getTime(),
   instaPostUrl: r.insta_post_url || '', instaViews: r.insta_views || 0, instaLikes: r.insta_likes || 0, instaComments: r.insta_comments || 0, instaSaves: r.insta_saves || 0,
+  creditCost: r.credit_cost ?? 1,
 })
 
 const matToDb = (m) => ({
@@ -23,6 +24,7 @@ const matToDb = (m) => ({
   preview_bullets: m.previewBullets || [], preview_images: m.previewImages || [],
   sort_order: m.sortOrder || 0,
   insta_post_url: m.instaPostUrl || '', insta_views: m.instaViews || 0, insta_likes: m.instaLikes || 0, insta_comments: m.instaComments || 0, insta_saves: m.instaSaves || 0,
+  credit_cost: m.creditCost ?? 1,
 })
 
 const leadFromDb = (r) => ({
@@ -34,6 +36,7 @@ const leadFromDb = (r) => ({
   temStudio: r.tem_studio || '', maiorDesafio: r.maior_desafio || '', tipoConteudo: r.tipo_conteudo || '',
   perguntaMentoria: r.pergunta_mentoria || '', maiorSonho: r.maior_sonho || '', profAdmira: r.prof_admira || '',
   phase1Complete: !!r.phase1_complete, phase2Complete: !!r.phase2_complete, phase3Complete: !!r.phase3_complete,
+  credits: r.credits ?? 3, creditsEarned: r.credits_earned || {},
 })
 
 const leadToDb = (l) => ({
@@ -46,6 +49,7 @@ const leadToDb = (l) => ({
   tem_studio: l.temStudio || '', maior_desafio: l.maiorDesafio || '', tipo_conteudo: l.tipoConteudo || '',
   pergunta_mentoria: l.perguntaMentoria || '', maior_sonho: l.maiorSonho || '', prof_admira: l.profAdmira || '',
   phase1_complete: !!l.phase1Complete, phase2_complete: !!l.phase2Complete, phase3_complete: !!l.phase3Complete,
+  credits: l.credits ?? 3, credits_earned: l.creditsEarned || {},
 })
 
 const adminFromDb = (r) => ({
@@ -113,6 +117,7 @@ export function useSupabase() {
       isFlash: 'is_flash', flashUntil: 'flash_until',
       previewBullets: 'preview_bullets', previewImages: 'preview_images', sortOrder: 'sort_order',
       instaPostUrl: 'insta_post_url', instaViews: 'insta_views', instaLikes: 'insta_likes', instaComments: 'insta_comments', instaSaves: 'insta_saves',
+      creditCost: 'credit_cost',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v
@@ -150,6 +155,7 @@ export function useSupabase() {
       temStudio: 'tem_studio', maiorDesafio: 'maior_desafio', tipoConteudo: 'tipo_conteudo',
       perguntaMentoria: 'pergunta_mentoria', maiorSonho: 'maior_sonho', profAdmira: 'prof_admira',
       phase1Complete: 'phase1_complete', phase2Complete: 'phase2_complete', phase3Complete: 'phase3_complete',
+      credits: 'credits', creditsEarned: 'credits_earned',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v

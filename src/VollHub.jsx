@@ -55,6 +55,15 @@ const DEFAULT_CONFIG = {
   phase3Q3Label: "O profissional do Pilates que você mais admira:", phase3Q3Key: "profAdmira", phase3Q3Type: "text", phase3Q3Options: "",
   // Bio / Linktree
   bioPhotoUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/foto-rafa.webp",
+  // Credits system
+  creditsEnabled: "true",
+  creditsInitial: "3",
+  creditsPhase: "2",
+  creditsQuiz: "1",
+  creditsComment: "1",
+  creditsReferral: "2",
+  creditsCommentPostUrl: "",
+  creditsReferralMsg: "Oi! Conheça o Hub de Materiais Gratuitos de Pilates do Rafael Juliano. Tem e-books, guias e vídeos incríveis! Acesse: {link}",
   bioName: "RAFAEL JULIANO",
   bioLine1: "💼 Fundador | VOLL Pilates Group",
   bioLine2: "🎯 Marketing, Gestão e Vendas no Pilates",
@@ -150,6 +159,8 @@ export default function VollHub() {
           setUserWhatsApp(u.whatsapp);
           if (u.downloaded) setDownloaded(u.downloaded);
           if (u.profile) setUserProfile(u.profile);
+          if (u.credits !== undefined) setUserCredits(u.credits);
+          if (u.creditsEarned) setUserCreditsEarned(u.creditsEarned);
           // Don't auto-navigate to hub - stay on linktree
         }
       }
@@ -158,6 +169,17 @@ export default function VollHub() {
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const setUnlock = (m) => { setUnlockTarget(m); setPreviewImgIdx(0); };
+  // Credits system
+  const [userCredits, setUserCredits] = useState(3);
+  const [userCreditsEarned, setUserCreditsEarned] = useState({});
+  const [showCreditStore, setShowCreditStore] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [commentVerifying, setCommentVerifying] = useState(false);
+  const creditsEnabled = config.creditsEnabled === "true";
+  const getQuizzes = () => { try { return config.quizzes ? JSON.parse(config.quizzes) : []; } catch(e) { return []; } };
+  const quizzes = getQuizzes();
   const [toast, setToast] = useState(null);
   const [animateIn, setAnimateIn] = useState(false);
   const [refName, setRefName] = useState("");
@@ -181,7 +203,7 @@ export default function VollHub() {
   const [logoTaps, setLogoTaps] = useState(0);
   const [editId, setEditId] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
-  const [newMat, setNewMat] = useState({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] });
+  const [newMat, setNewMat] = useState({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [], creditCost: 0 });
   const [showIconPicker, setShowIconPicker] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [previewImgIdx, setPreviewImgIdx] = useState(0);
@@ -328,17 +350,50 @@ export default function VollHub() {
     if (existing) {
       await db.updateLead(existing.id, { visits: (existing.visits || 0) + 1, lastVisit: dateStr, name: userName });
       setDownloaded(existing.downloads || []);
+      setUserCredits(existing.credits ?? 3);
+      setUserCreditsEarned(existing.creditsEarned || {});
     } else {
-      await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1Complete: false, phase2Complete: false, phase3Complete: false, surveyResponses: {} });
+      await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1Complete: false, phase2Complete: false, phase3Complete: false, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {} });
+      setUserCredits(parseInt(config.creditsInitial) || 3);
     }
     setView("hub");
-    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], profile: existing ? { grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete } : {} }));
+    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, profile: existing ? { grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete } : {} }));
     if (existing) {
       setUserProfile({ grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete });
     }
   };
+  // ─── CREDITS HELPERS ───
+  const earnCredits = async (amount, earnKey) => {
+    if (earnKey && userCreditsEarned[earnKey]) return false; // already earned
+    const newCredits = userCredits + amount;
+    const newEarned = earnKey ? { ...userCreditsEarned, [earnKey]: true } : userCreditsEarned;
+    setUserCredits(newCredits);
+    setUserCreditsEarned(newEarned);
+    // Save to localStorage
+    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.credits = newCredits; saved.creditsEarned = newEarned; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
+    // Save to DB
+    const lead = await db.findLeadByWhatsApp(userWhatsApp);
+    if (lead) await db.updateLead(lead.id, { credits: newCredits, creditsEarned: newEarned });
+    return true;
+  };
+  const spendCredits = async (amount) => {
+    if (userCredits < amount) return false;
+    const newCredits = userCredits - amount;
+    setUserCredits(newCredits);
+    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.credits = newCredits; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
+    const lead = await db.findLeadByWhatsApp(userWhatsApp);
+    if (lead) await db.updateLead(lead.id, { credits: newCredits });
+    return true;
+  };
+
   const handleDownload = async (mat) => {
     if (!downloaded.includes(mat.id)) {
+      // Spend credits if enabled and material has cost
+      const cost = mat.creditCost || 0;
+      if (creditsEnabled && cost > 0) {
+        const spent = await spendCredits(cost);
+        if (!spent) { showT("Créditos insuficientes! 🎯"); setShowCreditStore(true); return; }
+      }
       const newDl = [...downloaded, mat.id];
       setDownloaded(newDl);
       try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.downloaded = newDl; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) { localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: newDl })); }
@@ -499,6 +554,11 @@ export default function VollHub() {
       <div style={{ display: "flex", gap: 6 }}>
         {[["free", "✨ Grátis"], ["data", "📋 Dados"], ["social", "👥 Social"], ["survey", "🔍 Pesquisa"]].map(([k, l]) => (<button key={k} onClick={() => onChange("unlockType", k)} style={{ flex: 1, padding: "8px 4px", borderRadius: 9, fontSize: 11, fontWeight: 600, background: mat.unlockType === k ? (k === "survey" ? T.gold + "22" : T.accent + "22") : T.inputBg, color: mat.unlockType === k ? (k === "survey" ? T.gold : T.accent) : T.textFaint, border: `1px solid ${mat.unlockType === k ? (k === "survey" ? T.gold + "44" : T.accent + "44") : T.inputBorder}`, transition: "all 0.2s" }}>{l}</button>))}
       </div>
+      {/* Credit cost */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🎯 Custo em créditos:</span>
+        {[0, 1, 2, 3].map(c => (<button key={c} onClick={() => onChange("creditCost", c)} style={{ padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 600, background: (mat.creditCost ?? 1) === c ? T.gold + "22" : T.inputBg, color: (mat.creditCost ?? 1) === c ? T.gold : T.textFaint, border: `1px solid ${(mat.creditCost ?? 1) === c ? T.gold + "44" : T.inputBorder}` }}>{c === 0 ? "Grátis" : c}</button>))}
+      </div>
       {mat.unlockType === "social" && (<div style={{ display: "flex", gap: 6 }}>{[["share", "👥 Indicar amigo"], ["comment", "💬 Comentar no post"]].map(([k, l]) => (<button key={k} onClick={() => onChange("socialMethod", k)} style={{ flex: 1, padding: "8px 6px", borderRadius: 9, fontSize: 11, fontWeight: 600, background: mat.socialMethod === k ? T.accent + "22" : T.inputBg, color: mat.socialMethod === k ? T.accent : T.textFaint, border: `1px solid ${mat.socialMethod === k ? T.accent + "44" : T.inputBorder}` }}>{l}</button>))}</div>)}
       {mat.unlockType === "data" && (<p style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'", padding: "8px 0" }}>📋 O usuário precisa completar o perfil (cidade, atuação, studio, alunos, objetivo) para desbloquear.</p>)}
 
@@ -611,7 +671,17 @@ export default function VollHub() {
         ref={isSpotlight ? spotlightRef : null}
         onClick={() => {
           if (isNew) markNewAsSeen(m.id);
-          if (isFree || isFlashActive || surveyDone) { setSelectedMaterial(m); return; }
+          const cost = m.creditCost || 0;
+          const alreadyDownloaded = downloaded.includes(m.id);
+          // Already downloaded = always accessible
+          if (alreadyDownloaded) { setSelectedMaterial(m); return; }
+          // Free material (cost 0) or flash
+          if (cost === 0 || isFree || isFlashActive || surveyDone) { setSelectedMaterial(m); return; }
+          // Credits system check
+          if (creditsEnabled && cost > 0) {
+            if (userCredits >= cost) { setSelectedMaterial(m); return; }
+            else { setShowCreditStore(true); showT(`Você precisa de ${cost} crédito${cost > 1 ? "s" : ""} para baixar. Ganhe créditos! 🎯`); return; }
+          }
           if (m.unlockType === "data") { if (profileComplete) { setSelectedMaterial(m); } else { setView("profile"); showT("Complete seu perfil para desbloquear! 📋"); } return; }
           if (m.unlockType === "survey") { setCurrentSurvey(m); setTempAnswers({}); setPreviewImgIdx(0); return; }
           setUnlock(m); // social
@@ -621,7 +691,7 @@ export default function VollHub() {
           border: isFlashActive ? `2px solid #e8443a55` : isSpotlight ? `2px solid ${T.spotBorder}` : `1px solid ${T.cardBorder}`,
           borderRadius: 16, padding: 15, display: "flex", gap: 12, alignItems: "flex-start",
           cursor: "pointer", position: "relative", flexWrap: "wrap",
-          opacity: animateIn ? (isFree || isFlashActive || surveyDone ? 1 : 0.6) : 0,
+          opacity: animateIn ? (isDl || isFree || isFlashActive || surveyDone || (m.creditCost || 0) === 0 || (creditsEnabled && userCredits >= (m.creditCost || 0)) ? 1 : 0.7) : 0,
           transform: animateIn ? "translateY(0)" : "translateY(25px)",
           transition: `all 0.4s ease ${index * 0.07}s`,
           boxShadow: isFlashActive ? "0 0 20px #e8443a15" : isSpotlight ? `0 0 20px ${T.accent}15` : "none",
@@ -710,7 +780,16 @@ export default function VollHub() {
             <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{m.date}</span>
             {ago && <span style={{ fontSize: 10, color: T.newText, fontFamily: "'Plus Jakarta Sans'", fontWeight: 600 }}>{ago}</span>}
           </div>
-          {isFree ? <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>{isDl ? "Abrir ↓" : "Baixar ↓"}</span> : isFlashActive ? <span style={{ fontSize: 12, fontWeight: 600, color: "#e8443a" }}>Grátis por tempo limitado →</span> : surveyDone ? <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>Baixar ↓</span> : m.unlockType === "data" ? <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>📋 Completar perfil →</span> : m.unlockType === "survey" ? <span style={{ fontSize: 12, fontWeight: 600, color: T.gold }}>🔍 Responder pesquisa →</span> : <span style={{ fontSize: 12, fontWeight: 600, color: T.textFaint }}>Desbloquear →</span>}
+          {(() => {
+            const cost = m.creditCost || 0;
+            if (isDl) return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>Abrir ↓</span>;
+            if (cost === 0 || isFree || isFlashActive) return <span style={{ fontSize: 12, fontWeight: 600, color: isFlashActive ? "#e8443a" : T.accent }}>{isFlashActive ? "Grátis por tempo limitado →" : "Baixar ↓"}</span>;
+            if (surveyDone) return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>Baixar ↓</span>;
+            if (creditsEnabled && cost > 0) return <span style={{ fontSize: 12, fontWeight: 600, color: userCredits >= cost ? T.gold : T.textFaint }}>🎯 {cost} crédito{cost > 1 ? "s" : ""}</span>;
+            if (m.unlockType === "data") return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>📋 Completar perfil →</span>;
+            if (m.unlockType === "survey") return <span style={{ fontSize: 12, fontWeight: 600, color: T.gold }}>🔍 Responder pesquisa →</span>;
+            return <span style={{ fontSize: 12, fontWeight: 600, color: T.textFaint }}>Desbloquear →</span>;
+          })()}
         </div>
       </div>
     );
@@ -941,6 +1020,7 @@ export default function VollHub() {
               can("leads_view") && ["insights", "📊"],
               can("textos_edit") && ["bio", "🔗"],
               can("textos_edit") && ["textos", "✏️"],
+              can("textos_edit") && ["quizzes", "🧠"],
               isMaster && ["users", "👑"],
               isMaster && ["log", "📜"],
             ].filter(Boolean).map(([t, lbl]) => (<button key={t} onClick={() => setAdminTab(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 9, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 14, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent", minWidth: 40 }}>{lbl}</button>))}
@@ -1586,6 +1666,94 @@ export default function VollHub() {
             </div>
           )}
 
+          {/* QUIZZES & CREDITS */}
+          {adminTab === "quizzes" && (() => {
+            const allQuizzes = getQuizzes();
+            const saveQuizzes = (qs) => db.updateConfig("quizzes", JSON.stringify(qs));
+            const addQuiz = () => {
+              const nq = { id: String(Date.now()), title: "Novo Quiz", active: true, questions: [
+                { question: "Pergunta 1?", options: ["A", "B", "C", "D"], correct: 0 },
+                { question: "Pergunta 2?", options: ["A", "B", "C", "D"], correct: 0 },
+                { question: "Pergunta 3?", options: ["A", "B", "C", "D"], correct: 0 },
+              ] };
+              saveQuizzes([...allQuizzes, nq]); showT("Quiz criado! ✅");
+            };
+            const updateQuiz = (qid, key, val) => saveQuizzes(allQuizzes.map(q => q.id === qid ? { ...q, [key]: val } : q));
+            const updateQuestion = (qid, qi, key, val) => {
+              saveQuizzes(allQuizzes.map(q => q.id === qid ? { ...q, questions: q.questions.map((qq, i) => i === qi ? { ...qq, [key]: val } : qq) } : q));
+            };
+            const addQuestion = (qid) => {
+              saveQuizzes(allQuizzes.map(q => q.id === qid ? { ...q, questions: [...q.questions, { question: "Nova pergunta?", options: ["A", "B", "C", "D"], correct: 0 }] } : q));
+            };
+            const removeQuestion = (qid, qi) => {
+              saveQuizzes(allQuizzes.map(q => q.id === qid ? { ...q, questions: q.questions.filter((_, i) => i !== qi) } : q));
+            };
+            const deleteQuiz = (qid) => { saveQuizzes(allQuizzes.filter(q => q.id !== qid)); showT("Quiz removido 🗑"); };
+            const linkInp = { width: "100%", padding: "8px 10px", borderRadius: 8, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 12, fontFamily: "'Plus Jakarta Sans'" };
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Credits Config */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>🎯 Sistema de Créditos</h3>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>Ativar sistema:</span>
+                    <button onClick={() => db.updateConfig("creditsEnabled", creditsEnabled ? "false" : "true")} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: creditsEnabled ? T.accent + "22" : T.inputBg, color: creditsEnabled ? T.accent : T.textFaint, border: `1px solid ${creditsEnabled ? T.accent + "44" : T.inputBorder}` }}>{creditsEnabled ? "✅ Ativo" : "Desativado"}</button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <CmsField label="Créditos iniciais" configKey="creditsInitial" />
+                    <CmsField label="Por fase do perfil" configKey="creditsPhase" />
+                    <CmsField label="Por quiz" configKey="creditsQuiz" />
+                    <CmsField label="Por comentário IG" configKey="creditsComment" />
+                    <CmsField label="Por indicação" configKey="creditsReferral" />
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <CmsField label="URL do post Instagram (comentário)" configKey="creditsCommentPostUrl" />
+                    <CmsField label="Msg indicação WhatsApp ({link} = URL)" configKey="creditsReferralMsg" />
+                  </div>
+                </div>
+
+                {/* Quiz List */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🧠 Quizzes ({allQuizzes.length})</h3>
+                  <button onClick={addQuiz} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Novo quiz</button>
+                </div>
+
+                {allQuizzes.map(q => (
+                  <div key={q.id} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <input value={q.title} onChange={(e) => updateQuiz(q.id, "title", e.target.value)} style={{ ...linkInp, fontWeight: 700, fontSize: 14, flex: 1 }} placeholder="Título do quiz" />
+                      <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
+                        <button onClick={() => updateQuiz(q.id, "active", !q.active)} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 11, background: q.active ? T.accent + "22" : T.inputBg, color: q.active ? T.accent : T.textFaint, border: `1px solid ${q.active ? T.accent + "44" : T.inputBorder}` }}>{q.active ? "👁" : "👁‍🗨"}</button>
+                        <button onClick={() => deleteQuiz(q.id)} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 11, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
+                      </div>
+                    </div>
+
+                    {(q.questions || []).map((qq, qi) => (
+                      <div key={qi} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, minWidth: 20 }}>Q{qi + 1}</span>
+                          <input value={qq.question} onChange={(e) => updateQuestion(q.id, qi, "question", e.target.value)} style={{ ...linkInp, flex: 1 }} placeholder="Pergunta" />
+                          {q.questions.length > 1 && <button onClick={() => removeQuestion(q.id, qi)} style={{ fontSize: 10, color: T.dangerTxt, background: "none", padding: 4 }}>✕</button>}
+                        </div>
+                        {(qq.options || []).map((opt, oi) => (
+                          <div key={oi} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
+                            <button onClick={() => updateQuestion(q.id, qi, "correct", oi)} style={{ width: 22, height: 22, borderRadius: "50%", background: qq.correct === oi ? T.accent : T.inputBg, border: `2px solid ${qq.correct === oi ? T.accent : T.inputBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", flexShrink: 0 }}>{qq.correct === oi ? "✓" : ""}</button>
+                            <input value={opt} onChange={(e) => { const newOpts = [...qq.options]; newOpts[oi] = e.target.value; updateQuestion(q.id, qi, "options", newOpts); }} style={{ ...linkInp, flex: 1, fontSize: 11 }} placeholder={`Opção ${String.fromCharCode(65 + oi)}`} />
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    <button onClick={() => addQuestion(q.id)} style={{ fontSize: 11, color: T.accent, background: "none", padding: "4px 0" }}>＋ Adicionar pergunta</button>
+                  </div>
+                ))}
+
+                {allQuizzes.length === 0 && <p style={{ fontSize: 13, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", padding: 20 }}>Nenhum quiz criado. Clique em "＋ Novo quiz" para começar.</p>}
+                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>💡 Marque o ⚪ verde na resposta correta. O usuário precisa acertar todas as perguntas para ganhar o crédito. Se errar, pode tentar novamente no dia seguinte.</p>
+              </div>
+            );
+          })()}
+
           {/* USERS (MASTER ONLY) */}
           {adminTab === "users" && isMaster && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1758,9 +1926,13 @@ export default function VollHub() {
         phase.fields.forEach(f => { updates[f.key] = userProfile[f.key]; });
         updates[`phase${phaseId}Complete`] = true;
         await db.updateLead(lead.id, updates);
+        // Earn credits for phase completion
+        const creditsPerPhase = parseInt(config.creditsPhase) || 2;
+        await earnCredits(creditsPerPhase, `phase${phaseId}`);
       }
       setActivePhase(null);
-      showT(`🎉 Fase ${phaseId} completa! Prêmio desbloqueado!`);
+      const creditsPerPhase = parseInt(config.creditsPhase) || 2;
+      showT(`🎉 Fase ${phaseId} completa! +${creditsPerPhase} créditos!`);
     };
 
     return (
@@ -1879,8 +2051,9 @@ export default function VollHub() {
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
             </button>}
             <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
-            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
+            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
+            {creditsEnabled && <button onClick={() => setShowCreditStore(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>}
           </div>
         </header>
 
@@ -2055,6 +2228,160 @@ export default function VollHub() {
           </div>
         </div>
       )}
+
+      {/* CREDIT STORE MODAL */}
+      {showCreditStore && (
+        <div style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowCreditStore(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto", animation: "fadeInUp 0.3s ease" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text }}>🎯 Ganhe Créditos</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Saldo:</span>
+                <span style={{ fontSize: 22, fontWeight: 800, color: T.gold }}>{userCredits}</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Profile phases */}
+              {[1, 2, 3].map(p => {
+                const done = userCreditsEarned[`phase${p}`];
+                const phaseEnabled = config[`phase${p}Enabled`] !== "false";
+                if (!phaseEnabled) return null;
+                const amt = parseInt(config.creditsPhase) || 2;
+                return (
+                  <div key={p} onClick={() => { if (!done) { setShowCreditStore(false); setView("profile"); setActivePhase(p); } }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, cursor: done ? "default" : "pointer", opacity: done ? 0.6 : 1 }}>
+                    <span style={{ fontSize: 24 }}>{done ? "✅" : config[`phase${p}Icon`] || "📋"}</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{config[`phase${p}Title`] || `Fase ${p}`}</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já completado" : "Responda sobre você"}</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>+{amt}</span>
+                  </div>
+                );
+              })}
+
+              {/* Quizzes */}
+              {quizzes.filter(q => q.active !== false).map(q => {
+                const done = userCreditsEarned[`quiz_${q.id}`];
+                const failTs = userCreditsEarned[`quiz_${q.id}_fail`];
+                const canRetry = !failTs || (Date.now() - failTs > 86400000);
+                const amt = parseInt(config.creditsQuiz) || 1;
+                return (
+                  <div key={q.id} onClick={() => { if (!done && canRetry) { setShowCreditStore(false); setShowQuiz(q); setQuizAnswers({}); setQuizSubmitted(false); } }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, cursor: done || !canRetry ? "default" : "pointer", opacity: done || !canRetry ? 0.6 : 1 }}>
+                    <span style={{ fontSize: 24 }}>{done ? "✅" : "🧠"}</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{q.title || "Quiz"}</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já respondido" : !canRetry ? "Tente novamente amanhã" : "Acerte as 3 para ganhar"}</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>+{amt}</span>
+                  </div>
+                );
+              })}
+
+              {/* Instagram Comment */}
+              {config.creditsCommentPostUrl && (() => {
+                const done = userCreditsEarned["comment_insta"];
+                const amt = parseInt(config.creditsComment) || 1;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, opacity: done ? 0.6 : 1 }}>
+                    <span style={{ fontSize: 24 }}>{done ? "✅" : "💬"}</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>Comentar no Instagram</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já verificado" : "Comente no post e volte aqui"}</span>
+                    </div>
+                    {!done && !commentVerifying && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                        <a href={config.creditsCommentPostUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "4px 10px", borderRadius: 6, background: T.accent + "15", textAlign: "center" }}>Abrir post ↗</a>
+                        <button onClick={(e) => { e.stopPropagation(); setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, "comment_insta"); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 11, fontWeight: 600, color: T.gold, padding: "4px 10px", borderRadius: 6, background: T.gold + "15" }}>Comentei ✓</button>
+                      </div>
+                    )}
+                    {commentVerifying && <span style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>}
+                    {!done && <span style={{ fontSize: 13, fontWeight: 800, color: T.gold, marginLeft: 4 }}>+{amt}</span>}
+                  </div>
+                );
+              })()}
+
+              {/* Referral via WhatsApp */}
+              {(() => {
+                const amt = parseInt(config.creditsReferral) || 2;
+                const refLink = config.baseUrl || window.location.origin;
+                const msg = (config.creditsReferralMsg || "Confira: {link}").replace("{link}", refLink);
+                const waUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorder}` }}>
+                    <span style={{ fontSize: 24 }}>🔗</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>Indicar amigo</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Envie pelo WhatsApp</span>
+                    </div>
+                    <a href={waUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 600, color: "#25D366", padding: "6px 12px", borderRadius: 8, background: "#25D36615", textDecoration: "none" }}>Enviar 📲</a>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>+{amt}</span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <button onClick={() => setShowCreditStore(false)} style={{ width: "100%", padding: 12, borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600, marginTop: 14 }}>Fechar</button>
+          </div>
+        </div>
+      )}
+
+      {/* QUIZ MODAL */}
+      {showQuiz && (() => {
+        const q = showQuiz;
+        const questions = q.questions || [];
+        const allAnswered = questions.every((_, i) => quizAnswers[i] !== undefined);
+        const allCorrect = questions.every((qq, i) => quizAnswers[i] === qq.correct);
+        const amt = parseInt(config.creditsQuiz) || 1;
+        return (
+          <div style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowQuiz(false)}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto", animation: "fadeInUp 0.3s ease" }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 4 }}>🧠 {q.title || "Quiz"}</h2>
+              <p style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 16 }}>Acerte as 3 para ganhar +{amt} crédito</p>
+
+              {questions.map((qq, qi) => (
+                <div key={qi} style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>{qi + 1}. {qq.question}</p>
+                  {(qq.options || []).map((opt, oi) => {
+                    const selected = quizAnswers[qi] === oi;
+                    const isCorrect = qq.correct === oi;
+                    const showRes = quizSubmitted;
+                    return (
+                      <button key={oi} onClick={() => { if (!quizSubmitted) setQuizAnswers(p => ({ ...p, [qi]: oi })); }} style={{
+                        display: "block", width: "100%", padding: "10px 14px", borderRadius: 10, marginBottom: 4, textAlign: "left",
+                        fontSize: 12, fontWeight: selected ? 700 : 500, fontFamily: "'Plus Jakarta Sans'",
+                        background: showRes ? (isCorrect ? T.successBg : (selected && !isCorrect ? T.dangerBg : T.statBg)) : (selected ? T.accent + "22" : T.statBg),
+                        border: `1px solid ${showRes ? (isCorrect ? T.accent + "66" : (selected && !isCorrect ? T.dangerBrd : T.statBorder)) : (selected ? T.accent + "66" : T.statBorder)}`,
+                        color: T.text,
+                      }}>{showRes && isCorrect ? "✅ " : showRes && selected && !isCorrect ? "❌ " : ""}{opt}</button>
+                    );
+                  })}
+                </div>
+              ))}
+
+              {!quizSubmitted ? (
+                <button disabled={!allAnswered} onClick={async () => {
+                  setQuizSubmitted(true);
+                  if (allCorrect) {
+                    await earnCredits(amt, `quiz_${q.id}`);
+                    showT(`🎉 Parabéns! +${amt} crédito!`);
+                  } else {
+                    const newEarned = { ...userCreditsEarned, [`quiz_${q.id}_fail`]: Date.now() };
+                    setUserCreditsEarned(newEarned);
+                    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.creditsEarned = newEarned; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
+                    const lead = await db.findLeadByWhatsApp(userWhatsApp);
+                    if (lead) await db.updateLead(lead.id, { creditsEarned: newEarned });
+                    showT("Não foi dessa vez. Tente novamente amanhã! 💪");
+                  }
+                }} style={{ width: "100%", padding: 14, borderRadius: 14, background: allAnswered ? "linear-gradient(135deg, #c49500, #FFD863)" : T.statBg, color: allAnswered ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: allAnswered ? 1 : 0.5 }}>Verificar respostas</button>
+              ) : (
+                <button onClick={() => setShowQuiz(false)} style={{ width: "100%", padding: 14, borderRadius: 14, background: allCorrect ? "linear-gradient(135deg, #349980, #7DE2C7)" : T.statBg, color: allCorrect ? "#060a09" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{allCorrect ? "🎉 Fechar" : "Fechar"}</button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       <Toast />
     </div>
   );
