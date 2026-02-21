@@ -12,6 +12,7 @@ const matFromDb = (r) => ({
   sortOrder: r.sort_order, createdAt: new Date(r.created_at).getTime(),
   instaPostUrl: r.insta_post_url || '', instaViews: r.insta_views || 0, instaLikes: r.insta_likes || 0, instaComments: r.insta_comments || 0, instaSaves: r.insta_saves || 0,
   creditCost: r.credit_cost ?? 1,
+  funnel: r.funnel || null,
 })
 
 const matToDb = (m) => ({
@@ -25,6 +26,7 @@ const matToDb = (m) => ({
   sort_order: m.sortOrder || 0,
   insta_post_url: m.instaPostUrl || '', insta_views: m.instaViews || 0, insta_likes: m.instaLikes || 0, insta_comments: m.instaComments || 0, insta_saves: m.instaSaves || 0,
   credit_cost: m.creditCost ?? 1,
+  funnel: m.funnel || null,
 })
 
 const leadFromDb = (r) => ({
@@ -118,6 +120,7 @@ export function useSupabase() {
       previewBullets: 'preview_bullets', previewImages: 'preview_images', sortOrder: 'sort_order',
       instaPostUrl: 'insta_post_url', instaViews: 'insta_views', instaLikes: 'insta_likes', instaComments: 'insta_comments', instaSaves: 'insta_saves',
       creditCost: 'credit_cost',
+      funnel: 'funnel',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v

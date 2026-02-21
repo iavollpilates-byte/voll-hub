@@ -174,6 +174,18 @@ export default function VollHub() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [commentVerifying, setCommentVerifying] = useState(false);
+  // Funnel system
+  const [funnelStep, setFunnelStep] = useState("download"); // "questions" | "download" | "cta"
+  const [funnelAnswers, setFunnelAnswers] = useState({});
+  const selectMat = (m) => {
+    if (!m) { setSelectedMaterial(null); return; }
+    const f = m.funnel;
+    const alreadyDl = downloaded.includes(m.id);
+    const hasQuestions = f?.questions?.length > 0 && !alreadyDl;
+    setFunnelAnswers({});
+    setFunnelStep(hasQuestions ? "questions" : "download");
+    setSelectedMaterial(m);
+  };
   const creditsEnabled = config.creditsEnabled === "true";
   const getQuizzes = () => { try { return config.quizzes ? JSON.parse(config.quizzes) : []; } catch(e) { return []; } };
   const quizzes = getQuizzes();
@@ -400,7 +412,21 @@ export default function VollHub() {
       const lead = await db.findLeadByWhatsApp(userWhatsApp);
       if (lead) { await db.updateLead(lead.id, { downloads: [...new Set([...(lead.downloads || []), mat.id])] }); }
     }
-    showT(`"${mat.title}" baixado! ✅`); setSelectedMaterial(null);
+    // Save funnel answers if any
+    if (Object.keys(funnelAnswers).length > 0) {
+      const lead = await db.findLeadByWhatsApp(userWhatsApp);
+      if (lead) {
+        const prev = lead.surveyResponses || {};
+        await db.updateLead(lead.id, { surveyResponses: { ...prev, [`funnel_${mat.id}`]: funnelAnswers } });
+      }
+    }
+    // Show CTA or close
+    if (mat.funnel?.cta?.url && !downloaded.includes(mat.id)) {
+      showT(`"${mat.title}" baixado! ✅`);
+      setFunnelStep("cta");
+    } else {
+      showT(`"${mat.title}" baixado! ✅`); setSelectedMaterial(null);
+    }
   };
   const confirmUnlock = async (method) => {
     if (method === "share" && (!refName.trim() || !refWA.trim())) return showT("Preencha os dados!");
@@ -646,6 +672,62 @@ export default function VollHub() {
           {(mat.previewImages || []).length < 3 && <button onClick={addImg} style={{ width: "100%", padding: "6px", borderRadius: 8, background: T.gold + "11", border: `1px dashed ${T.gold}33`, color: T.gold, fontSize: 11, fontWeight: 600, marginTop: 2 }}>+ Adicionar tela preview</button>}
         </div>
       )}
+
+      {/* ─── FUNNEL (qualificação + CTA) ─── */}
+      <div style={{ paddingTop: 8, borderTop: `1px solid ${T.cardBorder}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <label style={{ fontSize: 10, fontWeight: 700, color: "#e8443a", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Plus Jakarta Sans'" }}>⚡ Funil de qualificação</label>
+          <button onClick={() => onChange("funnel", mat.funnel ? null : { questions: [], cta: null })} style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: mat.funnel ? "#e8443a22" : T.inputBg, color: mat.funnel ? "#e8443a" : T.textFaint, border: `1px solid ${mat.funnel ? "#e8443a44" : T.inputBorder}` }}>{mat.funnel ? "✅ Ativo" : "Desativado"}</button>
+        </div>
+        {mat.funnel && (() => {
+          const funnel = mat.funnel;
+          const updateFunnel = (key, val) => onChange("funnel", { ...funnel, [key]: val });
+          const fqs = funnel.questions || [];
+          const addFQ = () => updateFunnel("questions", [...fqs, { question: "", type: "choice", options: ["Sim", "Não"], placeholder: "" }]);
+          const updFQ = (i, k, v) => updateFunnel("questions", fqs.map((q, j) => j === i ? { ...q, [k]: v } : q));
+          const rmFQ = (i) => updateFunnel("questions", fqs.filter((_, j) => j !== i));
+          const cta = funnel.cta || {};
+          const updateCta = (k, v) => updateFunnel("cta", { ...cta, [k]: v });
+          return (
+            <>
+              <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6 }}>📋 Perguntas pré-download (aparece antes de liberar)</p>
+              {fqs.map((fq, fi) => (
+                <div key={fi} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 8, padding: 8, marginBottom: 4 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
+                    <input value={fq.question} onChange={(e) => updFQ(fi, "question", e.target.value)} style={{ ...sInp, flex: 1 }} placeholder="Pergunta" />
+                    <button onClick={() => updFQ(fi, "type", fq.type === "choice" ? "text" : "choice")} style={{ padding: "3px 6px", borderRadius: 5, fontSize: 9, background: T.inputBg, color: T.textFaint, border: `1px solid ${T.inputBorder}` }}>{fq.type === "choice" ? "Opções" : "Texto"}</button>
+                    <button onClick={() => rmFQ(fi)} style={{ padding: "3px 6px", borderRadius: 5, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
+                  </div>
+                  {fq.type === "choice" && (
+                    <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                      {(fq.options || []).map((opt, oi) => (
+                        <input key={oi} value={opt} onChange={(e) => { const newOpts = [...(fq.options || [])]; newOpts[oi] = e.target.value; updFQ(fi, "options", newOpts); }} style={{ ...sInp, width: 80, fontSize: 10 }} />
+                      ))}
+                      <button onClick={() => updFQ(fi, "options", [...(fq.options || []), ""])} style={{ padding: "2px 6px", fontSize: 10, color: T.accent, background: "none" }}>+</button>
+                    </div>
+                  )}
+                  {fq.type === "text" && <input value={fq.placeholder || ""} onChange={(e) => updFQ(fi, "placeholder", e.target.value)} style={{ ...sInp, fontSize: 10, width: "100%" }} placeholder="Placeholder (ex: Sua cidade)" />}
+                </div>
+              ))}
+              {fqs.length < 5 && <button onClick={addFQ} style={{ width: "100%", padding: "5px", borderRadius: 7, background: "#e8443a11", border: "1px dashed #e8443a33", color: "#e8443a", fontSize: 10, fontWeight: 600, marginTop: 2, marginBottom: 8 }}>+ Adicionar pergunta</button>}
+
+              <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4, marginBottom: 6 }}>🚀 CTA pós-download (aparece depois de baixar)</p>
+              <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 8, padding: 8 }}>
+                <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                  <input value={cta.icon || ""} onChange={(e) => updateCta("icon", e.target.value)} style={{ ...sInp, width: 40, textAlign: "center" }} placeholder="🚀" />
+                  <input value={cta.title || ""} onChange={(e) => updateCta("title", e.target.value)} style={{ ...sInp, flex: 1 }} placeholder="Título do CTA" />
+                </div>
+                <input value={cta.description || ""} onChange={(e) => updateCta("description", e.target.value)} style={{ ...sInp, width: "100%", marginBottom: 4 }} placeholder="Descrição (ex: Quer ajuda profissional?)" />
+                <div style={{ display: "flex", gap: 4 }}>
+                  <input value={cta.buttonText || ""} onChange={(e) => updateCta("buttonText", e.target.value)} style={{ ...sInp, width: 140 }} placeholder="Texto do botão" />
+                  <input value={cta.url || ""} onChange={(e) => updateCta("url", e.target.value)} style={{ ...sInp, flex: 1 }} placeholder="URL (link ou WhatsApp)" />
+                </div>
+              </div>
+              <p style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>💡 Se URL vazio, o CTA não aparece. Use https://wa.me/55... para WhatsApp.</p>
+            </>
+          );
+        })()}
+      </div>
     </div>
   );}, [T, sInp]);
 
@@ -673,15 +755,15 @@ export default function VollHub() {
           const cost = m.creditCost || 0;
           const alreadyDownloaded = downloaded.includes(m.id);
           // Already downloaded = always accessible
-          if (alreadyDownloaded) { setSelectedMaterial(m); return; }
+          if (alreadyDownloaded) { selectMat(m); return; }
           // Free material (cost 0) or flash
-          if (cost === 0 || isFree || isFlashActive || surveyDone) { setSelectedMaterial(m); return; }
+          if (cost === 0 || isFree || isFlashActive || surveyDone) { selectMat(m); return; }
           // Credits system check
           if (creditsEnabled && cost > 0) {
-            if (userCredits >= cost) { setSelectedMaterial(m); return; }
+            if (userCredits >= cost) { selectMat(m); return; }
             else { setShowCreditStore(true); showT(`Você precisa de ${cost} crédito${cost > 1 ? "s" : ""} para baixar. Ganhe créditos! 🎯`); return; }
           }
-          if (m.unlockType === "data") { if (profileComplete) { setSelectedMaterial(m); } else { setView("profile"); showT("Complete seu perfil para desbloquear! 📋"); } return; }
+          if (m.unlockType === "data") { if (profileComplete) { selectMat(m); } else { setView("profile"); showT("Complete seu perfil para desbloquear! 📋"); } return; }
           if (m.unlockType === "survey") { setCurrentSurvey(m); setTempAnswers({}); setPreviewImgIdx(0); return; }
           setUnlock(m); // social
         }}
@@ -2168,23 +2250,74 @@ export default function VollHub() {
       </div>
 
       {/* Download Modal */}
-      {selectedMaterial && (
+      {selectedMaterial && (() => {
+        const sm = selectedMaterial;
+        const f = sm.funnel;
+        const alreadyDl = downloaded.includes(sm.id);
+        const fQuestions = f?.questions || [];
+        const fCta = f?.cta;
+        const allFunnelAnswered = fQuestions.every((_, i) => funnelAnswers[i] !== undefined && funnelAnswers[i] !== "");
+
+        return (
         <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={() => setSelectedMaterial(null)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: "22px 22px 14px 14px", padding: "30px 22px 22px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", animation: "slideUp 0.3s ease", position: "relative" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: "22px 22px 14px 14px", padding: "30px 22px 22px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", animation: "slideUp 0.3s ease", position: "relative", maxHeight: "85vh", overflowY: "auto" }}>
             <button onClick={() => setSelectedMaterial(null)} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
-            <div style={{ width: 76, height: 76, borderRadius: 20, background: T.matIcon, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 48 }}>{selectedMaterial.icon}</span></div>
-            <h2 style={{ fontSize: 19, fontWeight: 700, color: T.text, textAlign: "center" }}>{selectedMaterial.title}</h2>
-            <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", marginTop: 6 }}>{selectedMaterial.description}</p>
-            <span style={{ fontSize: 11, color: T.textFaint, marginTop: 4, marginBottom: 14, fontFamily: "'Plus Jakarta Sans'" }}>{selectedMaterial.date}</span>
-            {downloaded.includes(selectedMaterial.id) && <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, background: T.dlBg, border: `1px solid ${T.dlBorder}`, color: T.accent, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", marginBottom: 8, width: "100%" }}><span>✅</span><span>Você já baixou este material</span></div>}
-            {selectedMaterial.downloadUrl ? (
-              <a href={selectedMaterial.downloadUrl} target="_blank" rel="noreferrer" onClick={() => handleDownload(selectedMaterial)} style={{ display: "block", width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6, textAlign: "center", textDecoration: "none" }}>{downloaded.includes(selectedMaterial.id) ? "📥 Acessar novamente" : "📥 Acessar material"}</a>
-            ) : (
-              <button onClick={() => handleDownload(selectedMaterial)} style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6 }}>{downloaded.includes(selectedMaterial.id) ? "📥 Baixar novamente" : "📥 Baixar material"}</button>
+
+            {/* STEP: QUESTIONS (pre-download) */}
+            {funnelStep === "questions" && (
+              <>
+                <div style={{ width: 76, height: 76, borderRadius: 20, background: T.matIcon, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 48 }}>{sm.icon}</span></div>
+                <h2 style={{ fontSize: 19, fontWeight: 700, color: T.text, textAlign: "center" }}>{sm.title}</h2>
+                <p style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", marginTop: 4, marginBottom: 14 }}>Responda rapidinho para acessar o material:</p>
+                {fQuestions.map((fq, fi) => (
+                  <div key={fi} style={{ width: "100%", marginBottom: 10 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{fq.question}</label>
+                    {fq.type === "choice" ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {(fq.options || []).map((opt, oi) => (
+                          <button key={oi} onClick={() => setFunnelAnswers(p => ({ ...p, [fi]: opt }))} style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12, fontWeight: funnelAnswers[fi] === opt ? 700 : 500, fontFamily: "'Plus Jakarta Sans'", background: funnelAnswers[fi] === opt ? T.accent + "22" : T.inputBg, color: funnelAnswers[fi] === opt ? T.accent : T.text, border: `1px solid ${funnelAnswers[fi] === opt ? T.accent + "66" : T.inputBorder}` }}>{opt}</button>
+                        ))}
+                      </div>
+                    ) : (
+                      <input value={funnelAnswers[fi] || ""} onChange={(e) => setFunnelAnswers(p => ({ ...p, [fi]: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'" }} placeholder={fq.placeholder || "Sua resposta"} />
+                    )}
+                  </div>
+                ))}
+                <button disabled={!allFunnelAnswered} onClick={() => setFunnelStep("download")} style={{ width: "100%", padding: 14, borderRadius: 14, background: allFunnelAnswered ? "linear-gradient(135deg, #349980, #7DE2C7)" : T.inputBg, color: allFunnelAnswered ? "#060a09" : T.textFaint, fontSize: 15, fontWeight: 700, marginTop: 4, opacity: allFunnelAnswered ? 1 : 0.5 }}>Continuar →</button>
+              </>
+            )}
+
+            {/* STEP: DOWNLOAD */}
+            {funnelStep === "download" && (
+              <>
+                <div style={{ width: 76, height: 76, borderRadius: 20, background: T.matIcon, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 48 }}>{sm.icon}</span></div>
+                <h2 style={{ fontSize: 19, fontWeight: 700, color: T.text, textAlign: "center" }}>{sm.title}</h2>
+                <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", marginTop: 6 }}>{sm.description}</p>
+                <span style={{ fontSize: 11, color: T.textFaint, marginTop: 4, marginBottom: 14, fontFamily: "'Plus Jakarta Sans'" }}>{sm.date}</span>
+                {alreadyDl && <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, background: T.dlBg, border: `1px solid ${T.dlBorder}`, color: T.accent, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", marginBottom: 8, width: "100%" }}><span>✅</span><span>Você já baixou este material</span></div>}
+                {creditsEnabled && (sm.creditCost || 0) > 0 && !alreadyDl && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, background: T.gold + "12", border: `1px solid ${T.gold}33`, color: T.gold, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", marginBottom: 8, width: "100%" }}>🎯 Este material custa {sm.creditCost} crédito{sm.creditCost > 1 ? "s" : ""} (você tem {userCredits})</div>}
+                {sm.downloadUrl ? (
+                  <a href={sm.downloadUrl} target="_blank" rel="noreferrer" onClick={() => handleDownload(sm)} style={{ display: "block", width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6, textAlign: "center", textDecoration: "none" }}>{alreadyDl ? "📥 Acessar novamente" : "📥 Acessar material"}</a>
+                ) : (
+                  <button onClick={() => handleDownload(sm)} style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6 }}>{alreadyDl ? "📥 Baixar novamente" : "📥 Baixar material"}</button>
+                )}
+              </>
+            )}
+
+            {/* STEP: CTA (post-download) */}
+            {funnelStep === "cta" && fCta && (
+              <>
+                <div style={{ width: 76, height: 76, borderRadius: 20, background: "linear-gradient(135deg, #c4950022, #FFD86322)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 48 }}>{fCta.icon || "🚀"}</span></div>
+                <h2 style={{ fontSize: 19, fontWeight: 700, color: T.text, textAlign: "center" }}>{fCta.title || "Próximo passo"}</h2>
+                <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", marginTop: 6, marginBottom: 14 }}>{fCta.description || ""}</p>
+                <a href={fCta.url} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #c4950033", textAlign: "center", textDecoration: "none" }}>{fCta.buttonText || "Quero saber mais →"}</a>
+                <button onClick={() => setSelectedMaterial(null)} style={{ width: "100%", padding: 12, borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600, marginTop: 8 }}>Fechar</button>
+              </>
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Unlock Modal */}
       {unlockTarget && (
@@ -2256,7 +2389,7 @@ export default function VollHub() {
                     const sr = { ...(lead.surveyResponses || {}), [currentSurvey.id]: { ...tempAnswers, answeredAt: new Date().toISOString() } };
                     await db.updateLead(lead.id, { surveyResponses: sr, downloads: [...new Set([...(lead.downloads || []), currentSurvey.id])] });
                   }
-                  setSelectedMaterial(currentSurvey);
+                  selectMat(currentSurvey);
                   setCurrentSurvey(null);
                   showT("Pesquisa enviada! Material desbloqueado 🎉");
                 }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: allAnswered ? "linear-gradient(135deg, #349980, #7DE2C7)" : T.inputBg, color: allAnswered ? "#060a09" : T.textFaint, fontSize: 15, fontWeight: 700, opacity: allAnswered ? 1 : 0.5, transition: "all 0.3s" }}>
