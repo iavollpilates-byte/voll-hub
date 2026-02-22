@@ -21,6 +21,8 @@ const DEFAULT_CONFIG = {
   hubGreetPrefix: "Olá,", hubGreetEmoji: "👋", hubSubtitle: "VOLL Pilates Hub",
   progressSuffix: "materiais baixados",
   progressHint: "Desbloqueie mais indicando amigos ou engajando nos posts!",
+  profilePromptText: "Ganhe créditos!",
+  profileSectionTitle: "Ganhe créditos",
   sectionTitle: "Materiais disponíveis",
   ctaBannerTitle: "Quer acesso a tudo?", ctaBannerDesc: "Todos os materiais + conteúdos exclusivos", ctaBannerBtn: "Em breve",
   // Social proof
@@ -1618,7 +1620,7 @@ export default function VollHub() {
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {[
                 ["🏠 Tela Inicial", [["Nome da marca", "brandName"], ["Subtítulo", "brandTag"], ["Texto principal", "landingSubtitle", true], ["Stat 1 label", "landingStat1Label"], ["Stat 2 valor", "landingStat2"], ["Stat 2 label", "landingStat2Label"], ["Stat 3 valor", "landingStat3"], ["Stat 3 label", "landingStat3Label"], ["Label nome", "nameLabel"], ["Placeholder nome", "namePlaceholder"], ["Label WhatsApp", "whatsLabel"], ["Placeholder WA", "whatsPlaceholder"], ["Botão CTA", "ctaText"], ["Texto segurança", "safeText"]]],
-                ["📱 Hub", [["Saudação", "hubGreetPrefix"], ["Emoji", "hubGreetEmoji"], ["Subtítulo", "hubSubtitle"], ["Progresso", "progressSuffix"], ["Dica", "progressHint"], ["Título seção", "sectionTitle"]]],
+                ["📱 Hub", [["Saudação", "hubGreetPrefix"], ["Emoji", "hubGreetEmoji"], ["Subtítulo", "hubSubtitle"], ["Progresso", "progressSuffix"], ["Dica", "progressHint"], ["Título seção", "sectionTitle"], ["Texto perfil (hub)", "profilePromptText"], ["Título perfil (tela)", "profileSectionTitle"]]],
                 ["🔓 Modais", [["Título indicação", "shareModalTitle"], ["Desc indicação", "shareModalDesc", true], ["Título comentário", "commentModalTitle"], ["Desc comentário", "commentModalDesc", true], ["Título pesquisa", "surveyModalTitle"]]],
                 ["🔗 Links", [["URL Instagram", "instagramUrl"], ["Handle", "instagramHandle"], ["URL base do app", "baseUrl"], ["URL da logo (imagem)", "logoUrl"]]],
               ].map(([title, fields]) => (<div key={title} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>{title}</h3>{fields.map(([l, k, m]) => <CmsField key={k} label={l} ck={k} multi={m} />)}</div>))}
@@ -2119,7 +2121,7 @@ export default function VollHub() {
           {/* Phase Cards */}
           {!activePhase && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 2 }}>🏆 Desbloqueie prêmios</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 2 }}>🏆 {config.profileSectionTitle || 'Ganhe créditos'}</h3>
               {PHASES.map((phase, i) => {
                 const unlocked = isPhaseUnlocked(phase.id);
                 const phaseIdx = PHASES.findIndex(p => p.id === phase.id);
@@ -2195,7 +2197,7 @@ export default function VollHub() {
           <div onClick={() => setView("profile")} style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", opacity: animateIn ? 1 : 0, transition: "opacity 0.5s ease" }}>
             <span style={{ fontSize: 22 }}>🎁</span>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{completedPhases === PHASES.length ? "Todas as fases completas! 🏆" : `Desbloqueie prêmios! ${completedPhases}/${PHASES.length} fases`}</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{completedPhases === PHASES.length ? "Todas as fases completas! 🏆" : `${config.profilePromptText || 'Ganhe créditos!'} ${completedPhases}/${PHASES.length} fases`}</p>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
                 <div style={{ flex: 1, height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: `linear-gradient(90deg, ${T.gold}, #FFD863)`, width: `${(completedPhases / (PHASES.length || 1)) * 100}%`, transition: "width 0.5s" }} /></div>
                 <span style={{ fontSize: 11, fontWeight: 600, color: T.gold }}>{completedPhases}/{PHASES.length}</span>
