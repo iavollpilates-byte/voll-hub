@@ -277,7 +277,7 @@ export default function VollHub() {
   // Auto-refresh data every 30s when in admin
   useEffect(() => {
     if (view !== "admin") return;
-    const interval = setInterval(() => { db.reload(); }, 30000);
+    const interval = setInterval(() => { db.reload(); }, 600000);
     return () => clearInterval(interval);
   }, [view]);
 
