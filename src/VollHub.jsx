@@ -435,7 +435,7 @@ export default function VollHub() {
     }
   };
   // ─── CREDITS HELPERS ───
-  // ─── SHARE REFLECTION IMAGE (user shares pre-made image) ───
+  // ─── SHARE REFLECTION IMAGE (user shares pre-made image from admin) ───
   const shareReflectionImage = async () => {
     if (!todayReflection?.imageUrl) { showT("Imagem não disponível"); return; }
     try {
@@ -443,7 +443,7 @@ export default function VollHub() {
       const blob = await res.blob();
       const file = new File([blob], "reflexao-do-dia.png", { type: "image/png" });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: todayReflection.title, text: `${todayReflection.title} — VOLL Pilates Hub`, files: [file] });
+        await navigator.share({ title: todayReflection.quote || todayReflection.title, text: `${todayReflection.quote || todayReflection.title} — VOLL Pilates Hub`, files: [file] });
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href = url; a.download = "reflexao-do-dia.png";
@@ -454,7 +454,15 @@ export default function VollHub() {
     } catch(e) { showT("Erro ao compartilhar. Tente novamente."); }
   };
 
-  // ─── GENERATE REFLECTION IMAGE (admin only - Canvas) ───
+  // ─── SHARE REFLECTION VIA WHATSAPP (full text + link) ───
+  const shareReflectionWhatsApp = () => {
+    if (!todayReflection) return;
+    const appUrl = (config.baseUrl || "https://rafael.grupovoll.com.br") + "/?view=hub";
+    const msg = `📖 *Reflexão do dia — VOLL Pilates Hub*\n\n*${todayReflection.title}*\n\n${todayReflection.body}${todayReflection.actionText ? "\n\n✨ *Ação do dia:* " + todayReflection.actionText : ""}\n\n👉 Acesse mais conteúdos: ${appUrl}`;
+    window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+  };
+
+  // ─── GENERATE REFLECTION IMAGE (admin only - Canvas with QUOTE) ───
   const wrapText = (ctx, text, maxWidth) => {
     const words = text.split(" ");
     const lines = []; let line = "";
@@ -468,8 +476,9 @@ export default function VollHub() {
   };
 
   const generateReflectionImage = async (ref) => {
+    if (!ref.quote) { showT("Preencha a frase (quote) antes de gerar a imagem!"); return null; }
     const canvas = document.createElement("canvas");
-    const W = 1080, H = 1350;
+    const W = 1080, H = 1080; // Square for Instagram feed
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
 
@@ -479,71 +488,55 @@ export default function VollHub() {
     ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
     // Decorative circles
-    ctx.globalAlpha = 0.06;
-    ctx.beginPath(); ctx.arc(W * 0.85, H * 0.15, 300, 0, Math.PI * 2); ctx.fillStyle = "#7DE2C7"; ctx.fill();
-    ctx.beginPath(); ctx.arc(W * 0.1, H * 0.85, 250, 0, Math.PI * 2); ctx.fillStyle = "#FFD863"; ctx.fill();
+    ctx.globalAlpha = 0.07;
+    ctx.beginPath(); ctx.arc(W * 0.9, H * 0.1, 280, 0, Math.PI * 2); ctx.fillStyle = "#7DE2C7"; ctx.fill();
+    ctx.beginPath(); ctx.arc(W * 0.1, H * 0.9, 220, 0, Math.PI * 2); ctx.fillStyle = "#FFD863"; ctx.fill();
     ctx.globalAlpha = 1;
 
     // Top accent line
     const lineGrad = ctx.createLinearGradient(80, 0, W - 80, 0);
     lineGrad.addColorStop(0, "#349980"); lineGrad.addColorStop(1, "#7DE2C7");
     ctx.fillStyle = lineGrad;
-    ctx.roundRect ? ctx.roundRect(80, 80, W - 160, 4, 2) : ctx.fillRect(80, 80, W - 160, 4);
+    ctx.roundRect ? ctx.roundRect(80, 70, W - 160, 4, 2) : ctx.fillRect(80, 70, W - 160, 4);
     ctx.fill();
 
-    // Header
-    ctx.fillStyle = "#FFD863"; ctx.font = "600 28px 'Outfit', sans-serif";
-    ctx.fillText("💭  REFLEXÃO DO DIA", 80, 150);
+    // "REFLEXÃO DO DIA" label
+    ctx.fillStyle = "#FFD863"; ctx.font = "600 26px 'Outfit', sans-serif";
+    ctx.fillText("💭  REFLEXÃO DO DIA", 80, 130);
 
     // Date
-    ctx.fillStyle = "#FFD86388"; ctx.font = "500 22px 'Outfit', sans-serif";
+    ctx.fillStyle = "#FFD86377"; ctx.font = "500 22px 'Outfit', sans-serif";
     const dateObj = new Date(ref.publishDate + "T12:00:00");
-    const dateFormatted = dateObj.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).toUpperCase();
-    ctx.fillText(dateFormatted, W - ctx.measureText(dateFormatted).width - 80, 150);
+    const dateFormatted = dateObj.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    ctx.fillText(dateFormatted, W - ctx.measureText(dateFormatted).width - 80, 130);
 
-    // Title
-    ctx.fillStyle = "#ffffff"; ctx.font = "800 48px 'Outfit', sans-serif";
-    const titleLines = wrapText(ctx, ref.title, W - 160);
-    let y = 230;
-    titleLines.forEach(line => { ctx.fillText(line, 80, y); y += 60; });
+    // Big opening quote mark
+    ctx.fillStyle = "#7DE2C744"; ctx.font = "800 180px 'Outfit', serif";
+    ctx.fillText(""", 50, 300);
 
-    // Separator
-    y += 20; ctx.fillStyle = "#7DE2C733"; ctx.fillRect(80, y, 120, 3); y += 40;
+    // Quote text — centered vertically
+    ctx.fillStyle = "#ffffff"; ctx.font = "700 52px 'Outfit', sans-serif";
+    const quoteLines = wrapText(ctx, ref.quote, W - 200);
+    const totalQuoteHeight = quoteLines.length * 68;
+    const quoteStartY = Math.max(340, (H - totalQuoteHeight) / 2 + 20);
+    quoteLines.forEach((line, i) => { ctx.fillText(line, 100, quoteStartY + i * 68); });
 
-    // Body
-    ctx.fillStyle = "#ffffffcc"; ctx.font = "400 30px 'Plus Jakarta Sans', sans-serif";
-    const bodyLines = wrapText(ctx, ref.body, W - 160);
-    const maxBodyLines = 16;
-    bodyLines.slice(0, maxBodyLines).forEach(line => { ctx.fillText(line, 80, y); y += 42; });
-    if (bodyLines.length > maxBodyLines) { ctx.fillText("...", 80, y); y += 42; }
+    // Author line
+    const authorY = quoteStartY + quoteLines.length * 68 + 40;
+    ctx.fillStyle = "#7DE2C7"; ctx.font = "600 28px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("— Rafael Juliano", 100, authorY);
 
-    // Action text
-    if (ref.actionText) {
-      y += 20;
-      // Calculate action box height
-      ctx.font = "400 26px 'Plus Jakarta Sans', sans-serif";
-      const actionLines = wrapText(ctx, ref.actionText, W - 200);
-      const boxH = 44 + actionLines.length * 34;
-      ctx.fillStyle = "#7DE2C722";
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(60, y - 10, W - 120, boxH, 16);
-      else ctx.rect(60, y - 10, W - 120, boxH);
-      ctx.fill();
-      ctx.fillStyle = "#7DE2C7"; ctx.font = "600 24px 'Outfit', sans-serif";
-      ctx.fillText("✨ Ação do dia:", 90, y + 24);
-      ctx.fillStyle = "#ffffffdd"; ctx.font = "400 26px 'Plus Jakarta Sans', sans-serif";
-      actionLines.slice(0, 3).forEach(line => { y += 34; ctx.fillText(line, 90, y); });
-    }
+    // Bottom separator
+    ctx.fillStyle = "#ffffff22"; ctx.fillRect(80, H - 130, W - 160, 1);
 
     // Bottom branding
-    ctx.fillStyle = "#ffffff44"; ctx.fillRect(80, H - 140, W - 160, 1);
-    ctx.fillStyle = "#7DE2C7"; ctx.font = "700 28px 'Outfit', sans-serif";
-    ctx.fillText("VOLL PILATES HUB", 80, H - 90);
-    ctx.fillStyle = "#ffffff88"; ctx.font = "500 24px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(config.instagramHandle || "@rafael.voll", 80, H - 55);
-    ctx.fillStyle = "#FFD863"; ctx.font = "600 22px 'Outfit', sans-serif";
+    ctx.fillStyle = "#7DE2C7"; ctx.font = "700 26px 'Outfit', sans-serif";
+    ctx.fillText("VOLL PILATES HUB", 80, H - 80);
+    ctx.fillStyle = "#ffffff77"; ctx.font = "500 22px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(config.instagramHandle || "@rafael.voll", 80, H - 48);
+    ctx.fillStyle = "#FFD863"; ctx.font = "600 20px 'Outfit', sans-serif";
     const url = config.baseUrl || "rafael.grupovoll.com.br";
-    ctx.fillText(url, W - ctx.measureText(url).width - 80, H - 70);
+    ctx.fillText(url, W - ctx.measureText(url).width - 80, H - 60);
 
     // Upload to Supabase Storage
     return new Promise((resolve) => {
@@ -553,7 +546,6 @@ export default function VollHub() {
         const { data, error } = await supabase.storage.from("reflections").upload(fileName, blob, { contentType: "image/png", upsert: true });
         if (error) {
           console.error("Upload error:", error);
-          // Fallback: download locally
           const localUrl = URL.createObjectURL(blob);
           const a = document.createElement("a"); a.href = localUrl; a.download = fileName;
           document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -2086,7 +2078,7 @@ export default function VollHub() {
           {/* REFLECTIONS CMS */}
           {adminTab === "reflections" && (() => {
             const sortedRefs = [...(dbReflections || [])].sort((a, b) => b.publishDate.localeCompare(a.publishDate));
-            const emptyRef = { title: "", body: "", actionText: "", inspiration: "", publishDate: new Date(Date.now() + 86400000).toISOString().split("T")[0], active: true };
+            const emptyRef = { title: "", body: "", actionText: "", quote: "", inspiration: "", publishDate: new Date(Date.now() + 86400000).toISOString().split("T")[0], active: true };
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {/* AI GENERATOR */}
@@ -2119,6 +2111,7 @@ export default function VollHub() {
                   <input value={adminRefEdit?.title || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), title: e.target.value }))} placeholder="Título" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }} />
                   <textarea value={adminRefEdit?.body || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), body: e.target.value }))} placeholder="Texto da reflexão..." rows={4} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical", marginBottom: 8 }} />
                   <input value={adminRefEdit?.actionText || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), actionText: e.target.value }))} placeholder="✨ Ação do dia (opcional)" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, marginBottom: 8 }} />
+                  <input value={adminRefEdit?.quote || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), quote: e.target.value }))} placeholder="📸 Frase curta pro Instagram (ex: 'Saber se valorizar é reconhecer quem você é.')" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.gold + "11", border: `1px solid ${T.gold}33`, color: T.text, fontSize: 13, marginBottom: 8 }} />
                   <input value={adminRefEdit?.inspiration || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), inspiration: e.target.value }))} placeholder="💡 Inspiração/origem (só pra você)" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, marginBottom: 8 }} />
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                     <label style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>📅 Data:</label>
@@ -2556,7 +2549,8 @@ export default function VollHub() {
                 <button onClick={() => voteReflection(true)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "like" ? T.accent + "22" : T.statBg, border: `1px solid ${reflectionVote === "like" ? T.accent + "44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "like" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👍</button>
                 <button onClick={() => voteReflection(false)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "dislike" ? "#e8443a22" : T.statBg, border: `1px solid ${reflectionVote === "dislike" ? "#e8443a44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "dislike" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👎</button>
               </div>
-              {todayReflection.imageUrl && <button onClick={shareReflectionImage} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📸 Compartilhar</button>}
+              {todayReflection.imageUrl && <button onClick={shareReflectionImage} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📸 Story</button>}
+              <button onClick={shareReflectionWhatsApp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📲 WhatsApp</button>
             </div>
           </div>
         )}

@@ -87,7 +87,7 @@ export function useSupabase() {
       setMaterials((matRes.data || []).map(matFromDb))
       setLeads((leadRes.data || []).map(leadFromDb))
       setAdminUsers((adminRes.data || []).filter(u => u.role !== 'master').map(adminFromDb))
-      setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
+      setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
 
       const cfgObj = {}
       ;(cfgRes.data || []).forEach(r => { cfgObj[r.key] = r.value })
@@ -211,17 +211,17 @@ export function useSupabase() {
 
   // ─── REFLECTIONS ───
   const addReflection = async (ref) => {
-    const row = { title: ref.title, body: ref.body, action_text: ref.actionText || '', inspiration: ref.inspiration || '', publish_date: ref.publishDate, active: ref.active !== false, likes: 0, dislikes: 0, image_url: ref.imageUrl || '' }
+    const row = { title: ref.title, body: ref.body, action_text: ref.actionText || '', quote: ref.quote || '', inspiration: ref.inspiration || '', publish_date: ref.publishDate, active: ref.active !== false, likes: 0, dislikes: 0, image_url: ref.imageUrl || '' }
     const { data, error } = await supabase.from('reflections').insert(row).select().single()
     if (error) { console.error(error); return null }
-    const newRef = { id: data.id, title: data.title, body: data.body, actionText: data.action_text || '', inspiration: data.inspiration || '', publishDate: data.publish_date, active: data.active, likes: data.likes || 0, dislikes: data.dislikes || 0, imageUrl: data.image_url || '', createdAt: data.created_at }
+    const newRef = { id: data.id, title: data.title, body: data.body, actionText: data.action_text || '', quote: data.quote || '', inspiration: data.inspiration || '', publishDate: data.publish_date, active: data.active, likes: data.likes || 0, dislikes: data.dislikes || 0, imageUrl: data.image_url || '', createdAt: data.created_at }
     setReflections(p => [newRef, ...p])
     return newRef
   }
 
   const updateReflection = async (id, updates) => {
     const dbUpdates = {}
-    const keyMap = { title: 'title', body: 'body', actionText: 'action_text', inspiration: 'inspiration', publishDate: 'publish_date', active: 'active', likes: 'likes', dislikes: 'dislikes', imageUrl: 'image_url' }
+    const keyMap = { title: 'title', body: 'body', actionText: 'action_text', quote: 'quote', inspiration: 'inspiration', publishDate: 'publish_date', active: 'active', likes: 'likes', dislikes: 'dislikes', imageUrl: 'image_url' }
     Object.entries(updates).forEach(([k, v]) => { if (keyMap[k]) dbUpdates[keyMap[k]] = v })
     const { error } = await supabase.from('reflections').update(dbUpdates).eq('id', id)
     if (error) { console.error(error); return false }
