@@ -64,6 +64,7 @@ export function useSupabase() {
   const [leads, setLeads] = useState([])
   const [adminUsers, setAdminUsers] = useState([])
   const [config, setConfig] = useState({})
+  const [reflections, setReflections] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -71,11 +72,12 @@ export function useSupabase() {
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
-      const [matRes, leadRes, adminRes, cfgRes] = await Promise.all([
+      const [matRes, leadRes, adminRes, cfgRes, refRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('leads').select('*').order('created_at', { ascending: false }),
         supabase.from('admin_users').select('*').order('created_at', { ascending: true }),
         supabase.from('config').select('*'),
+        supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
       ])
       if (matRes.error) throw matRes.error
       if (leadRes.error) throw leadRes.error
@@ -85,6 +87,7 @@ export function useSupabase() {
       setMaterials((matRes.data || []).map(matFromDb))
       setLeads((leadRes.data || []).map(leadFromDb))
       setAdminUsers((adminRes.data || []).filter(u => u.role !== 'master').map(adminFromDb))
+      setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, createdAt: r.created_at })))
 
       const cfgObj = {}
       ;(cfgRes.data || []).forEach(r => { cfgObj[r.key] = r.value })
@@ -206,6 +209,44 @@ export function useSupabase() {
     return true
   }
 
+  // ─── REFLECTIONS ───
+  const addReflection = async (ref) => {
+    const row = { title: ref.title, body: ref.body, action_text: ref.actionText || '', inspiration: ref.inspiration || '', publish_date: ref.publishDate, active: ref.active !== false, likes: 0, dislikes: 0 }
+    const { data, error } = await supabase.from('reflections').insert(row).select().single()
+    if (error) { console.error(error); return null }
+    const newRef = { id: data.id, title: data.title, body: data.body, actionText: data.action_text || '', inspiration: data.inspiration || '', publishDate: data.publish_date, active: data.active, likes: data.likes || 0, dislikes: data.dislikes || 0, createdAt: data.created_at }
+    setReflections(p => [newRef, ...p])
+    return newRef
+  }
+
+  const updateReflection = async (id, updates) => {
+    const dbUpdates = {}
+    const keyMap = { title: 'title', body: 'body', actionText: 'action_text', inspiration: 'inspiration', publishDate: 'publish_date', active: 'active', likes: 'likes', dislikes: 'dislikes' }
+    Object.entries(updates).forEach(([k, v]) => { if (keyMap[k]) dbUpdates[keyMap[k]] = v })
+    const { error } = await supabase.from('reflections').update(dbUpdates).eq('id', id)
+    if (error) { console.error(error); return false }
+    setReflections(p => p.map(r => r.id === id ? { ...r, ...updates } : r))
+    return true
+  }
+
+  const deleteReflection = async (id) => {
+    const { error } = await supabase.from('reflections').delete().eq('id', id)
+    if (error) { console.error(error); return false }
+    setReflections(p => p.filter(r => r.id !== id))
+    return true
+  }
+
+  const likeReflection = async (id, isLike) => {
+    const ref = reflections?.find(r => r.id === id) || (await supabase.from('reflections').select('*').eq('id', id).single()).data
+    if (!ref) return false
+    const field = isLike ? 'likes' : 'dislikes'
+    const current = isLike ? (ref.likes || 0) : (ref.dislikes || 0)
+    const { error } = await supabase.from('reflections').update({ [field]: current + 1 }).eq('id', id)
+    if (error) { console.error(error); return false }
+    setReflections(p => p.map(r => r.id === id ? { ...r, [field]: (r[field] || 0) + 1 } : r))
+    return true
+  }
+
   // ─── CONFIG ───
   const updateConfig = async (key, value) => {
     const { error } = await supabase.from('config').upsert({ key, value: String(value), updated_at: new Date().toISOString() })
@@ -230,7 +271,7 @@ export function useSupabase() {
 
   return {
     // State
-    materials, leads, adminUsers, config, loading, error,
+    materials, leads, adminUsers, config, reflections, loading, error,
     // Setters (for local-only updates like optimistic UI)
     setMaterials, setLeads,
     // Materials
@@ -239,6 +280,8 @@ export function useSupabase() {
     addLead, updateLead, findLeadByWhatsApp,
     // Admin
     authenticateAdmin, addAdminUser, updateAdminUser, deleteAdminUser,
+    // Reflections
+    addReflection, updateReflection, deleteReflection, likeReflection,
     // Config
     updateConfig, updateConfigBatch,
     // Page views

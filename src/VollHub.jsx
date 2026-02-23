@@ -131,7 +131,7 @@ export default function VollHub() {
 
   // ─── SUPABASE (must be before anything that uses config) ───
   const db = useSupabase();
-  const { materials, leads, adminUsers, loading: dbLoading, error: dbError } = db;
+  const { materials, leads, adminUsers, reflections: dbReflections, loading: dbLoading, error: dbError } = db;
   const config = { ...DEFAULT_CONFIG, ...db.config };
 
   // Bio links
@@ -199,6 +199,49 @@ export default function VollHub() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [showCreditTooltip, setShowCreditTooltip] = useState(false);
   const [showDownloadedOnly, setShowDownloadedOnly] = useState(false);
+  const [reflectionVote, setReflectionVote] = useState(null); // "like" | "dislike" | null
+  const [reflectionExpanded, setReflectionExpanded] = useState(false);
+  const [adminRefEdit, setAdminRefEdit] = useState(null); // editing reflection in CMS
+  const [adminRefGenPrompt, setAdminRefGenPrompt] = useState(""); // AI generator prompt
+  const [adminRefGenResult, setAdminRefGenResult] = useState(""); // AI generated text
+  const [adminRefGenLoading, setAdminRefGenLoading] = useState(false);
+
+  // ─── REFLECTION OF THE DAY ───
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayReflection = (dbReflections || []).find(r => r.publishDate === todayStr && r.active);
+
+  // ─── STREAK SYSTEM ───
+  const getStreak = () => {
+    try {
+      const data = JSON.parse(localStorage.getItem("vollhub_streak") || "{}");
+      return { count: data.count || 0, lastDate: data.lastDate || "" };
+    } catch(e) { return { count: 0, lastDate: "" }; }
+  };
+  const [streak, setStreak] = useState(getStreak());
+  useEffect(() => {
+    if (!todayReflection) return;
+    const s = getStreak();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    if (s.lastDate === todayStr) return; // already counted today
+    if (s.lastDate === yesterday) {
+      const newStreak = { count: s.count + 1, lastDate: todayStr };
+      localStorage.setItem("vollhub_streak", JSON.stringify(newStreak));
+      setStreak(newStreak);
+    } else if (s.lastDate !== todayStr) {
+      const newStreak = { count: 1, lastDate: todayStr };
+      localStorage.setItem("vollhub_streak", JSON.stringify(newStreak));
+      setStreak(newStreak);
+    }
+  }, [todayReflection, todayStr]);
+
+  // Check if user already voted today
+  useEffect(() => {
+    try {
+      const votes = JSON.parse(localStorage.getItem("vollhub_ref_votes") || "{}");
+      if (todayReflection && votes[todayReflection.id]) setReflectionVote(votes[todayReflection.id]);
+      else setReflectionVote(null);
+    } catch(e) {}
+  }, [todayReflection]);
   const [refName, setRefName] = useState("");
   const [refWA, setRefWA] = useState("");
   const [adminPin, setAdminPin] = useState("");
@@ -391,6 +434,20 @@ export default function VollHub() {
     }
   };
   // ─── CREDITS HELPERS ───
+  // ─── REFLECTION VOTE ───
+  const voteReflection = async (isLike) => {
+    if (!todayReflection || reflectionVote) return;
+    const voteType = isLike ? "like" : "dislike";
+    await db.likeReflection(todayReflection.id, isLike);
+    setReflectionVote(voteType);
+    try {
+      const votes = JSON.parse(localStorage.getItem("vollhub_ref_votes") || "{}");
+      votes[todayReflection.id] = voteType;
+      localStorage.setItem("vollhub_ref_votes", JSON.stringify(votes));
+    } catch(e) {}
+    showT(isLike ? "Obrigado pelo feedback! 💚" : "Obrigado pelo feedback! Vamos melhorar 🙏");
+  };
+
   const earnCredits = async (amount, earnKey) => {
     if (earnKey && userCreditsEarned[earnKey]) return false; // already earned
     const newCredits = userCredits + amount;
@@ -1119,6 +1176,7 @@ export default function VollHub() {
               can("textos_edit") && ["bio", "🔗"],
               can("textos_edit") && ["textos", "✏️"],
               can("textos_edit") && ["quizzes", "🧠"],
+              can("textos_edit") && ["reflections", "💭"],
               isMaster && ["users", "👑"],
               isMaster && ["log", "📜"],
             ].filter(Boolean).map(([t, lbl]) => (<button key={t} onClick={() => setAdminTab(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 9, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 14, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent", minWidth: 40 }}>{lbl}</button>))}
@@ -1892,6 +1950,102 @@ export default function VollHub() {
             );
           })()}
 
+          {/* REFLECTIONS CMS */}
+          {adminTab === "reflections" && (() => {
+            const sortedRefs = [...(dbReflections || [])].sort((a, b) => b.publishDate.localeCompare(a.publishDate));
+            const emptyRef = { title: "", body: "", actionText: "", inspiration: "", publishDate: new Date(Date.now() + 86400000).toISOString().split("T")[0], active: true };
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* AI GENERATOR */}
+                <div style={{ background: theme === "dark" ? "#1a1a10" : "#fffdf5", border: `1px solid ${T.gold}33`, borderRadius: 14, padding: 16 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: T.gold, marginBottom: 10 }}>🤖 Gerador de Reflexões</p>
+                  <textarea value={adminRefGenPrompt} onChange={e => setAdminRefGenPrompt(e.target.value)} placeholder="Tema ou palavras-chave... Ex: 'importância de cobrar o preço justo', 'como lidar com aluna que reclama do preço'" rows={2} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical" }} />
+                  <button disabled={adminRefGenLoading || !adminRefGenPrompt.trim()} onClick={async () => {
+                    setAdminRefGenLoading(true);
+                    try {
+                      const res = await fetch("https://api.anthropic.com/v1/messages", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: `Você é Rafael Juliano, fundador da VOLL Pilates Group, a maior escola de formação em Pilates da América Latina. Escreva uma reflexão do dia curta (máximo 3 parágrafos, leitura em menos de 1 minuto) para donos de estúdio de Pilates sobre o tema: "${adminRefGenPrompt}". Use tom direto, provocativo e prático. Inclua uma ação concreta que a pessoa pode fazer HOJE. Responda APENAS em JSON: {"title":"...","body":"...","actionText":"..."} sem markdown.` }] })
+                      });
+                      const data = await res.json();
+                      const text = data.content?.map(c => c.text || "").join("") || "";
+                      const clean = text.replace(/\`\`\`json|\`\`\`/g, "").trim();
+                      const parsed = JSON.parse(clean);
+                      setAdminRefGenResult(JSON.stringify(parsed));
+                      setAdminRefEdit({ ...emptyRef, title: parsed.title || "", body: parsed.body || "", actionText: parsed.actionText || "" });
+                    } catch(e) { console.error(e); showT("Erro ao gerar. Tente novamente."); }
+                    setAdminRefGenLoading(false);
+                  }} style={{ marginTop: 8, padding: "10px 20px", borderRadius: 10, background: adminRefGenLoading ? T.statBg : `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 13, fontWeight: 700, border: "none", opacity: adminRefGenLoading || !adminRefGenPrompt.trim() ? 0.5 : 1 }}>
+                    {adminRefGenLoading ? "Gerando..." : "✨ Gerar reflexão"}
+                  </button>
+                </div>
+
+                {/* ADD/EDIT FORM */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>{adminRefEdit?.id ? "✏️ Editar" : "➕ Nova"} Reflexão</p>
+                  <input value={adminRefEdit?.title || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), title: e.target.value }))} placeholder="Título" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }} />
+                  <textarea value={adminRefEdit?.body || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), body: e.target.value }))} placeholder="Texto da reflexão..." rows={4} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical", marginBottom: 8 }} />
+                  <input value={adminRefEdit?.actionText || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), actionText: e.target.value }))} placeholder="✨ Ação do dia (opcional)" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, marginBottom: 8 }} />
+                  <input value={adminRefEdit?.inspiration || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), inspiration: e.target.value }))} placeholder="💡 Inspiração/origem (só pra você)" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, marginBottom: 8 }} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>📅 Data:</label>
+                    <input type="date" value={adminRefEdit?.publishDate || emptyRef.publishDate} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), publishDate: e.target.value }))} style={{ padding: "8px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13 }} />
+                    <label style={{ fontSize: 12, color: T.textMuted, marginLeft: 8 }}><input type="checkbox" checked={adminRefEdit?.active !== false} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), active: e.target.checked }))} /> Ativa</label>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={async () => {
+                      const ref = adminRefEdit || emptyRef;
+                      if (!ref.title || !ref.body || !ref.publishDate) { showT("Preencha título, texto e data!"); return; }
+                      if (ref.id) { await db.updateReflection(ref.id, ref); showT("Reflexão atualizada! ✅"); }
+                      else { await db.addReflection(ref); showT("Reflexão programada! ✅"); }
+                      setAdminRefEdit(null); addLog(ref.id ? `Editou reflexão: ${ref.title}` : `Criou reflexão: ${ref.title}`);
+                    }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, border: "none" }}>
+                      {adminRefEdit?.id ? "Salvar" : "Programar"} 💾
+                    </button>
+                    {adminRefEdit && <button onClick={() => setAdminRefEdit(null)} style={{ padding: "10px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 13 }}>Cancelar</button>}
+                  </div>
+                </div>
+
+                {/* LIST */}
+                <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginTop: 4 }}>📋 Reflexões programadas ({sortedRefs.length})</p>
+                {sortedRefs.map(r => {
+                  const isToday = r.publishDate === todayStr;
+                  const isPast = r.publishDate < todayStr;
+                  const isFuture = r.publishDate > todayStr;
+                  return (
+                    <div key={r.id} style={{ background: T.cardBg, border: `1px solid ${isToday ? T.gold + "44" : T.cardBorder}`, borderRadius: 14, padding: "12px 14px", opacity: isPast && !isToday ? 0.6 : 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: isToday ? T.gold + "22" : isFuture ? T.accent + "22" : T.statBg, color: isToday ? T.gold : isFuture ? T.accent : T.textFaint, fontWeight: 700 }}>
+                              {isToday ? "HOJE" : isPast ? "PASSADA" : "AGENDADA"}
+                            </span>
+                            <span style={{ fontSize: 11, color: T.textFaint }}>{r.publishDate}</span>
+                            {!r.active && <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "#e8443a22", color: "#e8443a", fontWeight: 700 }}>INATIVA</span>}
+                          </div>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</p>
+                          <p style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>{r.body.substring(0, 80)}...</p>
+                          {r.inspiration && <p style={{ fontSize: 10, color: T.gold, marginTop: 4 }}>💡 {r.inspiration}</p>}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                          <div style={{ display: "flex", gap: 4, fontSize: 11, color: T.textFaint }}>
+                            <span>👍 {r.likes}</span>
+                            <span>👎 {r.dislikes}</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button onClick={() => setAdminRefEdit({ ...r })} style={{ padding: "4px 10px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 12 }}>✏️</button>
+                            <button onClick={async () => { if (confirm("Excluir reflexão?")) { await db.deleteReflection(r.id); showT("Excluída! 🗑️"); addLog(`Excluiu reflexão: ${r.title}`); } }} style={{ padding: "4px 10px", borderRadius: 8, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 12 }}>🗑️</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {sortedRefs.length === 0 && <p style={{ fontSize: 13, color: T.textFaint, textAlign: "center", padding: 20 }}>Nenhuma reflexão ainda. Use o gerador acima! ✨</p>}
+              </div>
+            );
+          })()}
+
           {/* USERS (MASTER ONLY) */}
           {adminTab === "users" && isMaster && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2228,6 +2382,40 @@ export default function VollHub() {
               </div>
             </div>
             <span style={{ fontSize: 12, color: T.gold, fontWeight: 600 }}>→</span>
+          </div>
+        )}
+
+        {/* REFLECTION OF THE DAY */}
+        {todayReflection && (
+          <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fffdf5, #fdf8e8)", border: `1px solid ${T.gold}33`, borderRadius: 18, padding: "18px 18px 14px", marginBottom: 18, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 20 }}>💭</span>
+                <p style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>Reflexão do dia</p>
+              </div>
+              {streak.count > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 12, background: T.gold + "15", border: `1px solid ${T.gold}33` }}>
+                  <span style={{ fontSize: 14 }}>🔥</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{streak.count} dia{streak.count > 1 ? "s" : ""}</span>
+                </div>
+              )}
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 8, lineHeight: 1.4 }}>{todayReflection.title}</h3>
+            <p style={{ fontSize: 13, color: T.textMuted, lineHeight: 1.7, fontFamily: "'Plus Jakarta Sans'", whiteSpace: "pre-line", maxHeight: reflectionExpanded ? "none" : 80, overflow: "hidden", transition: "max-height 0.3s" }}>{todayReflection.body}</p>
+            {todayReflection.body.length > 200 && !reflectionExpanded && (
+              <button onClick={() => setReflectionExpanded(true)} style={{ background: "none", border: "none", color: T.gold, fontSize: 12, fontWeight: 600, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Ler mais ↓</button>
+            )}
+            {todayReflection.actionText && (
+              <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, background: T.accent + "11", border: `1px solid ${T.accent}22` }}>
+                <p style={{ fontSize: 12, color: T.accent, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>✨ Ação do dia:</p>
+                <p style={{ fontSize: 13, color: T.text, marginTop: 4, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>{todayReflection.actionText}</p>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}` }}>
+              <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>O que achou?</span>
+              <button onClick={() => voteReflection(true)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "like" ? T.accent + "22" : T.statBg, border: `1px solid ${reflectionVote === "like" ? T.accent + "44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "like" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👍</button>
+              <button onClick={() => voteReflection(false)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "dislike" ? "#e8443a22" : T.statBg, border: `1px solid ${reflectionVote === "dislike" ? "#e8443a44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "dislike" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👎</button>
+            </div>
           </div>
         )}
 
