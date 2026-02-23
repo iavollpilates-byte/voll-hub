@@ -434,6 +434,140 @@ export default function VollHub() {
     }
   };
   // ─── CREDITS HELPERS ───
+  // ─── SHARE REFLECTION AS IMAGE ───
+  const shareReflection = async () => {
+    if (!todayReflection) return;
+    const canvas = document.createElement("canvas");
+    const W = 1080, H = 1350; // Instagram Story size
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, "#0a1f1a");
+    grad.addColorStop(0.5, "#0d2920");
+    grad.addColorStop(1, "#061510");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Decorative circles
+    ctx.globalAlpha = 0.06;
+    ctx.beginPath(); ctx.arc(W * 0.85, H * 0.15, 300, 0, Math.PI * 2); ctx.fillStyle = "#7DE2C7"; ctx.fill();
+    ctx.beginPath(); ctx.arc(W * 0.1, H * 0.85, 250, 0, Math.PI * 2); ctx.fillStyle = "#FFD863"; ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Top line accent
+    const lineGrad = ctx.createLinearGradient(80, 0, W - 80, 0);
+    lineGrad.addColorStop(0, "#349980");
+    lineGrad.addColorStop(1, "#7DE2C7");
+    ctx.fillStyle = lineGrad;
+    ctx.roundRect ? ctx.roundRect(80, 80, W - 160, 4, 2) : ctx.fillRect(80, 80, W - 160, 4);
+    ctx.fill();
+
+    // "REFLEXÃO DO DIA" header
+    ctx.fillStyle = "#FFD863";
+    ctx.font = "600 28px 'Outfit', sans-serif";
+    ctx.letterSpacing = "4px";
+    ctx.fillText("💭  REFLEXÃO DO DIA", 80, 150);
+
+    // Streak badge
+    if (streak.count > 0) {
+      ctx.font = "600 24px 'Outfit', sans-serif";
+      ctx.fillStyle = "#FFD86388";
+      ctx.fillText(`🔥 ${streak.count} dia${streak.count > 1 ? "s" : ""}`, W - 280, 150);
+    }
+
+    // Title
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 48px 'Outfit', sans-serif";
+    const titleLines = wrapText(ctx, todayReflection.title, W - 160);
+    let y = 230;
+    titleLines.forEach(line => { ctx.fillText(line, 80, y); y += 60; });
+
+    // Separator
+    y += 20;
+    ctx.fillStyle = "#7DE2C733";
+    ctx.fillRect(80, y, 120, 3);
+    y += 40;
+
+    // Body text
+    ctx.fillStyle = "#ffffffcc";
+    ctx.font = "400 30px 'Plus Jakarta Sans', sans-serif";
+    const bodyLines = wrapText(ctx, todayReflection.body, W - 160);
+    const maxBodyLines = 18;
+    bodyLines.slice(0, maxBodyLines).forEach(line => { ctx.fillText(line, 80, y); y += 42; });
+    if (bodyLines.length > maxBodyLines) { ctx.fillText("...", 80, y); y += 42; }
+
+    // Action text
+    if (todayReflection.actionText) {
+      y += 20;
+      ctx.fillStyle = "#7DE2C722";
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(60, y - 10, W - 120, 100, 16);
+      else ctx.rect(60, y - 10, W - 120, 100);
+      ctx.fill();
+      ctx.fillStyle = "#7DE2C7";
+      ctx.font = "600 24px 'Outfit', sans-serif";
+      ctx.fillText("✨ Ação do dia:", 90, y + 24);
+      ctx.fillStyle = "#ffffffdd";
+      ctx.font = "400 26px 'Plus Jakarta Sans', sans-serif";
+      const actionLines = wrapText(ctx, todayReflection.actionText, W - 200);
+      actionLines.slice(0, 2).forEach(line => { y += 34; ctx.fillText(line, 90, y); });
+    }
+
+    // Bottom branding
+    ctx.fillStyle = "#ffffff44";
+    ctx.fillRect(80, H - 140, W - 160, 1);
+
+    ctx.fillStyle = "#7DE2C7";
+    ctx.font = "700 28px 'Outfit', sans-serif";
+    ctx.fillText("VOLL PILATES HUB", 80, H - 90);
+
+    ctx.fillStyle = "#ffffff88";
+    ctx.font = "500 24px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(config.instagramHandle || "@rafael.voll", 80, H - 55);
+
+    ctx.fillStyle = "#FFD863";
+    ctx.font = "600 22px 'Outfit', sans-serif";
+    const url = config.baseUrl || "rafael.grupovoll.com.br";
+    ctx.fillText(url, W - ctx.measureText(url).width - 80, H - 70);
+
+    // Convert to blob and share
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], "reflexao-do-dia.png", { type: "image/png" });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ title: todayReflection.title, text: `${todayReflection.title} — VOLL Pilates Hub`, files: [file] });
+        } catch(e) { downloadCanvasImage(blob); }
+      } else {
+        downloadCanvasImage(blob);
+      }
+    }, "image/png");
+  };
+
+  const downloadCanvasImage = (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "reflexao-do-dia.png";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showT("Imagem salva! Poste no seu Instagram 📸");
+  };
+
+  const wrapText = (ctx, text, maxWidth) => {
+    const words = text.split(" ");
+    const lines = [];
+    let line = "";
+    words.forEach(word => {
+      const test = line + (line ? " " : "") + word;
+      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = word; }
+      else { line = test; }
+    });
+    if (line) lines.push(line);
+    return lines;
+  };
+
   // ─── REFLECTION VOTE ───
   const voteReflection = async (isLike) => {
     if (!todayReflection || reflectionVote) return;
@@ -2411,10 +2545,13 @@ export default function VollHub() {
                 <p style={{ fontSize: 13, color: T.text, marginTop: 4, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>{todayReflection.actionText}</p>
               </div>
             )}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}` }}>
-              <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>O que achou?</span>
-              <button onClick={() => voteReflection(true)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "like" ? T.accent + "22" : T.statBg, border: `1px solid ${reflectionVote === "like" ? T.accent + "44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "like" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👍</button>
-              <button onClick={() => voteReflection(false)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "dislike" ? "#e8443a22" : T.statBg, border: `1px solid ${reflectionVote === "dislike" ? "#e8443a44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "dislike" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👎</button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>O que achou?</span>
+                <button onClick={() => voteReflection(true)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "like" ? T.accent + "22" : T.statBg, border: `1px solid ${reflectionVote === "like" ? T.accent + "44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "like" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👍</button>
+                <button onClick={() => voteReflection(false)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "dislike" ? "#e8443a22" : T.statBg, border: `1px solid ${reflectionVote === "dislike" ? "#e8443a44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "dislike" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👎</button>
+              </div>
+              <button onClick={shareReflection} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📸 Compartilhar</button>
             </div>
           </div>
         )}
