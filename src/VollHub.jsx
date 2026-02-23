@@ -195,6 +195,10 @@ export default function VollHub() {
   const instaPosts = getInstaPosts();
   const [toast, setToast] = useState(null);
   const [animateIn, setAnimateIn] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [showCreditTooltip, setShowCreditTooltip] = useState(false);
+  const [showDownloadedOnly, setShowDownloadedOnly] = useState(false);
   const [refName, setRefName] = useState("");
   const [refWA, setRefWA] = useState("");
   const [adminPin, setAdminPin] = useState("");
@@ -379,6 +383,8 @@ export default function VollHub() {
       setUserCredits(parseInt(config.creditsInitial) || 3);
     }
     setView("hub");
+    // Show onboarding on first visit
+    if (!existing && !localStorage.getItem("vollhub_onboarding_done")) { setShowOnboarding(true); setOnboardingStep(0); }
     localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, profile: existing ? { grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete } : {} }));
     if (existing) {
       setUserProfile({ grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete });
@@ -2185,7 +2191,16 @@ export default function VollHub() {
             <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
             <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
-            {creditsEnabled && <button onClick={() => setShowCreditStore(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>}
+            {creditsEnabled && <div style={{ position: "relative" }}><button onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>
+              {showCreditTooltip && <div style={{ position: "absolute", top: 44, right: 0, width: 260, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.3s ease" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>🎯 Seus créditos: {userCredits}</p>
+                <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>Use créditos para desbloquear materiais exclusivos. Ganhe mais completando fases do seu perfil ou indicando amigas!</p>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button onClick={() => { setShowCreditTooltip(false); setShowCreditStore(true); }} style={{ flex: 1, padding: "8px", borderRadius: 10, background: `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 12, fontWeight: 700, border: "none" }}>Ganhar créditos</button>
+                  <button onClick={() => setShowCreditTooltip(false)} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600 }}>✕</button>
+                </div>
+              </div>}
+            </div>}
           </div>
         </header>
 
@@ -2231,12 +2246,38 @@ export default function VollHub() {
           </div>
         )}
 
+        {/* HOW IT WORKS — only shows if user hasn't dismissed */}
+        {!localStorage.getItem("vollhub_howworks_dismissed") && (
+          <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #0d1a18, #0d1210)" : "linear-gradient(135deg, #f0faf6, #e8f5f0)", border: `1px solid ${T.accent}22`, borderRadius: 16, padding: "16px 18px", marginBottom: 18, position: "relative", opacity: animateIn ? 1 : 0, transition: "opacity 0.5s ease" }}>
+            <button onClick={() => { localStorage.setItem("vollhub_howworks_dismissed", "1"); setAnimateIn(a => !a); setTimeout(() => setAnimateIn(a => !a), 50); }} style={{ position: "absolute", top: 10, right: 12, background: "none", color: T.textFaint, fontSize: 16, border: "none" }}>✕</button>
+            <p style={{ fontSize: 14, fontWeight: 700, color: T.accent, marginBottom: 10 }}>💡 Como funciona?</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>📚</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>Materiais gratuitos</b> — Baixe e-books, guias e templates feitos pra você crescer no Pilates.</p></div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>🎯</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>Créditos</b> — Alguns materiais pedem créditos. Você já ganhou {parseInt(config.creditsInitial) || 3} ao se cadastrar!</p></div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>⭐</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>Ganhe mais</b> — Complete seu perfil ou indique amigas para ganhar créditos extras.</p></div>
+            </div>
+          </div>
+        )}
+
         {/* ALL OTHER MATERIALS */}
-        <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, marginBottom: 14 }}>{spotlightMat ? "Explore mais materiais" : config.sectionTitle}</h2>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{spotlightMat ? "Explore mais materiais" : config.sectionTitle}</h2>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setShowDownloadedOnly(false)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: !showDownloadedOnly ? T.accent + "22" : T.statBg, color: !showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${!showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>Todos</button>
+            <button onClick={() => setShowDownloadedOnly(true)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: showDownloadedOnly ? T.accent + "22" : T.statBg, color: showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>📥 Baixados</button>
+          </div>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {otherMats.map((m, i) => (
+          {(showDownloadedOnly ? otherMats.filter(m => downloaded.includes(m.id)) : otherMats).map((m, i) => (
             <MaterialCard key={m.id} m={m} index={i + (spotlightMat ? 1 : 0)} isSpotlight={false} isNew={newMats.some((nm) => nm.id === m.id)} />
           ))}
+          {showDownloadedOnly && otherMats.filter(m => downloaded.includes(m.id)).length === 0 && (
+            <div style={{ textAlign: "center", padding: "24px 16px", background: T.cardBg, borderRadius: 16, border: `1px solid ${T.cardBorder}` }}>
+              <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
+              <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>Você ainda não baixou nenhum material.</p>
+              <button onClick={() => setShowDownloadedOnly(false)} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 10, background: T.accent, color: "#060a09", fontSize: 13, fontWeight: 600, border: "none" }}>Ver materiais disponíveis</button>
+            </div>
+          )}
         </div>
 
         {/* CTA Banner — Dynamic */}
@@ -2564,6 +2605,41 @@ export default function VollHub() {
           </div>
         );
       })()}
+
+      {/* ONBOARDING MODAL */}
+      {showOnboarding && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)" }}>
+          <div style={{ background: T.cardBg, borderRadius: 24, padding: "32px 24px", maxWidth: 360, width: "100%", textAlign: "center", animation: "fadeInUp 0.4s ease", border: `1px solid ${T.cardBorder}` }}>
+            {onboardingStep === 0 && (<>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>👋</div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>Bem-vinda, {userName.split(" ")[0]}!</h2>
+              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>Aqui você encontra <b style={{ color: T.accent }}>materiais gratuitos</b> pra turbinar sua carreira no Pilates: e-books, guias, templates e mais.</p>
+            </>)}
+            {onboardingStep === 1 && (<>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🎯</div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>Créditos</h2>
+              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>Alguns materiais especiais precisam de <b style={{ color: T.gold }}>créditos</b> pra desbloquear. Você já ganhou <b style={{ color: T.gold }}>{parseInt(config.creditsInitial) || 3} créditos</b> ao se cadastrar!</p>
+            </>)}
+            {onboardingStep === 2 && (<>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>⭐</div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>Ganhe mais créditos</h2>
+              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>Complete as <b style={{ color: T.accent }}>fases do seu perfil</b> ou <b style={{ color: T.accent }}>indique amigas</b> para ganhar créditos extras e desbloquear tudo!</p>
+            </>)}
+            <div style={{ display: "flex", gap: 6, justifyContent: "center", margin: "20px 0 16px" }}>
+              {[0, 1, 2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: 4, background: i === onboardingStep ? T.accent : T.statBg, border: `1px solid ${i === onboardingStep ? T.accent : T.statBorder}`, transition: "all 0.3s" }} />)}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              {onboardingStep > 0 && <button onClick={() => setOnboardingStep(s => s - 1)} style={{ padding: "10px 20px", borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>← Voltar</button>}
+              {onboardingStep < 2 ? (
+                <button onClick={() => setOnboardingStep(s => s + 1)} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>Próximo →</button>
+              ) : (
+                <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>Começar! 🚀</button>
+              )}
+            </div>
+            <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ background: "none", color: T.textFaint, fontSize: 12, marginTop: 12, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>Pular</button>
+          </div>
+        </div>
+      )}
 
       <Toast />
     </div>
