@@ -512,7 +512,7 @@ export default function VollHub() {
 
     // Big opening quote mark
     ctx.fillStyle = "#7DE2C744"; ctx.font = "800 180px 'Outfit', serif";
-    ctx.fillText(""", 50, 300);
+    ctx.fillText("\u201C", 50, 300);
 
     // Quote text — centered vertically
     ctx.fillStyle = "#ffffff"; ctx.font = "700 52px 'Outfit', sans-serif";
