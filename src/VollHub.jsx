@@ -294,6 +294,7 @@ export default function VollHub() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mParam = params.get("m");
+    const vParam = params.get("view");
     if (mParam) {
       setDeepLinkMatId(parseInt(mParam, 10));
       // If deep link, go straight to hub (or landing if not logged in)
@@ -302,6 +303,14 @@ export default function VollHub() {
         if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setView("hub"); } else { setView("landing"); } }
         else { setView("landing"); }
       } catch(e) { setView("landing"); }
+    } else if (vParam === "hub" || vParam === "materiais") {
+      try {
+        const saved = localStorage.getItem("vollhub_user");
+        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.profile) setUserProfile(u.profile); setView("hub"); } else { setView("landing"); } }
+        else { setView("landing"); }
+      } catch(e) { setView("landing"); }
+    } else if (vParam === "landing" || vParam === "cadastro") {
+      setView("landing");
     }
     // Track page view
     db.incrementPageView();
