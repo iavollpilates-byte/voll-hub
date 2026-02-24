@@ -159,6 +159,7 @@ export default function VollHub() {
   const [userCredits, setUserCredits] = useState(3);
   const [userCreditsEarned, setUserCreditsEarned] = useState({});
   const [showCreditStore, setShowCreditStore] = useState(false);
+  const [phaseReward, setPhaseReward] = useState(null);
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -2452,7 +2453,7 @@ export default function VollHub() {
       }
       setActivePhase(null);
       const phase = PHASES.find(p2 => p2.id === phaseId);
-      showT(`🎉 ${phase?.title || "Fase"} completa! +${phase?.credits || 2} créditos!`);
+      setPhaseReward({ title: phase?.title || "Fase", credits: phase?.credits || 2, prize: phase?.prize || "", prizeUrl: phase?.prizeUrl || "", icon: phase?.icon || "🎉" });
     };
 
     return (
@@ -3039,6 +3040,36 @@ export default function VollHub() {
           </div>
         );
       })()}
+
+      {/* PHASE REWARD POPUP */}
+      {phaseReward && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setPhaseReward(null)}>
+          <div style={{ position: "absolute", inset: 0, background: "#000000bb", backdropFilter: "blur(6px)" }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: "100%", maxWidth: 360, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "36px 24px 28px", display: "flex", flexDirection: "column", alignItems: "center", animation: "fadeInUp 0.4s ease", textAlign: "center" }}>
+            <div style={{ width: 88, height: 88, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}22, ${T.gold}08)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, animation: "pulse 2s ease-in-out infinite" }}><span style={{ fontSize: 48 }}>🎉</span></div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: T.text, marginBottom: 6 }}>Fase completa!</h2>
+            <p style={{ fontSize: 15, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginBottom: 20 }}>{phaseReward.icon} {phaseReward.title}</p>
+            <div style={{ display: "flex", gap: 12, marginBottom: 20, width: "100%" }}>
+              {phaseReward.credits > 0 && (
+                <div style={{ flex: 1, background: T.gold + "11", border: `1px solid ${T.gold}33`, borderRadius: 16, padding: "16px 12px" }}>
+                  <p style={{ fontSize: 28, fontWeight: 800, color: T.gold }}>+{phaseReward.credits}</p>
+                  <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>crédito{phaseReward.credits > 1 ? "s" : ""}</p>
+                </div>
+              )}
+              {phaseReward.prize && (
+                <div style={{ flex: 1, background: T.accent + "11", border: `1px solid ${T.accent}33`, borderRadius: 16, padding: "16px 12px" }}>
+                  <p style={{ fontSize: 20 }}>🎁</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: T.accent, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>{phaseReward.prize}</p>
+                </div>
+              )}
+            </div>
+            {phaseReward.prizeUrl && (
+              <a href={phaseReward.prizeUrl} target="_blank" rel="noreferrer" style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, textAlign: "center", textDecoration: "none", display: "block", marginBottom: 10 }}>📥 Acessar prêmio</a>
+            )}
+            <button onClick={() => setPhaseReward(null)} style={{ width: "100%", padding: "13px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.text, fontSize: 14, fontWeight: 600 }}>Continuar</button>
+          </div>
+        </div>
+      )}
 
       {/* SHARE REFLECTION MODAL */}
       {showShareModal && todayReflection?.quote && (
