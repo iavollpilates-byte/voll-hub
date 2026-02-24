@@ -2375,24 +2375,41 @@ export default function VollHub() {
                 {/* AI GENERATOR */}
                 <div style={{ background: theme === "dark" ? "#1a1a10" : "#fffdf5", border: `1px solid ${T.gold}33`, borderRadius: 14, padding: 16 }}>
                   <p style={{ fontSize: 14, fontWeight: 700, color: T.gold, marginBottom: 10 }}>🤖 Gerador de Reflexões</p>
-                  <textarea value={adminRefGenPrompt} onChange={e => setAdminRefGenPrompt(e.target.value)} placeholder="Tema ou palavras-chave... Ex: 'importância de cobrar o preço justo', 'como lidar com aluna que reclama do preço'" rows={2} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical" }} />
-                  <button disabled={adminRefGenLoading || !adminRefGenPrompt.trim()} onClick={async () => {
+                  {!config.anthropicApiKey && (
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔑 API Key (Anthropic Claude)</label>
+                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                        <input type="password" id="anthropicKeyInput" placeholder="sk-ant-api03-..." style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} />
+                        <button onClick={() => { const v = document.getElementById("anthropicKeyInput").value.trim(); if (v) { db.updateConfig("anthropicApiKey", v); showT("API Key salva!"); } }} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>Salvar</button>
+                      </div>
+                    </div>
+                  )}
+                  <textarea value={adminRefGenPrompt} onChange={e => setAdminRefGenPrompt(e.target.value)} placeholder="Tema ou palavras-chave... Ex: 'importância de cobrar o preço justo', 'como lidar com aluna que reclama do preço'" rows={2} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical" }} />
+                  <button disabled={adminRefGenLoading || !adminRefGenPrompt.trim() || !config.anthropicApiKey} onClick={async () => {
                     setAdminRefGenLoading(true);
                     try {
                       const res = await fetch("https://api.anthropic.com/v1/messages", {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: `Você é Rafael Juliano, fundador da VOLL Pilates Group, a maior escola de formação em Pilates da América Latina. Escreva uma reflexão do dia curta (máximo 3 parágrafos, leitura em menos de 1 minuto) para donos de estúdio de Pilates sobre o tema: "${adminRefGenPrompt}". Use tom direto, provocativo e prático. Inclua uma ação concreta que a pessoa pode fazer HOJE. Responda APENAS em JSON: {"title":"...","body":"...","actionText":"..."} sem markdown.` }] })
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "x-api-key": config.anthropicApiKey,
+                          "anthropic-version": "2023-06-01",
+                          "anthropic-dangerous-direct-browser-access": "true",
+                        },
+                        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: `Você é Rafael Juliano, fundador da VOLL Pilates Group, a maior escola de formação em Pilates da América Latina. Escreva uma reflexão do dia curta (máximo 3 parágrafos, leitura em menos de 1 minuto) para donos de estúdio de Pilates sobre o tema: "${adminRefGenPrompt}". Use tom direto, provocativo e prático. Inclua uma ação concreta que a pessoa pode fazer HOJE. Também gere uma frase curta inspiracional (máximo 15 palavras) para a imagem do story. Responda APENAS em JSON: {"title":"...","body":"...","actionText":"...","quote":"..."} sem markdown.` }] })
                       });
+                      if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || "Erro na API"); }
                       const data = await res.json();
                       const text = data.content?.map(c => c.text || "").join("") || "";
-                      const clean = text.replace(/\`\`\`json|\`\`\`/g, "").trim();
+                      const clean = text.replace(/```json|```/g, "").trim();
                       const parsed = JSON.parse(clean);
                       setAdminRefGenResult(JSON.stringify(parsed));
-                      setAdminRefEdit({ ...emptyRef, title: parsed.title || "", body: parsed.body || "", actionText: parsed.actionText || "" });
-                    } catch(e) { console.error(e); showT("Erro ao gerar. Tente novamente."); }
+                      setAdminRefEdit({ ...emptyRef, title: parsed.title || "", body: parsed.body || "", actionText: parsed.actionText || "", quote: parsed.quote || "" });
+                      showT("Reflexão gerada! Edite e salve abaixo.");
+                    } catch(e) { console.error(e); showT("Erro: " + (e.message || "Tente novamente.")); }
                     setAdminRefGenLoading(false);
-                  }} style={{ marginTop: 8, padding: "10px 20px", borderRadius: 10, background: adminRefGenLoading ? T.statBg : `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 13, fontWeight: 700, border: "none", opacity: adminRefGenLoading || !adminRefGenPrompt.trim() ? 0.5 : 1 }}>
-                    {adminRefGenLoading ? "Gerando..." : "✨ Gerar reflexão"}
+                  }} style={{ marginTop: 8, padding: "10px 20px", borderRadius: 10, background: adminRefGenLoading ? T.statBg : `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 13, fontWeight: 700, border: "none", opacity: adminRefGenLoading || !adminRefGenPrompt.trim() || !config.anthropicApiKey ? 0.5 : 1 }}>
+                    {adminRefGenLoading ? "Gerando..." : !config.anthropicApiKey ? "🔑 Configure a API Key" : "✨ Gerar reflexão"}
                   </button>
                 </div>
 
