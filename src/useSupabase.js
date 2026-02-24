@@ -336,6 +336,14 @@ export function useSupabase() {
     return urlData?.publicUrl || null
   }
 
+  const uploadOgImage = async (blob) => {
+    const path = 'og/latest.png'
+    const { error } = await supabase.storage
+      .from('reflection-images')
+      .upload(path, blob, { contentType: 'image/png', upsert: true })
+    if (error) console.error('OG image upload error:', error)
+  }
+
   return {
     // State
     materials, leads, adminUsers, config, reflections, phases, loading, error,
@@ -352,7 +360,7 @@ export function useSupabase() {
     // Phases
     addPhase, updatePhase, deletePhase,
     // Storage
-    uploadReflectionImage,
+    uploadReflectionImage, uploadOgImage,
     // Config
     updateConfig, updateConfigBatch,
     // Page views

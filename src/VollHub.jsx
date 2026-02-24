@@ -680,6 +680,11 @@ export default function VollHub() {
     }
     if (Object.keys(urls).length > 0) {
       await db.updateReflection(reflectionId, { imageUrl: JSON.stringify(urls) });
+      try {
+        const ogCanvas = drawReflectionCanvas(0, quote, handle);
+        const ogBlob = await canvasToBlob(ogCanvas);
+        if (ogBlob) await db.uploadOgImage(ogBlob);
+      } catch (e) { console.error("OG image upload error:", e); }
     }
     return urls;
   };
@@ -687,8 +692,7 @@ export default function VollHub() {
   // ─── SHARE VIA WHATSAPP (full text + link) ───
   const shareReflectionWhatsApp = () => {
     if (!todayReflection) return;
-    const appUrl = (config.baseUrl || "https://rafael.grupovoll.com.br") + "/?view=hub";
-    const msg = `\u{1F4D6} *Reflexão do dia — VOLL Pilates Hub*\n\n*${todayReflection.title}*\n\n${todayReflection.body}${todayReflection.actionText ? "\n\n\u2728 *Ação do dia:* " + todayReflection.actionText : ""}\n\n\u{1F449} Acesse mais conteúdos: ${appUrl}`;
+    const msg = `*${todayReflection.title}*\n\n${todayReflection.body}${todayReflection.actionText ? "\n\n\u2728 *Ação do dia:* " + todayReflection.actionText : ""}\n\n\u{1F449} Acesse: https://rafael.grupovoll.com.br/?view=hub`;
     window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
   };
 
