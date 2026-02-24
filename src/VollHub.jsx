@@ -198,6 +198,7 @@ export default function VollHub() {
   const [adminRefGenPrompt, setAdminRefGenPrompt] = useState(""); // AI generator prompt
   const [adminRefGenResult, setAdminRefGenResult] = useState(""); // AI generated text
   const [adminRefGenLoading, setAdminRefGenLoading] = useState(false);
+  const [refImagePreview, setRefImagePreview] = useState(null);
 
   // ─── REFLECTION OF THE DAY ───
   const todayStr = new Date().toISOString().split("T")[0];
@@ -2469,6 +2470,7 @@ export default function VollHub() {
                             <span>👎 {r.dislikes}</span>
                           </div>
                           <div style={{ display: "flex", gap: 4 }}>
+                            {r.imageUrl && (() => { try { const imgs = JSON.parse(r.imageUrl); return Object.keys(imgs).length > 0 ? <button onClick={() => setRefImagePreview(imgs)} title="Ver imagens geradas" style={{ padding: "4px 10px", borderRadius: 8, background: T.accent + "22", border: `1px solid ${T.accent}44`, fontSize: 12 }}>📸</button> : null; } catch { return null; } })()}
                             <button onClick={() => setAdminRefEdit({ ...r })} style={{ padding: "4px 10px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 12 }}>✏️</button>
                             <button onClick={async () => { if (confirm("Excluir reflexão?")) { await db.deleteReflection(r.id); showT("Excluída! 🗑️"); addLog(`Excluiu reflexão: ${r.title}`); } }} style={{ padding: "4px 10px", borderRadius: 8, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 12 }}>🗑️</button>
                           </div>
@@ -2478,6 +2480,28 @@ export default function VollHub() {
                   );
                 })}
                 {sortedRefs.length === 0 && <p style={{ fontSize: 13, color: T.textFaint, textAlign: "center", padding: 20 }}>Nenhuma reflexão ainda. Use o gerador acima! ✨</p>}
+
+                {/* IMAGE PREVIEW MODAL */}
+                {refImagePreview && (
+                  <div onClick={() => setRefImagePreview(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: 16, padding: 20, maxWidth: 600, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                        <p style={{ fontSize: 15, fontWeight: 700, color: T.text }}>📸 Imagens geradas (4 estilos)</p>
+                        <button onClick={() => setRefImagePreview(null)} style={{ background: "none", border: "none", fontSize: 18, color: T.textMuted, cursor: "pointer" }}>✕</button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        {Object.entries(refImagePreview).map(([key, url]) => (
+                          <div key={key} style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${T.cardBorder}` }}>
+                            <img src={url} alt={key} style={{ width: "100%", display: "block" }} />
+                            <p style={{ fontSize: 10, textAlign: "center", padding: 4, color: T.textFaint, background: T.statBg }}>
+                              {key.replace("style_", "Estilo ")}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
