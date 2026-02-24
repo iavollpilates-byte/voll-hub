@@ -49,6 +49,14 @@ const DEFAULT_CONFIG = {
   creditsInitial: "3",
   creditsReferral: "2",
   creditsReferralMsg: "Oi! Conheça o Hub de Materiais Gratuitos de Pilates do Rafael Juliano. Tem e-books, guias e vídeos incríveis! Acesse: {link}",
+  creditsTooltipTitle: "🎯 Seus créditos: {n}",
+  creditsTooltipDesc: "Use créditos para desbloquear materiais exclusivos. Ganhe mais completando fases do seu perfil ou indicando amigas!",
+  creditsTooltipBtn: "Ganhar créditos",
+  creditsStoreTitle: "🎯 Ganhe Créditos",
+  creditsStorePhaseSubtitle: "Responda sobre você",
+  creditsStoreReferralTitle: "Indicar amigo",
+  creditsStoreReferralSubtitle: "Envie pelo WhatsApp",
+  creditsStoreCloseBtn: "Fechar",
   bioName: "RAFAEL JULIANO",
   bioLine1: "💼 Fundador | VOLL Pilates Group",
   bioLine2: "🎯 Marketing, Gestão e Vendas no Pilates",
@@ -2295,6 +2303,18 @@ export default function VollHub() {
                   </div>
 
                   <p style={{ fontSize: 10, color: T.textFaint, marginTop: 8, fontFamily: "'Plus Jakarta Sans'" }}>Créditos por fase: configure em cada fase no builder acima.</p>
+
+                  <div style={{ marginTop: 14, borderTop: `1px solid ${T.statBorder}`, paddingTop: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>Textos dos popups de créditos</p>
+                    <CmsField label="Tooltip: título ({n} = saldo)" configKey="creditsTooltipTitle" />
+                    <CmsField label="Tooltip: descrição" configKey="creditsTooltipDesc" />
+                    <CmsField label="Tooltip: botão" configKey="creditsTooltipBtn" />
+                    <CmsField label="Modal: título" configKey="creditsStoreTitle" />
+                    <CmsField label="Modal: subtítulo das fases" configKey="creditsStorePhaseSubtitle" />
+                    <CmsField label="Modal: título indicação" configKey="creditsStoreReferralTitle" />
+                    <CmsField label="Modal: subtítulo indicação" configKey="creditsStoreReferralSubtitle" />
+                    <CmsField label="Modal: botão fechar" configKey="creditsStoreCloseBtn" />
+                  </div>
                 </div>
 
                 {/* Instagram Posts */}
@@ -2818,10 +2838,10 @@ export default function VollHub() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
             {creditsEnabled && <div style={{ position: "relative" }}><button onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>
               {showCreditTooltip && <div style={{ position: "absolute", top: 44, right: 0, width: 260, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.3s ease" }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>🎯 Seus créditos: {userCredits}</p>
-                <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>Use créditos para desbloquear materiais exclusivos. Ganhe mais completando fases do seu perfil ou indicando amigas!</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{(config.creditsTooltipTitle || "🎯 Seus créditos: {n}").replace("{n}", userCredits)}</p>
+                <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>{config.creditsTooltipDesc || "Use créditos para desbloquear materiais exclusivos."}</p>
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <button onClick={() => { setShowCreditTooltip(false); setShowCreditStore(true); }} style={{ flex: 1, padding: "8px", borderRadius: 10, background: `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 12, fontWeight: 700, border: "none" }}>Ganhar créditos</button>
+                  <button onClick={() => { setShowCreditTooltip(false); setShowCreditStore(true); }} style={{ flex: 1, padding: "8px", borderRadius: 10, background: `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 12, fontWeight: 700, border: "none" }}>{config.creditsTooltipBtn || "Ganhar créditos"}</button>
                   <button onClick={() => setShowCreditTooltip(false)} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600 }}>✕</button>
                 </div>
               </div>}
@@ -3128,7 +3148,7 @@ export default function VollHub() {
         <div style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowCreditStore(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto", animation: "fadeInUp 0.3s ease" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text }}>🎯 Ganhe Créditos</h2>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{config.creditsStoreTitle || "🎯 Ganhe Créditos"}</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Saldo:</span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: T.gold }}>{userCredits}</span>
@@ -3147,7 +3167,7 @@ export default function VollHub() {
                     <span style={{ fontSize: 24 }}>{done ? "✅" : config[`phase${p}Icon`] || "📋"}</span>
                     <div style={{ flex: 1 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{config[`phase${p}Title`] || `Fase ${p}`}</span>
-                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já completado" : "Responda sobre você"}</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já completado" : (config.creditsStorePhaseSubtitle || "Responda sobre você")}</span>
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>+{amt}</span>
                   </div>
@@ -3198,15 +3218,15 @@ export default function VollHub() {
               {/* Referral via WhatsApp */}
               {(() => {
                 const amt = parseInt(config.creditsReferral) || 2;
-                const refLink = config.baseUrl || window.location.origin;
+                const refLink = config.baseUrl || "https://rafael.grupovoll.com.br";
                 const msg = (config.creditsReferralMsg || "Confira: {link}").replace("{link}", refLink);
                 const waUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
                 return (
                   <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorder}` }}>
                     <span style={{ fontSize: 24 }}>🔗</span>
                     <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>Indicar amigo</span>
-                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Envie pelo WhatsApp</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{config.creditsStoreReferralTitle || "Indicar amigo"}</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{config.creditsStoreReferralSubtitle || "Envie pelo WhatsApp"}</span>
                     </div>
                     <a href={waUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 600, color: "#25D366", padding: "6px 12px", borderRadius: 8, background: "#25D36615", textDecoration: "none" }}>Enviar 📲</a>
                     <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>+{amt}</span>
@@ -3215,7 +3235,7 @@ export default function VollHub() {
               })()}
             </div>
 
-            <button onClick={() => setShowCreditStore(false)} style={{ width: "100%", padding: 12, borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600, marginTop: 14 }}>Fechar</button>
+            <button onClick={() => setShowCreditStore(false)} style={{ width: "100%", padding: 12, borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600, marginTop: 14 }}>{config.creditsStoreCloseBtn || "Fechar"}</button>
           </div>
         </div>
       )}
