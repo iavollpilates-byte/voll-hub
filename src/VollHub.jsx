@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useSupabase } from "./useSupabase";
 import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, PERM_LABELS, THEMES } from "./constants";
 import { getUnlockLabel, timeAgo, fmtWA, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
 import { REFLECTION_STYLES, drawReflectionCanvas, getPreviewDataUrl, wrapCanvasText } from "./canvasUtils";
-import AdminPanel from "./components/AdminPanel";
+
+const AdminPanel = lazy(() => import("./components/AdminPanel"));
 
 export default function VollHub() {
   const [view, setView] = useState("linktree");
@@ -95,6 +96,15 @@ export default function VollHub() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareSelectedStyle, setShareSelectedStyle] = useState(0);
   const [shareGenerating, setShareGenerating] = useState(false);
+  const [downloadingMatId, setDownloadingMatId] = useState(null);
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
+  useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
+  }, []);
 
   // ─── REFLECTION OF THE DAY ───
   const todayStr = new Date().toISOString().split("T")[0];
@@ -300,6 +310,26 @@ export default function VollHub() {
     }
   }, [view, deepLinkMatId]);
 
+  // Fechar modais com tecla Escape (acessibilidade)
+  useEffect(() => {
+    const fn = (e) => {
+      if (e.key !== "Escape") return;
+      if (selectedMaterial) setSelectedMaterial(null);
+      else if (unlockTarget) { setUnlockTarget(null); setRefName(""); setRefWA(""); }
+      else if (showShareModal) setShowShareModal(false);
+      else if (currentSurvey) setCurrentSurvey(null);
+      else if (showCreditStore) setShowCreditStore(false);
+      else if (showQuiz) setShowQuiz(false);
+      else if (gamificationPopup) dismissPopup();
+      else if (showLeaderboard) setShowLeaderboard(false);
+      else if (phaseReward) setPhaseReward(null);
+      else if (showOnboarding) setShowOnboarding(false);
+      else if (showInstallGuide) setShowInstallGuide(false);
+    };
+    document.addEventListener("keydown", fn);
+    return () => document.removeEventListener("keydown", fn);
+  }, [selectedMaterial, unlockTarget, showShareModal, currentSurvey, showCreditStore, showQuiz, gamificationPopup, showLeaderboard, phaseReward, showOnboarding, showInstallGuide]);
+
   const showT = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3000); }, []);
 
   // ─── COUNTDOWN TIMER ───
@@ -336,7 +366,8 @@ export default function VollHub() {
     const existing = await db.findLeadByWhatsApp(userWhatsApp);
     const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
     if (existing) {
-      await db.updateLead(existing.id, { visits: (existing.visits || 0) + 1, lastVisit: dateStr, name: userName });
+      const ok = await db.updateLead(existing.id, { visits: (existing.visits || 0) + 1, lastVisit: dateStr, name: userName });
+      if (!ok) { showT("Erro ao atualizar. Tente novamente."); return; }
       setDownloaded(existing.downloads || []);
       setUserCredits(existing.credits ?? 3);
       setUserCreditsEarned(existing.creditsEarned || {});
@@ -344,6 +375,7 @@ export default function VollHub() {
       processGamification(existing);
     } else {
       const created = await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {}, streakCount: 1, streakLastDate: todayStr, streakBest: 1, totalDays: 1, reflectionsRead: [], milestonesAchieved: [] });
+      if (!created) { showT("Erro ao criar cadastro. Verifique sua conexão e tente novamente."); return; }
       setUserCredits(parseInt(config.creditsInitial) || 3);
       setStreak({ count: 1, lastDate: todayStr, best: 1 });
       setTotalDays(1);
@@ -414,10 +446,11 @@ export default function VollHub() {
         if (!blob) continue;
         const url = await db.uploadReflectionImage(reflectionId, i, blob);
         if (url) urls[`style_${i}`] = url;
-      } catch (e) { console.error(`Error generating style ${i}:`, e); }
+      } catch (e) { console.error(`Error generating style ${i}:`, e); /* feedback via showT is in AdminPanel caller */ }
     }
     if (Object.keys(urls).length > 0) {
-      await db.updateReflection(reflectionId, { imageUrl: JSON.stringify(urls) });
+      const updated = await db.updateReflection(reflectionId, { imageUrl: JSON.stringify(urls) });
+      if (!updated) return null;
       try {
         const ogCanvas = drawReflectionCanvas(0, quote, handle);
         const ogBlob = await canvasToBlob(ogCanvas);
@@ -458,7 +491,10 @@ export default function VollHub() {
     try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.credits = newCredits; saved.creditsEarned = newEarned; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
     // Save to DB
     const lead = await db.findLeadByWhatsApp(userWhatsApp);
-    if (lead) await db.updateLead(lead.id, { credits: newCredits, creditsEarned: newEarned });
+    if (lead) {
+      const ok = await db.updateLead(lead.id, { credits: newCredits, creditsEarned: newEarned });
+      if (!ok) showT("Crédito concedido aqui, mas não foi possível sincronizar. Tente recarregar.");
+    }
     return true;
   };
   const spendCredits = async (amount) => {
@@ -467,47 +503,58 @@ export default function VollHub() {
     setUserCredits(newCredits);
     try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.credits = newCredits; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
     const lead = await db.findLeadByWhatsApp(userWhatsApp);
-    if (lead) await db.updateLead(lead.id, { credits: newCredits });
+    if (lead) {
+      const ok = await db.updateLead(lead.id, { credits: newCredits });
+      if (!ok) showT("Crédito descontado aqui, mas a sincronização falhou. Recarregue a página.");
+    }
     return true;
   };
 
   const handleDownload = async (mat) => {
-    if (!downloaded.includes(mat.id)) {
-      // Spend credits if enabled and material has cost
-      const cost = mat.creditCost || 0;
-      if (creditsEnabled && cost > 0) {
-        const spent = await spendCredits(cost);
-        if (!spent) { showT("Créditos insuficientes! 🎯"); setShowCreditStore(true); return; }
+    setDownloadingMatId(mat.id);
+    try {
+      if (!downloaded.includes(mat.id)) {
+        const cost = mat.creditCost || 0;
+        if (creditsEnabled && cost > 0) {
+          const spent = await spendCredits(cost);
+          if (!spent) { showT("Créditos insuficientes! 🎯"); setShowCreditStore(true); return; }
+        }
+        const newDl = [...downloaded, mat.id];
+        setDownloaded(newDl);
+        try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.downloaded = newDl; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) { localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: newDl })); }
+        const lead = await db.findLeadByWhatsApp(userWhatsApp);
+        if (lead) {
+          const ok = await db.updateLead(lead.id, { downloads: [...new Set([...(lead.downloads || []), mat.id])] });
+          if (!ok) showT("Material baixado, mas não foi possível salvar no servidor. Tente novamente mais tarde.");
+        }
       }
-      const newDl = [...downloaded, mat.id];
-      setDownloaded(newDl);
-      try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.downloaded = newDl; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) { localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: newDl })); }
-      // Find current lead and update downloads
-      const lead = await db.findLeadByWhatsApp(userWhatsApp);
-      if (lead) { await db.updateLead(lead.id, { downloads: [...new Set([...(lead.downloads || []), mat.id])] }); }
-    }
-    // Save funnel answers if any
-    if (Object.keys(funnelAnswers).length > 0) {
-      const lead = await db.findLeadByWhatsApp(userWhatsApp);
-      if (lead) {
-        const prev = lead.surveyResponses || {};
-        await db.updateLead(lead.id, { surveyResponses: { ...prev, [`funnel_${mat.id}`]: funnelAnswers } });
+      if (Object.keys(funnelAnswers).length > 0) {
+        const lead = await db.findLeadByWhatsApp(userWhatsApp);
+        if (lead) {
+          const prev = lead.surveyResponses || {};
+          const ok = await db.updateLead(lead.id, { surveyResponses: { ...prev, [`funnel_${mat.id}`]: funnelAnswers } });
+          if (!ok) showT("Respostas não salvas. Tente novamente.");
+        }
       }
-    }
-    // Show CTA or close
-    if (mat.funnel?.cta?.url && !downloaded.includes(mat.id)) {
-      showT(`"${mat.title}" baixado! ✅`);
-      setFunnelStep("cta");
-    } else {
-      showT(`"${mat.title}" baixado! ✅`); setSelectedMaterial(null);
+      if (mat.funnel?.cta?.url && !downloaded.includes(mat.id)) {
+        showT(`"${mat.title}" baixado! ✅`);
+        setFunnelStep("cta");
+      } else {
+        showT(`"${mat.title}" baixado! ✅`); setSelectedMaterial(null);
+      }
+      if (mat.downloadUrl) window.open(mat.downloadUrl, "_blank");
+    } finally {
+      setDownloadingMatId(null);
     }
   };
   const confirmUnlock = async (method) => {
     if (method === "share" && (!refName.trim() || !refWA.trim())) return showT("Preencha os dados!");
-    await db.updateMaterial(unlockTarget.id, { unlockType: "free" });
+    const matOk = await db.updateMaterial(unlockTarget.id, { unlockType: "free" });
+    if (!matOk) { showT("Erro ao desbloquear. Tente novamente."); return; }
     if (method === "share") {
       const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
-      await db.addLead({ name: refName, whatsapp: refWA, downloads: [], visits: 0, firstVisit: dateStr, lastVisit: dateStr, source: "referral", phaseResponses: {}, surveyResponses: {} });
+      const created = await db.addLead({ name: refName, whatsapp: refWA, downloads: [], visits: 0, firstVisit: dateStr, lastVisit: dateStr, source: "referral", phaseResponses: {}, surveyResponses: {} });
+      if (!created) { showT("Erro ao salvar indicação. Tente novamente."); return; }
     }
     setUnlockTarget(null); setRefName(""); setRefWA(""); showT("Desbloqueado! 🎉");
   };
@@ -516,25 +563,27 @@ export default function VollHub() {
       showT("Digite o PIN de 4 dígitos.");
       return;
     }
+    const apiUrl = `${window.location.origin}/api/verify-pin`;
     try {
-      const res = await fetch('/api/verify-pin', {
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: adminPin })
       });
+      const text = await res.text();
       let result;
       try {
-        result = await res.json();
+        result = text ? JSON.parse(text) : {};
       } catch (_) {
-        // Resposta não é JSON (ex.: 404 em dev com Vite)
-        if (res.status === 404 || !res.ok) {
-          const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
-          showT(isDev
-            ? "API não disponível no dev. Rode 'vercel dev' para testar o login admin."
-            : "Servidor indisponível. Tente novamente.");
-        } else {
-          showT("Erro ao verificar PIN. Tente novamente.");
+        if (res.status === 404) {
+          showT("Rota da API não encontrada. Verifique se o projeto está no Vercel com a pasta api/.");
+          return;
         }
+        if (res.status >= 500) {
+          showT("Erro no servidor (500). Confira as variáveis de ambiente no Vercel: ADMIN_PIN, ADMIN_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.");
+          return;
+        }
+        showT("Resposta inválida do servidor. Tente novamente.");
         return;
       }
       if (res.ok) {
@@ -547,10 +596,7 @@ export default function VollHub() {
       }
       showT(result.error || "PIN incorreto!");
     } catch (e) {
-      const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
-      showT(isDev
-        ? "Não foi possível conectar. Rode 'vercel dev' para testar o admin localmente."
-        : "Erro ao verificar PIN. Tente novamente.");
+      showT("Não foi possível conectar. Verifique sua internet e se o site está no ar.");
     }
   };
   const markNewAsSeen = (id) => { if (!seenNewIds.includes(id)) setSeenNewIds((p) => [...p, id]); };
@@ -605,7 +651,7 @@ export default function VollHub() {
 
   const InfLogo = useMemo(() => function InfLogoInner({ size = 52 }) { return config.logoUrl ? <img src={config.logoUrl} alt="Logo" style={{ width: size, height: size, objectFit: "contain" }} /> : (<svg width={size} height={size * 0.54} viewBox="0 0 52 28" fill="none"><path d="M14 14C14 14 14 4 7 4C0 4 0 14 0 14C0 14 0 24 7 24C14 24 14 14 14 14ZM14 14C14 14 14 4 21 4C28 4 28 14 28 14" stroke="#7DE2C7" strokeWidth="3" strokeLinecap="round" /><path d="M28 14C28 14 28 24 35 24C42 24 42 14 42 14C42 14 42 4 35 4C28 4 28 14 28 14" stroke="#349980" strokeWidth="3" strokeLinecap="round" /><path d="M42 14C42 14 42 24 48 24" stroke="#FFD863" strokeWidth="3" strokeLinecap="round" /></svg>); }, [config.logoUrl]);
 
-  const Toast = () => toast ? <div style={{ position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", padding: "11px 22px", borderRadius: 14, background: T.toastBg, border: `1px solid ${T.toastBorder}`, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", zIndex: 200, animation: "toastIn 0.3s ease", boxShadow: "0 10px 40px rgba(0,0,0,0.4)", whiteSpace: "nowrap", maxWidth: "90vw", overflow: "hidden", textOverflow: "ellipsis" }}>{toast}</div> : null;
+  const Toast = () => toast ? <div role="status" aria-live="polite" aria-atomic="true" style={{ position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", padding: "11px 22px", borderRadius: 14, background: T.toastBg, border: `1px solid ${T.toastBorder}`, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", zIndex: 200, animation: "toastIn 0.3s ease", boxShadow: "0 10px 40px rgba(0,0,0,0.4)", whiteSpace: "nowrap", maxWidth: "90vw", overflow: "hidden", textOverflow: "ellipsis" }}>{toast}</div> : null;
 
 
 
@@ -878,7 +924,7 @@ export default function VollHub() {
         <style>{getCSS(T)}</style>
         <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
         <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "36px 24px 28px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 1, animation: "fadeInUp 0.6s ease", boxShadow: T.shadow }}>
-          <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ position: "absolute", top: 14, right: 14, width: 44, height: 26, borderRadius: 13, background: T.tabBg, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", padding: "0 3px", zIndex: 5 }}><div style={{ width: 20, height: 20, borderRadius: "50%", background: T.accent, transform: theme === "dark" ? "translateX(0)" : "translateX(17px)", transition: "all 0.3s", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{theme === "dark" ? "🌙" : "☀️"}</div></button>
+          <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ position: "absolute", top: 14, right: 14, width: 44, height: 26, borderRadius: 13, background: T.tabBg, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", padding: "0 3px", zIndex: 5 }}><div style={{ width: 20, height: 20, borderRadius: "50%", background: T.accent, transform: theme === "dark" ? "translateX(0)" : "translateX(17px)", transition: "all 0.3s", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{theme === "dark" ? "🌙" : "☀️"}</div></button>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 8, cursor: "pointer", userSelect: "none" }} onClick={() => setLogoTaps((t) => t + 1)}>
             <div style={{ marginBottom: 12 }}><InfLogo /></div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: 1.5, textAlign: "center" }}>{config.brandName}</h1>
@@ -942,6 +988,11 @@ export default function VollHub() {
   // ═══════════════════════════════════════
   if (view === "admin") {
     return (
+      <Suspense fallback={
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg, fontFamily: "'Outfit', sans-serif" }}>
+          <span style={{ color: T.textMuted, fontSize: 14 }}>Carregando painel…</span>
+        </div>
+      }>
       <AdminPanel
         db={db} config={config} T={T} theme={theme} setTheme={setTheme} setView={setView}
         currentAdmin={currentAdmin} setCurrentAdmin={setCurrentAdmin} isMaster={isMaster} can={can}
@@ -953,6 +1004,7 @@ export default function VollHub() {
         getStreakRules={getStreakRules} getMilestones={getMilestones} getQuizzes={getQuizzes} getInstaPosts={getInstaPosts}
         generateAndUploadAllStyles={generateAndUploadAllStyles}
       />
+      </Suspense>
     );
   }
 
@@ -991,7 +1043,8 @@ export default function VollHub() {
       } catch(e) {}
       const lead = await db.findLeadByWhatsApp(userWhatsApp);
       if (lead) {
-        await db.updateLead(lead.id, { phaseResponses: newResponses });
+        const ok = await db.updateLead(lead.id, { phaseResponses: newResponses });
+        if (!ok) { showT("Erro ao salvar fase. Tente novamente."); return; }
         const phase = PHASES.find(p2 => p2.id === phaseId);
         const creditsPerPhase = phase?.credits || 2;
         await earnCredits(creditsPerPhase, `phase${phaseId}`);
@@ -1008,7 +1061,7 @@ export default function VollHub() {
         <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1 }}>
           <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0" }}>
             <button onClick={() => { setView("hub"); setActivePhase(null); }} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", color: T.accent, fontSize: 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar ao Hub</button>
-            <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
+            <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
           </header>
 
           {/* Profile Header */}
@@ -1036,7 +1089,7 @@ export default function VollHub() {
               <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}33`, borderRadius: 18, padding: "20px 18px", marginBottom: 16, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease 0.1s" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{phase.icon} {phase.title}</h3>
-                  <button onClick={() => setActivePhase(null)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
+                  <button type="button" aria-label="Fechar" onClick={() => setActivePhase(null)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
                 </div>
                 {phase.questions.map((q, i) => {
                   const val = getPhaseAnswer(phase.id, q.id);
@@ -1131,7 +1184,7 @@ export default function VollHub() {
               👤
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
             </button>}
-            <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
+            <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
             <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
             {creditsEnabled && <div style={{ position: "relative" }}><button onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>
@@ -1140,7 +1193,7 @@ export default function VollHub() {
                 <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>{config.creditsTooltipDesc || "Use créditos para desbloquear materiais exclusivos."}</p>
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                   <button onClick={() => { setShowCreditTooltip(false); setShowCreditStore(true); }} style={{ flex: 1, padding: "8px", borderRadius: 10, background: `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 12, fontWeight: 700, border: "none" }}>{config.creditsTooltipBtn || "Ganhar créditos"}</button>
-                  <button onClick={() => setShowCreditTooltip(false)} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600 }}>✕</button>
+                  <button type="button" aria-label="Fechar" onClick={() => setShowCreditTooltip(false)} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600 }}>✕</button>
                 </div>
               </div>}
             </div>}
@@ -1237,7 +1290,7 @@ export default function VollHub() {
         {/* HOW IT WORKS — only shows if user hasn't dismissed */}
         {!localStorage.getItem("vollhub_howworks_dismissed") && (
           <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #0d1a18, #0d1210)" : "linear-gradient(135deg, #f0faf6, #e8f5f0)", border: `1px solid ${T.accent}22`, borderRadius: 16, padding: "16px 18px", marginBottom: 18, position: "relative", opacity: animateIn ? 1 : 0, transition: "opacity 0.5s ease" }}>
-            <button onClick={() => { localStorage.setItem("vollhub_howworks_dismissed", "1"); setAnimateIn(a => !a); setTimeout(() => setAnimateIn(a => !a), 50); }} style={{ position: "absolute", top: 10, right: 12, background: "none", color: T.textFaint, fontSize: 16, border: "none" }}>✕</button>
+            <button type="button" aria-label="Fechar" onClick={() => { localStorage.setItem("vollhub_howworks_dismissed", "1"); setAnimateIn(a => !a); setTimeout(() => setAnimateIn(a => !a), 50); }} style={{ position: "absolute", top: 10, right: 12, background: "none", color: T.textFaint, fontSize: 16, border: "none" }}>✕</button>
             <p style={{ fontSize: 14, fontWeight: 700, color: T.accent, marginBottom: 10 }}>💡 Como funciona?</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>📚</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>Materiais gratuitos</b> — Baixe e-books, guias e templates feitos pra você crescer no Pilates.</p></div>
@@ -1281,9 +1334,9 @@ export default function VollHub() {
         const allFunnelAnswered = fQuestions.every((_, i) => funnelAnswers[i] !== undefined && funnelAnswers[i] !== "");
 
         return (
-        <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={() => setSelectedMaterial(null)}>
+        <div role="dialog" aria-modal="true" aria-label="Detalhes do material" style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={() => setSelectedMaterial(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: "22px 22px 14px 14px", padding: "30px 22px 22px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", animation: "slideUp 0.3s ease", position: "relative", maxHeight: "85vh", overflowY: "auto" }}>
-            <button onClick={() => setSelectedMaterial(null)} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
+            <button type="button" aria-label="Fechar" onClick={() => setSelectedMaterial(null)} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
 
             {/* STEP: QUESTIONS (pre-download) */}
             {funnelStep === "questions" && (
@@ -1319,9 +1372,9 @@ export default function VollHub() {
                 {alreadyDl && <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, background: T.dlBg, border: `1px solid ${T.dlBorder}`, color: T.accent, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", marginBottom: 8, width: "100%" }}><span>✅</span><span>Você já baixou este material</span></div>}
                 {creditsEnabled && (sm.creditCost || 0) > 0 && !alreadyDl && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, background: T.gold + "12", border: `1px solid ${T.gold}33`, color: T.gold, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", marginBottom: 8, width: "100%" }}>🎯 Este material custa {sm.creditCost} crédito{sm.creditCost > 1 ? "s" : ""} (você tem {userCredits})</div>}
                 {sm.downloadUrl ? (
-                  <a href={sm.downloadUrl} target="_blank" rel="noreferrer" onClick={() => handleDownload(sm)} style={{ display: "block", width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6, textAlign: "center", textDecoration: "none" }}>{alreadyDl ? "📥 Acessar novamente" : "📥 Acessar material"}</a>
+                  <a href={sm.downloadUrl} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); handleDownload(sm); }} style={{ display: "block", width: "100%", padding: "14px", borderRadius: 14, background: downloadingMatId === sm.id ? T.inputBg : "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6, textAlign: "center", textDecoration: "none", pointerEvents: downloadingMatId === sm.id ? "none" : "auto" }} aria-busy={downloadingMatId === sm.id}>{downloadingMatId === sm.id ? "⏳ Aguarde..." : (alreadyDl ? "📥 Acessar novamente" : "📥 Acessar material")}</a>
                 ) : (
-                  <button onClick={() => handleDownload(sm)} style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6 }}>{alreadyDl ? "📥 Baixar novamente" : "📥 Baixar material"}</button>
+                  <button type="button" onClick={() => handleDownload(sm)} disabled={downloadingMatId === sm.id} style={{ width: "100%", padding: "14px", borderRadius: 14, background: downloadingMatId === sm.id ? T.inputBg : "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #34998033", marginTop: 6 }} aria-busy={downloadingMatId === sm.id}>{downloadingMatId === sm.id ? "⏳ Aguarde..." : (alreadyDl ? "📥 Baixar novamente" : "📥 Baixar material")}</button>
                 )}
               </>
             )}
@@ -1343,9 +1396,9 @@ export default function VollHub() {
 
       {/* Unlock Modal */}
       {unlockTarget && (
-        <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={() => { setUnlockTarget(null); setRefName(""); setRefWA(""); }}>
+        <div role="dialog" aria-modal="true" aria-label="Desbloquear material" style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={() => { setUnlockTarget(null); setRefName(""); setRefWA(""); }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: "22px 22px 14px 14px", padding: "30px 22px 22px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", animation: "slideUp 0.3s ease", position: "relative", maxHeight: "85vh", overflowY: "auto" }}>
-            <button onClick={() => { setUnlockTarget(null); setRefName(""); setRefWA(""); }} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
+            <button type="button" aria-label="Fechar" onClick={() => { setUnlockTarget(null); setRefName(""); setRefWA(""); }} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
             <div style={{ width: 76, height: 76, borderRadius: 20, background: `linear-gradient(135deg, ${getUnlockLabel(unlockTarget).color}15, ${getUnlockLabel(unlockTarget).color}08)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 48 }}>{getUnlockLabel(unlockTarget).icon}</span></div>
             {unlockTarget.unlockType === "social" && unlockTarget.socialMethod === "share" && (<><h2 style={{ fontSize: 19, fontWeight: 700, color: T.text, textAlign: "center" }}>{config.shareModalTitle}</h2><p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", margin: "6px 0 12px" }}>{config.shareModalDesc}</p><div style={{ width: "100%", marginBottom: 10 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>Nome do amigo</label><input style={inp} placeholder="Nome" value={refName} onChange={(e) => setRefName(e.target.value)} /></div><div style={{ width: "100%", marginBottom: 10 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>WhatsApp</label><input style={inp} type="tel" placeholder="(00) 00000-0000" value={refWA} onChange={(e) => setRefWA(fmtWA(e.target.value))} /></div><button onClick={() => confirmUnlock("share")} style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700 }}>👥 Indicar e desbloquear</button></>)}
             {unlockTarget.unlockType === "social" && unlockTarget.socialMethod === "comment" && (<><h2 style={{ fontSize: 19, fontWeight: 700, color: T.text, textAlign: "center" }}>{config.commentModalTitle}</h2><p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", margin: "6px 0 12px" }}>{config.commentModalDesc}</p><a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", padding: "13px", borderRadius: 14, background: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)", color: "#fff", fontSize: 14, fontWeight: 700, textAlign: "center", textDecoration: "none" }}>Ir para o Instagram →</a><button onClick={() => confirmUnlock("comment")} style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 15, fontWeight: 700, marginTop: 8 }}>✅ Já comentei!</button></>)}
@@ -1357,7 +1410,7 @@ export default function VollHub() {
       {currentSurvey && (
         <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={() => setCurrentSurvey(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: "22px 22px 14px 14px", padding: "30px 22px 22px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, animation: "slideUp 0.3s ease", position: "relative", maxHeight: "85vh", overflowY: "auto" }}>
-            <button onClick={() => setCurrentSurvey(null)} style={{ position: "absolute", top: 14, right: 14, background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
+            <button type="button" aria-label="Fechar" onClick={() => setCurrentSurvey(null)} style={{ position: "absolute", top: 14, right: 14, background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
             <span style={{ fontSize: 40 }}>{currentSurvey.icon}</span>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: T.text, textAlign: "center" }}>🔍 Pesquisa rápida</h2>
             <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", lineHeight: 1.5 }}>Responda {currentSurvey.surveyQuestions?.length || 0} perguntas e desbloqueie <strong style={{ color: T.text }}>{currentSurvey.title}</strong></p>
@@ -1409,7 +1462,8 @@ export default function VollHub() {
                   const lead = await db.findLeadByWhatsApp(userWhatsApp);
                   if (lead) {
                     const sr = { ...(lead.surveyResponses || {}), [currentSurvey.id]: { ...tempAnswers, answeredAt: new Date().toISOString() } };
-                    await db.updateLead(lead.id, { surveyResponses: sr, downloads: [...new Set([...(lead.downloads || []), currentSurvey.id])] });
+                    const ok = await db.updateLead(lead.id, { surveyResponses: sr, downloads: [...new Set([...(lead.downloads || []), currentSurvey.id])] });
+                    if (!ok) { showT("Respostas não salvas. Tente novamente."); return; }
                   }
                   selectMat(currentSurvey);
                   setCurrentSurvey(null);
@@ -1425,7 +1479,7 @@ export default function VollHub() {
 
       {/* CREDIT STORE MODAL */}
       {showCreditStore && (
-        <div style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowCreditStore(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Ganhar créditos" style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowCreditStore(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto", animation: "fadeInUp 0.3s ease" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{config.creditsStoreTitle || "🎯 Ganhe Créditos"}</h2>
@@ -1613,7 +1667,7 @@ export default function VollHub() {
           <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: "100%", maxWidth: 400, maxHeight: "80vh", overflowY: "auto", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "28px 20px", animation: "fadeInUp 0.4s ease" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text }}>🏆 Ranking</h2>
-              <button onClick={() => setShowLeaderboard(false)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
+              <button type="button" aria-label="Fechar" onClick={() => setShowLeaderboard(false)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
             </div>
             {(() => {
               const rankLeads = leads.filter(l => l.name && l.whatsapp).map(l => ({
@@ -1731,7 +1785,7 @@ export default function VollHub() {
 
       {/* SHARE REFLECTION MODAL */}
       {showShareModal && todayReflection?.quote && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowShareModal(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Compartilhar reflexão" style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowShareModal(false)}>
           <div style={{ position: "absolute", inset: 0, background: "#000000aa", backdropFilter: "blur(4px)" }} />
           <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: "100%", maxWidth: 480, background: theme === "dark" ? "#1a1e1c" : "#fff", borderRadius: "24px 24px 0 0", padding: "20px 16px 30px", animation: "slideUp 0.3s ease" }}>
             <div style={{ width: 40, height: 4, borderRadius: 2, background: T.textFaint + "44", margin: "0 auto 16px" }} />
@@ -1754,7 +1808,7 @@ export default function VollHub() {
 
             {/* Action buttons */}
             <div style={{ display: "flex", gap: 10 }}>
-              <button disabled={shareGenerating} onClick={() => generateShareImage(shareSelectedStyle)} style={{ flex: 1, padding: "14px", borderRadius: 14, background: shareGenerating ? T.statBg : "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 14, fontWeight: 700, cursor: shareGenerating ? "wait" : "pointer" }}>
+              <button type="button" aria-busy={shareGenerating} disabled={shareGenerating} onClick={() => generateShareImage(shareSelectedStyle)} style={{ flex: 1, padding: "14px", borderRadius: 14, background: shareGenerating ? T.statBg : "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 14, fontWeight: 700, cursor: shareGenerating ? "wait" : "pointer" }}>
                 {shareGenerating ? "Gerando..." : "📸 Compartilhar no Instagram"}
               </button>
               <button onClick={() => { setShowShareModal(false); shareReflectionWhatsApp(); }} style={{ padding: "14px 18px", borderRadius: 14, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>📲</button>

@@ -57,6 +57,7 @@ export function getCSS(T) {
     input::placeholder, textarea::placeholder { color: ${T.placeholder}; }
     input:focus, textarea:focus { outline: none; border-color: #349980 !important; box-shadow: 0 0 0 3px ${T.focusRing}; }
     button { cursor: pointer; border: none; font-family: 'Outfit', sans-serif; }
+    button:focus-visible { outline: 2px solid #349980; outline-offset: 2px; }
     button:hover { filter: brightness(1.08); }
     button:active { transform: scale(0.98); }
     textarea { font-family: 'Plus Jakarta Sans', sans-serif; }

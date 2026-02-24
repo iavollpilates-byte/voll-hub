@@ -43,6 +43,7 @@ export default function AdminPanel({
   const [adminRefGenResult, setAdminRefGenResult] = useState("");
   const [adminRefGenLoading, setAdminRefGenLoading] = useState(false);
   const [refImagePreview, setRefImagePreview] = useState(null);
+  const [savingReflection, setSavingReflection] = useState(false);
 
   // ─── LOCAL FUNCTIONS ───
   const addLog = (action) => {
@@ -52,12 +53,13 @@ export default function AdminPanel({
 
   const updCfg = (k, v) => { db.updateConfig(k, v); addLog(`Editou config: ${k}`); };
   const updMat = (id, k, v) => { const mat = materials.find(m => m.id === id); db.updateMaterial(id, { [k]: v }); addLog(`Editou material "${mat?.title || id}": ${k}`); };
-  const deleteMat = async (id) => { await db.deleteMaterial(id); setConfirmDeleteId(null); setEditId(null); showT("Excluído! 🗑️"); };
+  const deleteMat = async (id) => { const ok = await db.deleteMaterial(id); setConfirmDeleteId(null); setEditId(null); if (ok) showT("Excluído! 🗑️"); else showT("Erro ao excluir. Tente novamente."); };
 
   const addMat = async () => {
     if (!newMat.title.trim()) return showT("Preencha o título!");
     const today = new Date(); const d = `${String(today.getDate()).padStart(2, "0")} ${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][today.getMonth()]} ${today.getFullYear()}`;
-    await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
+    const created = await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
+    if (!created) { showT("Erro ao criar material. Tente novamente."); return; }
     addLog(`Criou material "${newMat.title}"`);
     setNewMat({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] }); setShowNewForm(false); showT("Criado! ✅");
   };
@@ -331,9 +333,9 @@ export default function AdminPanel({
         </header>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-          {[{ l: "Leads", v: leads.length, i: "👥", c: T.accent }, { l: "Downloads", v: totalDl, i: "📥", c: T.accentDark }, { l: "Materiais", v: activeMats.length, i: "📄", c: T.gold }, { l: "Indicações", v: segmentCounts.referral, i: "🔗", c: T.accent }].map((st, i) => (
-              <div key={i} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: `all 0.4s ease ${i * 0.08}s` }}>
-                <span style={{ fontSize: 22 }}>{st.i}</span><span style={{ fontSize: 26, fontWeight: 800, color: st.c }}>{st.v}</span><span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{st.l}</span>
+          {[{ l: "Acessos", sub: "Aberturas da página", v: parseInt(config.pageViews) || 0, i: "👁", c: T.accent }, { l: "Leads", v: leads.length, i: "👥", c: T.accent }, { l: "Downloads", v: totalDl, i: "📥", c: T.accentDark }, { l: "Materiais", v: activeMats.length, i: "📄", c: T.gold }, { l: "Indicações", v: segmentCounts.referral, i: "🔗", c: T.accent }].map((st, i) => (
+              <div key={i} title={st.sub} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: `all 0.4s ease ${i * 0.08}s` }}>
+                <span style={{ fontSize: 22 }}>{st.i}</span><span style={{ fontSize: 26, fontWeight: 800, color: st.c }}>{typeof st.v === "number" ? st.v.toLocaleString("pt-BR") : st.v}</span><span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{st.l}</span>{st.sub && <span style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{st.sub}</span>}
               </div>
             ))}
         </div>
@@ -899,7 +901,7 @@ export default function AdminPanel({
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>📋 Fases do Perfil ({(dbPhases || []).length})</h3>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => updCfg("profileEnabled", config.profileEnabled === "false" ? "true" : "false")} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: config.profileEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.profileEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.profileEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.profileEnabled !== "false" ? "✅ Ativo" : "🚫 Oculto"}</button>
-                  <button onClick={async () => { const p = await db.addPhase({ title: `Fase ${(dbPhases || []).length + 1}`, icon: "📋", credits: 2, sortOrder: (dbPhases || []).length, questions: [{ id: "q1", label: "Pergunta 1", type: "text", required: true, options: [] }] }); if (p) showT("Fase criada!"); }} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 11, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Nova fase</button>
+                  <button onClick={async () => { const p = await db.addPhase({ title: `Fase ${(dbPhases || []).length + 1}`, icon: "📋", credits: 2, sortOrder: (dbPhases || []).length, questions: [{ id: "q1", label: "Pergunta 1", type: "text", required: true, options: [] }] }); if (p) showT("Fase criada!"); else showT("Erro ao criar fase. Tente novamente."); }} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 11, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Nova fase</button>
                 </div>
               </div>
               {(dbPhases || []).map((phase, pi) => (
@@ -910,7 +912,7 @@ export default function AdminPanel({
                       {pi > 0 && <button onClick={() => { const prev = dbPhases[pi - 1]; db.updatePhase(phase.id, { sortOrder: prev.sortOrder }); db.updatePhase(prev.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↑</button>}
                       {pi < dbPhases.length - 1 && <button onClick={() => { const next = dbPhases[pi + 1]; db.updatePhase(phase.id, { sortOrder: next.sortOrder }); db.updatePhase(next.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↓</button>}
                       <button onClick={() => db.updatePhase(phase.id, { active: !phase.active })} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: phase.active ? T.accent + "22" : T.dangerBg, color: phase.active ? T.accent : T.dangerTxt, border: `1px solid ${phase.active ? T.accent + "44" : T.dangerBrd}` }}>{phase.active ? "✅" : "👁"}</button>
-                      <button onClick={async () => { if (confirm("Excluir esta fase?")) { await db.deletePhase(phase.id); showT("Fase removida!"); } }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
+                      <button onClick={async () => { if (confirm("Excluir esta fase?")) { const ok = await db.deletePhase(phase.id); if (ok) showT("Fase removida!"); else showT("Erro ao excluir fase. Tente novamente."); } }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
@@ -1339,20 +1341,23 @@ export default function AdminPanel({
                   <label style={{ fontSize: 12, color: T.textMuted, marginLeft: 8 }}><input type="checkbox" checked={adminRefEdit?.active !== false} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), active: e.target.checked }))} /> Ativa</label>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={async () => {
+                  <button type="button" disabled={savingReflection} onClick={async () => {
                     const ref = adminRefEdit || emptyRef;
                     if (!ref.title || !ref.body || !ref.publishDate) { showT("Preencha título, texto e data!"); return; }
-                    let savedId = ref.id;
-                    if (ref.id) { await db.updateReflection(ref.id, ref); showT("Reflexão atualizada! ✅"); }
-                    else { const created = await db.addReflection(ref); if (created) savedId = created.id; showT("Reflexão programada! ✅"); }
-                    if (savedId && ref.quote) {
-                      showT("Gerando imagens dos 4 estilos...");
-                      await generateAndUploadAllStyles(savedId, ref.quote);
-                      showT("Imagens salvas no Storage! 📸");
-                    }
-                    setAdminRefEdit(null); addLog(ref.id ? `Editou reflexão: ${ref.title}` : `Criou reflexão: ${ref.title}`);
-                  }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, border: "none" }}>
-                    {adminRefEdit?.id ? "Salvar" : "Programar"} 💾
+                    setSavingReflection(true);
+                    try {
+                      let savedId = ref.id;
+                      if (ref.id) { const ok = await db.updateReflection(ref.id, ref); if (ok) showT("Reflexão atualizada! ✅"); else showT("Erro ao salvar reflexão. Tente novamente."); }
+                      else { const created = await db.addReflection(ref); if (created) { savedId = created.id; showT("Reflexão programada! ✅"); } else showT("Erro ao criar reflexão. Tente novamente."); }
+                      if (savedId && ref.quote) {
+                        showT("Gerando imagens dos 4 estilos...");
+                        const uploadOk = await generateAndUploadAllStyles(savedId, ref.quote);
+                        if (uploadOk !== null) showT("Imagens salvas no Storage! 📸"); else showT("Reflexão salva, mas falha ao gerar imagens. Tente gerar de novo.");
+                      }
+                      setAdminRefEdit(null); addLog(ref.id ? `Editou reflexão: ${ref.title}` : `Criou reflexão: ${ref.title}`);
+                    } finally { setSavingReflection(false); }
+                  }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: savingReflection ? T.statBg : "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, border: "none", cursor: savingReflection ? "wait" : "pointer" }} aria-busy={savingReflection}>
+                    {savingReflection ? "⏳ Salvando..." : (adminRefEdit?.id ? "Salvar" : "Programar") + " 💾"}
                   </button>
                   {adminRefEdit && <button onClick={() => setAdminRefEdit(null)} style={{ padding: "10px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 13 }}>Cancelar</button>}
                 </div>
@@ -1388,7 +1393,7 @@ export default function AdminPanel({
                         <div style={{ display: "flex", gap: 4 }}>
                           {r.imageUrl && (() => { try { const imgs = JSON.parse(r.imageUrl); return Object.keys(imgs).length > 0 ? <button onClick={() => setRefImagePreview(imgs)} title="Ver imagens geradas" style={{ padding: "4px 10px", borderRadius: 8, background: T.accent + "22", border: `1px solid ${T.accent}44`, fontSize: 12 }}>📸</button> : null; } catch { return null; } })()}
                           <button onClick={() => setAdminRefEdit({ ...r })} style={{ padding: "4px 10px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 12 }}>✏️</button>
-                          <button onClick={async () => { if (confirm("Excluir reflexão?")) { await db.deleteReflection(r.id); showT("Excluída! 🗑️"); addLog(`Excluiu reflexão: ${r.title}`); } }} style={{ padding: "4px 10px", borderRadius: 8, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 12 }}>🗑️</button>
+                          <button onClick={async () => { if (confirm("Excluir reflexão?")) { const ok = await db.deleteReflection(r.id); if (ok) { showT("Excluída! 🗑️"); addLog(`Excluiu reflexão: ${r.title}`); } else showT("Erro ao excluir. Tente novamente."); } }} style={{ padding: "4px 10px", borderRadius: 8, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 12 }}>🗑️</button>
                         </div>
                       </div>
                     </div>
@@ -1454,7 +1459,8 @@ export default function AdminPanel({
                   if (!newUser.name.trim() || newUser.pin.length !== 4) return showT("Preencha nome e PIN (4 dígitos)!");
                   const isUnique = await db.checkPinUnique(newUser.pin);
                   if (!isUnique) return showT("PIN já em uso!");
-                  await db.addAdminUser({ name: newUser.name, pin: newUser.pin, permissions: newUser.permissions });
+                  const created = await db.addAdminUser({ name: newUser.name, pin: newUser.pin, permissions: newUser.permissions });
+                  if (!created) { showT("Erro ao criar admin. Tente novamente."); return; }
                   setNewUser({ name: "", pin: "", permissions: { materials_view: true, materials_edit: false, leads_view: true, leads_export: false, leads_whatsapp: false, textos_edit: false, users_manage: false } });
                   setShowNewUser(false); showT("Admin criado! 🎉");
                 }} style={{ width: "100%", padding: "13px", borderRadius: 12, background: `linear-gradient(135deg, #c49500, #FFD863)`, color: "#1a1a12", fontSize: 14, fontWeight: 700, marginTop: 4 }}>👑 Criar Admin</button>
