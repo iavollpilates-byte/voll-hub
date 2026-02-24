@@ -2161,19 +2161,19 @@ export default function VollHub() {
                   </div>
                   <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>Use "a cada" para repetir (5, 10, 15...) ou "no dia" para um marco unico.</p>
                   {streakRules.map((rule, i) => (
-                    <div key={i} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                    <div key={"sr-" + i + "-" + streakRules.length} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-                        <select value={rule.every ? "every" : "at"} onChange={(e) => { const nr = [...streakRules]; if (e.target.value === "every") { nr[i] = { every: rule.every || rule.at || 5, credits: rule.credits, message: rule.message }; } else { nr[i] = { at: rule.at || rule.every || 30, credits: rule.credits, message: rule.message }; } saveStreakRules(nr); }} style={{ ...inp, width: 100 }}>
+                        <select defaultValue={rule.every ? "every" : "at"} onChange={(e) => { const nr = [...streakRules]; if (e.target.value === "every") { nr[i] = { every: rule.every || rule.at || 5, credits: rule.credits, message: rule.message }; } else { nr[i] = { at: rule.at || rule.every || 30, credits: rule.credits, message: rule.message }; } saveStreakRules(nr); }} style={{ ...inp, width: 100 }}>
                           <option value="every">A cada</option>
                           <option value="at">No dia</option>
                         </select>
-                        <input type="number" value={rule.every || rule.at || 5} onChange={(e) => { const nr = [...streakRules]; const val = parseInt(e.target.value) || 1; nr[i] = rule.every ? { ...rule, every: val } : { ...rule, at: val }; saveStreakRules(nr); }} style={{ ...inp, width: 60 }} />
+                        <input type="number" defaultValue={rule.every || rule.at || 5} onBlur={(e) => { const nr = [...streakRules]; const val = parseInt(e.target.value) || 1; nr[i] = rule.every ? { ...rule, every: val } : { ...rule, at: val }; saveStreakRules(nr); }} style={{ ...inp, width: 60 }} />
                         <span style={{ fontSize: 11, color: T.textFaint, whiteSpace: "nowrap" }}>dias =</span>
-                        <input type="number" value={rule.credits || 0} onChange={(e) => { const nr = [...streakRules]; nr[i] = { ...rule, credits: parseInt(e.target.value) || 0 }; saveStreakRules(nr); }} style={{ ...inp, width: 50 }} />
+                        <input type="number" defaultValue={rule.credits || 0} onBlur={(e) => { const nr = [...streakRules]; nr[i] = { ...rule, credits: parseInt(e.target.value) || 0 }; saveStreakRules(nr); }} style={{ ...inp, width: 50 }} />
                         <span style={{ fontSize: 11, color: T.textFaint }}>cr.</span>
                         <button onClick={() => saveStreakRules(streakRules.filter((_, j) => j !== i))} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
                       </div>
-                      <input value={rule.message || ""} onChange={(e) => { const nr = [...streakRules]; nr[i] = { ...rule, message: e.target.value }; saveStreakRules(nr); }} style={inp} placeholder="Mensagem de celebracao..." />
+                      <input defaultValue={rule.message || ""} onBlur={(e) => { const nr = [...streakRules]; nr[i] = { ...rule, message: e.target.value }; saveStreakRules(nr); }} style={inp} placeholder="Mensagem de celebracao..." />
                     </div>
                   ))}
                 </div>
@@ -2186,18 +2186,18 @@ export default function VollHub() {
                   </div>
                   <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>Popup de celebracao quando o usuario atinge X dias totais de acesso.</p>
                   {milestones.map((m, i) => (
-                    <div key={i} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                    <div key={"ms-" + i + "-" + milestones.length} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-                        <input type="number" value={m.days} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, days: parseInt(e.target.value) || 1 }; saveMilestones(nm); }} style={{ ...inp, width: 60 }} />
+                        <input type="number" defaultValue={m.days} onBlur={(e) => { const nm = [...milestones]; nm[i] = { ...m, days: parseInt(e.target.value) || 1 }; saveMilestones(nm); }} style={{ ...inp, width: 60 }} />
                         <span style={{ fontSize: 11, color: T.textFaint }}>dias</span>
-                        <input type="number" value={m.credits || 0} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, credits: parseInt(e.target.value) || 0 }; saveMilestones(nm); }} style={{ ...inp, width: 50 }} />
+                        <input type="number" defaultValue={m.credits || 0} onBlur={(e) => { const nm = [...milestones]; nm[i] = { ...m, credits: parseInt(e.target.value) || 0 }; saveMilestones(nm); }} style={{ ...inp, width: 50 }} />
                         <span style={{ fontSize: 11, color: T.textFaint }}>cr.</span>
                         <button onClick={() => saveMilestones(milestones.filter((_, j) => j !== i))} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
                       </div>
                       <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-                        <input value={m.title || ""} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, title: e.target.value }; saveMilestones(nm); }} style={{ ...inp, flex: 1 }} placeholder="Titulo (ex: 10 dias!)" />
+                        <input defaultValue={m.title || ""} onBlur={(e) => { const nm = [...milestones]; nm[i] = { ...m, title: e.target.value }; saveMilestones(nm); }} style={{ ...inp, flex: 1 }} placeholder="Titulo (ex: 10 dias!)" />
                       </div>
-                      <input value={m.message || ""} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, message: e.target.value }; saveMilestones(nm); }} style={inp} placeholder="Mensagem de parabens..." />
+                      <input defaultValue={m.message || ""} onBlur={(e) => { const nm = [...milestones]; nm[i] = { ...m, message: e.target.value }; saveMilestones(nm); }} style={inp} placeholder="Mensagem de parabens..." />
                     </div>
                   ))}
                 </div>
