@@ -1921,6 +1921,7 @@ export default function VollHub() {
                       <div><label style={{ fontSize: 10, color: T.textFaint }}>Créditos</label><input type="number" defaultValue={phase.credits} onBlur={(e) => db.updatePhase(phase.id, { credits: parseInt(e.target.value) || 2 })} key={"pc-" + phase.id} style={inp} /></div>
                     </div>
                     <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: T.textFaint }}>Link do prêmio</label><input defaultValue={phase.prizeUrl} onBlur={(e) => db.updatePhase(phase.id, { prizeUrl: e.target.value })} key={"pu-" + phase.id} style={inp} placeholder="https://..." /></div>
+                    <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: T.textFaint }}>Texto do botão (CTA)</label><input defaultValue={phase.ctaText || ""} onBlur={(e) => db.updatePhase(phase.id, { ctaText: e.target.value })} key={"pct-" + phase.id} style={inp} placeholder="🎁 Desbloquear prêmio!" /></div>
 
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 6 }}>
                       <p style={{ fontSize: 10, fontWeight: 700, color: T.textMuted }}>Perguntas ({phase.questions.length})</p>
@@ -2524,7 +2525,7 @@ export default function VollHub() {
                 {(() => {
                   const timeLeft = Math.max(0, PHASE_TIMER - phaseTimer);
                   const canSubmit = isPhaseFieldsComplete(activePhase) && timeLeft === 0;
-                  return <button onClick={() => { if (timeLeft > 0) return showT(`Aguarde ${timeLeft}s para enviar...`); handlePhaseSubmit(activePhase); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: canSubmit ? `linear-gradient(135deg, #c49500, #FFD863)` : T.inputBg, color: canSubmit ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: canSubmit ? 1 : 0.5, transition: "all 0.3s" }}>{timeLeft > 0 ? `⏳ Aguarde ${timeLeft}s...` : "🎁 Desbloquear prêmio!"}</button>;
+                  return <button onClick={() => { if (timeLeft > 0) return showT(`Aguarde ${timeLeft}s para enviar...`); handlePhaseSubmit(activePhase); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: canSubmit ? `linear-gradient(135deg, #c49500, #FFD863)` : T.inputBg, color: canSubmit ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: canSubmit ? 1 : 0.5, transition: "all 0.3s" }}>{timeLeft > 0 ? `⏳ Aguarde ${timeLeft}s...` : (activePhase.ctaText || "🎁 Desbloquear prêmio!")}</button>;
                 })()}
               </div>
             );

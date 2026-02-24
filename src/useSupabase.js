@@ -54,7 +54,7 @@ const leadFromDb = (r) => {
 const phaseFromDb = (r) => ({
   id: r.id, title: r.title, icon: r.icon || '📋', prize: r.prize || '', prizeUrl: r.prize_url || '',
   credits: r.credits ?? 2, sortOrder: r.sort_order ?? 0, active: r.active !== false,
-  questions: r.questions || [], createdAt: r.created_at,
+  questions: r.questions || [], ctaText: r.cta_text || '', createdAt: r.created_at,
 })
 
 const leadToDb = (l) => ({
@@ -270,7 +270,7 @@ export function useSupabase() {
 
   // ─── PHASES ───
   const addPhase = async (phase) => {
-    const row = { title: phase.title, icon: phase.icon || '📋', prize: phase.prize || '', prize_url: phase.prizeUrl || '', credits: phase.credits ?? 2, sort_order: phase.sortOrder ?? 0, active: phase.active !== false, questions: phase.questions || [] }
+    const row = { title: phase.title, icon: phase.icon || '📋', prize: phase.prize || '', prize_url: phase.prizeUrl || '', credits: phase.credits ?? 2, sort_order: phase.sortOrder ?? 0, active: phase.active !== false, questions: phase.questions || [], cta_text: phase.ctaText || '' }
     const { data, error } = await supabase.from('phases').insert(row).select().single()
     if (error) { console.error(error); return null }
     const newPhase = phaseFromDb(data)
@@ -280,7 +280,7 @@ export function useSupabase() {
 
   const updatePhase = async (id, updates) => {
     const dbUpdates = {}
-    const keyMap = { title: 'title', icon: 'icon', prize: 'prize', prizeUrl: 'prize_url', credits: 'credits', sortOrder: 'sort_order', active: 'active', questions: 'questions' }
+    const keyMap = { title: 'title', icon: 'icon', prize: 'prize', prizeUrl: 'prize_url', credits: 'credits', sortOrder: 'sort_order', active: 'active', questions: 'questions', ctaText: 'cta_text' }
     Object.entries(updates).forEach(([k, v]) => { if (keyMap[k]) dbUpdates[keyMap[k]] = v })
     const { error } = await supabase.from('phases').update(dbUpdates).eq('id', id)
     if (error) { console.error(error); return false }

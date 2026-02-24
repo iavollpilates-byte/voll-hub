@@ -130,10 +130,12 @@ create table if not exists phases (
   sort_order integer default 0,
   active boolean default true,
   questions jsonb default '[]',
+  cta_text text default '',
   created_at timestamptz default now()
 );
 
 alter table leads add column if not exists phase_responses jsonb default '{}';
+alter table phases add column if not exists cta_text text default '';
 
 -- ═══════════════════════════════════════════════
 -- STORAGE: Bucket para imagens de reflexão
