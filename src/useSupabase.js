@@ -48,6 +48,8 @@ const leadFromDb = (r) => {
     phase1Complete: !!r.phase1_complete, phase2Complete: !!r.phase2_complete, phase3Complete: !!r.phase3_complete,
     phaseResponses: pr,
     credits: r.credits ?? 3, creditsEarned: r.credits_earned || {},
+    streakCount: r.streak_count || 0, streakLastDate: r.streak_last_date || '', streakBest: r.streak_best || 0,
+    totalDays: r.total_days || 0, reflectionsRead: r.reflections_read || [], milestonesAchieved: r.milestones_achieved || [],
   }
 }
 
@@ -69,6 +71,8 @@ const leadToDb = (l) => ({
   phase1_complete: !!l.phase1Complete, phase2_complete: !!l.phase2Complete, phase3_complete: !!l.phase3Complete,
   phase_responses: l.phaseResponses || {},
   credits: l.credits ?? 3, credits_earned: l.creditsEarned || {},
+  streak_count: l.streakCount || 0, streak_last_date: l.streakLastDate || '', streak_best: l.streakBest || 0,
+  total_days: l.totalDays || 0, reflections_read: l.reflectionsRead || [], milestones_achieved: l.milestonesAchieved || [],
 })
 
 const adminFromDb = (r) => ({
@@ -183,6 +187,8 @@ export function useSupabase() {
       phase1Complete: 'phase1_complete', phase2Complete: 'phase2_complete', phase3Complete: 'phase3_complete',
       phaseResponses: 'phase_responses',
       credits: 'credits', creditsEarned: 'credits_earned',
+      streakCount: 'streak_count', streakLastDate: 'streak_last_date', streakBest: 'streak_best',
+      totalDays: 'total_days', reflectionsRead: 'reflections_read', milestonesAchieved: 'milestones_achieved',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v

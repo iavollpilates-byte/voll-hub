@@ -147,6 +147,8 @@ export default function VollHub() {
           if (u.profile) setUserProfile(u.profile);
           if (u.credits !== undefined) setUserCredits(u.credits);
           if (u.creditsEarned) setUserCreditsEarned(u.creditsEarned);
+          if (u.streak) setStreak(u.streak);
+          if (u.totalDays) setTotalDays(u.totalDays);
           // Don't auto-navigate to hub - stay on linktree
         }
       }
@@ -201,29 +203,77 @@ export default function VollHub() {
   const todayStr = new Date().toISOString().split("T")[0];
   const todayReflection = (dbReflections || []).find(r => r.publishDate === todayStr && r.active);
 
-  // ─── STREAK SYSTEM ───
-  const getStreak = () => {
-    try {
-      const data = JSON.parse(localStorage.getItem("vollhub_streak") || "{}");
-      return { count: data.count || 0, lastDate: data.lastDate || "" };
-    } catch(e) { return { count: 0, lastDate: "" }; }
+  // ─── STREAK & GAMIFICATION SYSTEM ───
+  const [streak, setStreak] = useState({ count: 0, lastDate: "", best: 0 });
+  const [totalDays, setTotalDays] = useState(0);
+  const [reflectionsRead, setReflectionsRead] = useState([]);
+  const [milestonesAchieved, setMilestonesAchieved] = useState([]);
+  const [gamificationPopup, setGamificationPopup] = useState(null);
+  const [gamificationQueue, setGamificationQueue] = useState([]);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  const getStreakRules = () => { try { return config.streakRules ? JSON.parse(config.streakRules) : [{ every: 5, credits: 1, message: "dias seguidos! +1 credito" }, { at: 30, credits: 3, message: "1 mes de dedicacao! +3 creditos" }]; } catch(e) { return []; } };
+  const getMilestones = () => { try { return config.milestones ? JSON.parse(config.milestones) : [{ days: 10, title: "10 dias!", message: "Voce e incrivel! Continue assim!", credits: 0 }, { days: 20, title: "20 dias!", message: "Dedicacao de verdade!", credits: 1 }, { days: 30, title: "1 mes!", message: "Que comprometimento!", credits: 2 }, { days: 50, title: "50 dias!", message: "Voce e referencia!", credits: 3 }, { days: 100, title: "100 dias!", message: "Lendario! Poucos chegam aqui!", credits: 5 }]; } catch(e) { return []; } };
+
+  const showNextPopup = useCallback((queue) => {
+    if (queue.length === 0) return;
+    setGamificationPopup(queue[0]);
+    setGamificationQueue(queue.slice(1));
+  }, []);
+  const dismissPopup = () => {
+    if (gamificationQueue.length > 0) { setTimeout(() => showNextPopup(gamificationQueue), 400); }
+    setGamificationPopup(null);
   };
-  const [streak, setStreak] = useState(getStreak());
-  useEffect(() => {
-    if (!todayReflection) return;
-    const s = getStreak();
+
+  const processGamification = async (lead) => {
+    const popups = [];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-    if (s.lastDate === todayStr) return; // already counted today
-    if (s.lastDate === yesterday) {
-      const newStreak = { count: s.count + 1, lastDate: todayStr };
-      localStorage.setItem("vollhub_streak", JSON.stringify(newStreak));
-      setStreak(newStreak);
-    } else if (s.lastDate !== todayStr) {
-      const newStreak = { count: 1, lastDate: todayStr };
-      localStorage.setItem("vollhub_streak", JSON.stringify(newStreak));
-      setStreak(newStreak);
+    const oldStreak = { count: lead.streakCount || 0, lastDate: lead.streakLastDate || "", best: lead.streakBest || 0 };
+    let oldTotalDays = lead.totalDays || 0;
+
+    if (oldStreak.lastDate === todayStr) {
+      setStreak(oldStreak);
+      setTotalDays(oldTotalDays);
+      setMilestonesAchieved(lead.milestonesAchieved || []);
+      setReflectionsRead(lead.reflectionsRead || []);
+      return;
     }
-  }, [todayReflection, todayStr]);
+
+    let newCount = oldStreak.lastDate === yesterday ? oldStreak.count + 1 : 1;
+    let newBest = Math.max(oldStreak.best, newCount);
+    let newTotalDays = oldTotalDays + 1;
+    const newStreak = { count: newCount, lastDate: todayStr, best: newBest };
+    setStreak(newStreak);
+    setTotalDays(newTotalDays);
+
+    const streakRules = getStreakRules();
+    for (const rule of streakRules) {
+      if (rule.every && newCount > 0 && newCount % rule.every === 0) {
+        if (rule.credits > 0) await earnCredits(rule.credits, `streak_${newCount}`);
+        popups.push({ type: "streak", icon: "🔥", title: `${newCount} ${rule.message || "dias seguidos!"}`, credits: rule.credits || 0, streakCount: newCount });
+      }
+      if (rule.at && newCount === rule.at) {
+        if (rule.credits > 0) await earnCredits(rule.credits, `streak_at_${rule.at}`);
+        popups.push({ type: "streak", icon: "🎉", title: `${rule.message || rule.at + " dias!"}`, credits: rule.credits || 0, streakCount: newCount });
+      }
+    }
+
+    const milestones = getMilestones();
+    const achieved = [...(lead.milestonesAchieved || [])];
+    for (const m of milestones) {
+      if (newTotalDays >= m.days && !achieved.includes(m.days)) {
+        achieved.push(m.days);
+        if (m.credits > 0) await earnCredits(m.credits, `milestone_${m.days}`);
+        popups.push({ type: "milestone", icon: "🏆", title: m.title, message: m.message, credits: m.credits || 0, days: m.days });
+      }
+    }
+    setMilestonesAchieved(achieved);
+
+    await db.updateLead(lead.id, { streakCount: newCount, streakLastDate: todayStr, streakBest: newBest, totalDays: newTotalDays, milestonesAchieved: achieved });
+    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.streak = newStreak; saved.totalDays = newTotalDays; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
+
+    if (popups.length > 0) { setGamificationPopup(popups[0]); setGamificationQueue(popups.slice(1)); }
+  };
 
   // Check if user already voted today
   useEffect(() => {
@@ -233,6 +283,19 @@ export default function VollHub() {
       else setReflectionVote(null);
     } catch(e) {}
   }, [todayReflection]);
+
+  // Auto-mark reflection as read
+  useEffect(() => {
+    if (!todayReflection || !userWhatsApp || view !== "hub") return;
+    const alreadyRead = reflectionsRead.some(r => r.id === todayReflection.id);
+    if (alreadyRead) return;
+    const newReads = [...reflectionsRead, { id: todayReflection.id, date: todayStr }];
+    setReflectionsRead(newReads);
+    (async () => {
+      const lead = await db.findLeadByWhatsApp(userWhatsApp);
+      if (lead) await db.updateLead(lead.id, { reflectionsRead: newReads });
+    })();
+  }, [todayReflection, view, userWhatsApp]);
   const [refName, setRefName] = useState("");
   const [refWA, setRefWA] = useState("");
   const [adminPin, setAdminPin] = useState("");
@@ -412,15 +475,19 @@ export default function VollHub() {
       setDownloaded(existing.downloads || []);
       setUserCredits(existing.credits ?? 3);
       setUserCreditsEarned(existing.creditsEarned || {});
+      setReflectionsRead(existing.reflectionsRead || []);
+      processGamification(existing);
     } else {
-      await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {} });
+      const created = await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {}, streakCount: 1, streakLastDate: todayStr, streakBest: 1, totalDays: 1, reflectionsRead: [], milestonesAchieved: [] });
       setUserCredits(parseInt(config.creditsInitial) || 3);
+      setStreak({ count: 1, lastDate: todayStr, best: 1 });
+      setTotalDays(1);
     }
     setView("hub");
     if (!existing && !localStorage.getItem("vollhub_onboarding_done")) { setShowOnboarding(true); setOnboardingStep(0); }
     const pr = existing?.phaseResponses || {};
     setPhaseResponses(pr);
-    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr }));
+    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr, streak: existing ? { count: existing.streakCount, lastDate: existing.streakLastDate, best: existing.streakBest } : { count: 1, lastDate: todayStr, best: 1 }, totalDays: existing ? existing.totalDays : 1 }));
   };
   // ─── CREDITS HELPERS ───
   // ─── REFLECTION SHARE (4 Canvas styles) ───
@@ -1365,6 +1432,7 @@ export default function VollHub() {
               can("leads_view") && ["insights", "📊"],
               can("textos_edit") && ["bio", "🔗"],
               can("textos_edit") && ["textos", "✏️"],
+              can("textos_edit") && ["gamification", "🎮"],
               can("textos_edit") && ["quizzes", "🧠"],
               can("textos_edit") && ["reflections", "💭"],
               isMaster && ["users", "👑"],
@@ -1788,6 +1856,25 @@ export default function VollHub() {
                   );
                 })()}
 
+                {/* Gamification Overview */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>🎮 Gamificacao</h3>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    {[
+                      ["🔥", leads.filter(l => (l.streakCount || 0) > 0).length, "streaks ativos"],
+                      ["📖", leads.reduce((s, l) => s + (l.reflectionsRead || []).length, 0), "leituras total"],
+                      ["🏆", leads.reduce((b, l) => Math.max(b, l.streakBest || 0), 0), "melhor streak"],
+                      ["📅", leads.reduce((b, l) => Math.max(b, l.totalDays || 0), 0), "max dias"],
+                    ].map(([ic, val, lbl], i) => (
+                      <div key={i} style={{ flex: 1, background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "8px 4px", textAlign: "center" }}>
+                        <span style={{ fontSize: 12 }}>{ic}</span>
+                        <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: T.accent, marginTop: 2 }}>{val}</span>
+                        <span style={{ fontSize: 8, color: T.textFaint }}>{lbl}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Profile cross-data for top 3 materials */}
                 {matDlCounts.slice(0, 3).filter(m => m.dlCount > 0).map(m => {
                   const breakdown = getProfileBreakdown(m.id);
@@ -2056,6 +2143,106 @@ export default function VollHub() {
               </div>
             </div>
           )}
+
+          {/* GAMIFICATION CMS */}
+          {adminTab === "gamification" && (() => {
+            const streakRules = getStreakRules();
+            const milestones = getMilestones();
+            const saveStreakRules = (rules) => db.updateConfig("streakRules", JSON.stringify(rules));
+            const saveMilestones = (ms) => db.updateConfig("milestones", JSON.stringify(ms));
+            const inp = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", width: "100%" };
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Streak Rewards */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🔥 Regras de Streak</h3>
+                    <button onClick={() => saveStreakRules([...streakRules, { every: 5, credits: 1, message: "dias seguidos!" }])} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>+ Regra</button>
+                  </div>
+                  <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>Use "a cada" para repetir (5, 10, 15...) ou "no dia" para um marco unico.</p>
+                  {streakRules.map((rule, i) => (
+                    <div key={i} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+                        <select value={rule.every ? "every" : "at"} onChange={(e) => { const nr = [...streakRules]; if (e.target.value === "every") { nr[i] = { every: rule.every || rule.at || 5, credits: rule.credits, message: rule.message }; } else { nr[i] = { at: rule.at || rule.every || 30, credits: rule.credits, message: rule.message }; } saveStreakRules(nr); }} style={{ ...inp, width: 100 }}>
+                          <option value="every">A cada</option>
+                          <option value="at">No dia</option>
+                        </select>
+                        <input type="number" value={rule.every || rule.at || 5} onChange={(e) => { const nr = [...streakRules]; const val = parseInt(e.target.value) || 1; nr[i] = rule.every ? { ...rule, every: val } : { ...rule, at: val }; saveStreakRules(nr); }} style={{ ...inp, width: 60 }} />
+                        <span style={{ fontSize: 11, color: T.textFaint, whiteSpace: "nowrap" }}>dias =</span>
+                        <input type="number" value={rule.credits || 0} onChange={(e) => { const nr = [...streakRules]; nr[i] = { ...rule, credits: parseInt(e.target.value) || 0 }; saveStreakRules(nr); }} style={{ ...inp, width: 50 }} />
+                        <span style={{ fontSize: 11, color: T.textFaint }}>cr.</span>
+                        <button onClick={() => saveStreakRules(streakRules.filter((_, j) => j !== i))} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
+                      </div>
+                      <input value={rule.message || ""} onChange={(e) => { const nr = [...streakRules]; nr[i] = { ...rule, message: e.target.value }; saveStreakRules(nr); }} style={inp} placeholder="Mensagem de celebracao..." />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Milestones */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🏆 Marcos de Dias</h3>
+                    <button onClick={() => saveMilestones([...milestones, { days: 10, title: "Novo marco!", message: "Parabens!", credits: 0 }])} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>+ Marco</button>
+                  </div>
+                  <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>Popup de celebracao quando o usuario atinge X dias totais de acesso.</p>
+                  {milestones.map((m, i) => (
+                    <div key={i} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+                        <input type="number" value={m.days} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, days: parseInt(e.target.value) || 1 }; saveMilestones(nm); }} style={{ ...inp, width: 60 }} />
+                        <span style={{ fontSize: 11, color: T.textFaint }}>dias</span>
+                        <input type="number" value={m.credits || 0} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, credits: parseInt(e.target.value) || 0 }; saveMilestones(nm); }} style={{ ...inp, width: 50 }} />
+                        <span style={{ fontSize: 11, color: T.textFaint }}>cr.</span>
+                        <button onClick={() => saveMilestones(milestones.filter((_, j) => j !== i))} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
+                      </div>
+                      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                        <input value={m.title || ""} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, title: e.target.value }; saveMilestones(nm); }} style={{ ...inp, flex: 1 }} placeholder="Titulo (ex: 10 dias!)" />
+                      </div>
+                      <input value={m.message || ""} onChange={(e) => { const nm = [...milestones]; nm[i] = { ...m, message: e.target.value }; saveMilestones(nm); }} style={inp} placeholder="Mensagem de parabens..." />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Ranking config */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📊 Ranking</h3>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: T.textMuted }}>Visivel para usuarios:</span>
+                    <button onClick={() => db.updateConfig("rankingEnabled", config.rankingEnabled === "false" ? "true" : "false")} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: config.rankingEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.rankingEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.rankingEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.rankingEnabled !== "false" ? "Ativo" : "Desativado"}</button>
+                  </div>
+                </div>
+
+                {/* Gamification stats */}
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📈 Estatisticas de Gamificacao</h3>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                    {[
+                      ["🔥", leads.filter(l => l.streakCount > 0).length, "com streak ativo"],
+                      ["📖", leads.filter(l => (l.reflectionsRead || []).length > 0).length, "leram reflexoes"],
+                      ["🏆", leads.reduce((best, l) => Math.max(best, l.streakBest || 0), 0), "melhor streak"],
+                    ].map(([ic, val, lbl], i) => (
+                      <div key={i} style={{ flex: 1, background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                        <span style={{ fontSize: 14 }}>{ic}</span>
+                        <span style={{ display: "block", fontSize: 20, fontWeight: 800, color: T.accent, marginTop: 2 }}>{val}</span>
+                        <span style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{lbl}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Top users table */}
+                  {(() => {
+                    const ranked = leads.map(l => ({ name: l.name, streak: l.streakCount || 0, best: l.streakBest || 0, reads: (l.reflectionsRead || []).length, dls: (l.downloads || []).length, days: l.totalDays || 0 })).sort((a, b) => b.days - a.days).slice(0, 15);
+                    return (
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", fontSize: 11, fontFamily: "'Plus Jakarta Sans'", borderCollapse: "collapse" }}>
+                          <thead><tr>{["Nome", "Streak", "Record", "Leituras", "DLs", "Dias"].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 4px", borderBottom: `1px solid ${T.inputBorder}`, color: T.textFaint, fontWeight: 600, fontSize: 10 }}>{h}</th>)}</tr></thead>
+                          <tbody>{ranked.map((l, i) => <tr key={i}><td style={{ padding: "5px 4px", color: T.text, fontWeight: 600 }}>{l.name?.split(" ")[0]}</td><td style={{ padding: "5px 4px", color: T.gold }}>{l.streak}</td><td style={{ padding: "5px 4px", color: T.accent }}>{l.best}</td><td style={{ padding: "5px 4px", color: T.textMuted }}>{l.reads}</td><td style={{ padding: "5px 4px", color: T.textMuted }}>{l.dls}</td><td style={{ padding: "5px 4px", color: T.textMuted }}>{l.days}</td></tr>)}</tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* QUIZZES & CREDITS */}
           {adminTab === "quizzes" && (() => {
@@ -2581,12 +2768,13 @@ export default function VollHub() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button onClick={() => setView("linktree")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Voltar">←</button>
+            {config.rankingEnabled !== "false" && <button onClick={() => setShowLeaderboard(true)} style={{ width: 34, height: 34, borderRadius: "50%", background: T.gold + "15", border: `1px solid ${T.gold}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Ranking">🏆</button>}
             {profileEnabled && <button onClick={() => setView("profile")} style={{ width: 34, height: 34, borderRadius: "50%", background: profileComplete ? T.accent + "22" : T.statBg, border: `1px solid ${profileComplete ? T.accent + "44" : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, position: "relative" }}>
               👤
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
             </button>}
             <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
-            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
+            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
             {creditsEnabled && <div style={{ position: "relative" }}><button onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>
               {showCreditTooltip && <div style={{ position: "absolute", top: 44, right: 0, width: 260, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.3s ease" }}>
@@ -2636,12 +2824,19 @@ export default function VollHub() {
                 <span style={{ fontSize: 20 }}>💭</span>
                 <p style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>Reflexão do dia</p>
               </div>
-              {streak.count > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 12, background: T.gold + "15", border: `1px solid ${T.gold}33` }}>
-                  <span style={{ fontSize: 14 }}>🔥</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{streak.count} dia{streak.count > 1 ? "s" : ""}</span>
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {reflectionsRead.some(r => r.id === todayReflection.id) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 8px", borderRadius: 10, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: T.accent }}>Lida</span>
+                  </div>
+                )}
+                {streak.count > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 12, background: T.gold + "15", border: `1px solid ${T.gold}33` }}>
+                    <span style={{ fontSize: 14 }}>🔥</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{streak.count} dia{streak.count > 1 ? "s" : ""}</span>
+                  </div>
+                )}
+              </div>
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 8, lineHeight: 1.4 }}>{todayReflection.title}</h3>
             <p style={{ fontSize: 13, color: T.textMuted, lineHeight: 1.7, fontFamily: "'Plus Jakarta Sans'", whiteSpace: "pre-line", maxHeight: reflectionExpanded ? "none" : 80, overflow: "hidden", transition: "max-height 0.3s" }}>{todayReflection.body}</p>
@@ -3040,6 +3235,81 @@ export default function VollHub() {
           </div>
         );
       })()}
+
+      {/* GAMIFICATION CELEBRATION POPUP */}
+      {gamificationPopup && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10002, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={dismissPopup}>
+          <div style={{ position: "absolute", inset: 0, background: "#000000cc", backdropFilter: "blur(8px)" }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: "100%", maxWidth: 360, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "40px 24px 28px", display: "flex", flexDirection: "column", alignItems: "center", animation: "fadeInUp 0.4s ease", textAlign: "center" }}>
+            <div style={{ width: 96, height: 96, borderRadius: "50%", background: gamificationPopup.type === "streak" ? `linear-gradient(135deg, #FF6B3522, #FFD86322)` : `linear-gradient(135deg, ${T.gold}22, ${T.accent}22)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}><span style={{ fontSize: 52 }}>{gamificationPopup.icon}</span></div>
+            {gamificationPopup.type === "streak" && (
+              <>
+                <h2 style={{ fontSize: 24, fontWeight: 800, color: T.text, marginBottom: 4 }}>{gamificationPopup.streakCount} dias seguidos!</h2>
+                <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginBottom: 16 }}>{gamificationPopup.title}</p>
+              </>
+            )}
+            {gamificationPopup.type === "milestone" && (
+              <>
+                <h2 style={{ fontSize: 24, fontWeight: 800, color: T.text, marginBottom: 4 }}>{gamificationPopup.title}</h2>
+                <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginBottom: 16 }}>{gamificationPopup.message}</p>
+              </>
+            )}
+            {gamificationPopup.credits > 0 && (
+              <div style={{ background: T.gold + "11", border: `1px solid ${T.gold}33`, borderRadius: 16, padding: "14px 24px", marginBottom: 16 }}>
+                <p style={{ fontSize: 28, fontWeight: 800, color: T.gold }}>+{gamificationPopup.credits}</p>
+                <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>credito{gamificationPopup.credits > 1 ? "s" : ""}</p>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{"🎉🎊✨🌟🔥".split("").map((e, i) => <span key={i} style={{ fontSize: 20, animation: `pulse ${1 + i * 0.2}s ease-in-out infinite` }}>{e}</span>)}</div>
+            <button onClick={dismissPopup} style={{ width: "100%", padding: "13px", borderRadius: 14, background: `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 14, fontWeight: 700 }}>{gamificationQueue.length > 0 ? "Proximo" : "Continuar"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* LEADERBOARD MODAL */}
+      {showLeaderboard && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowLeaderboard(false)}>
+          <div style={{ position: "absolute", inset: 0, background: "#000000bb", backdropFilter: "blur(6px)" }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: "100%", maxWidth: 400, maxHeight: "80vh", overflowY: "auto", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "28px 20px", animation: "fadeInUp 0.4s ease" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text }}>🏆 Ranking</h2>
+              <button onClick={() => setShowLeaderboard(false)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
+            </div>
+            {(() => {
+              const rankLeads = leads.filter(l => l.name && l.whatsapp).map(l => ({
+                name: l.name, whatsapp: l.whatsapp,
+                reads: (l.reflectionsRead || []).length,
+                downloads: (l.downloads || []).length,
+                streak: l.streakBest || l.streakCount || 0,
+                totalDays: l.totalDays || 0,
+              }));
+              const categories = [
+                { key: "reads", label: "Reflexoes lidas", icon: "📖" },
+                { key: "downloads", label: "Downloads", icon: "📥" },
+                { key: "streak", label: "Melhor streak", icon: "🔥" },
+                { key: "totalDays", label: "Total de dias", icon: "📅" },
+              ];
+              return categories.map(cat => {
+                const sorted = [...rankLeads].sort((a, b) => b[cat.key] - a[cat.key]).filter(l => l[cat.key] > 0).slice(0, 10);
+                if (sorted.length === 0) return null;
+                const isMe = (l) => l.whatsapp === userWhatsApp;
+                return (
+                  <div key={cat.key} style={{ marginBottom: 20 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>{cat.icon} {cat.label}</p>
+                    {sorted.map((l, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, marginBottom: 4, background: isMe(l) ? T.accent + "11" : "transparent", border: isMe(l) ? `1px solid ${T.accent}33` : "1px solid transparent" }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: i < 3 ? T.gold : T.textFaint, width: 24, textAlign: "center" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`}</span>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: isMe(l) ? 700 : 500, color: isMe(l) ? T.accent : T.text, fontFamily: "'Plus Jakarta Sans'" }}>{l.name.split(" ")[0]}{isMe(l) ? " (voce)" : ""}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: i < 3 ? T.gold : T.accent }}>{l[cat.key]}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* PHASE REWARD POPUP */}
       {phaseReward && (

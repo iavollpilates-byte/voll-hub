@@ -137,6 +137,14 @@ create table if not exists phases (
 alter table leads add column if not exists phase_responses jsonb default '{}';
 alter table phases add column if not exists cta_text text default '';
 
+-- 6. GAMIFICAÇÃO (streak, leituras, marcos)
+alter table leads add column if not exists streak_count integer default 0;
+alter table leads add column if not exists streak_last_date text default '';
+alter table leads add column if not exists streak_best integer default 0;
+alter table leads add column if not exists total_days integer default 0;
+alter table leads add column if not exists reflections_read jsonb default '[]';
+alter table leads add column if not exists milestones_achieved jsonb default '[]';
+
 -- ═══════════════════════════════════════════════
 -- STORAGE: Bucket para imagens de reflexão
 -- ═══════════════════════════════════════════════
