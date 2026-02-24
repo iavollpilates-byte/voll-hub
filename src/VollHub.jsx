@@ -468,13 +468,7 @@ export default function VollHub() {
       lines.forEach((l, i) => ctx.fillText(l, W/2, startY + i * (q.length > 80 ? 82 : 98)));
       // Author
       ctx.font = "400 30px Helvetica, sans-serif"; ctx.fillStyle = "#2A2A2A99";
-      ctx.fillText("\u2014 Rafael Juliano", W/2, startY + totalH + 50);
-      // Branding
-      ctx.textAlign = "left"; ctx.font = "500 26px Helvetica, sans-serif"; ctx.fillStyle = "#2A2A2A66";
-      ctx.fillText("VOLL Pilates Hub \u00B7 " + handle, 80, H - 60);
-      // Star
-      ctx.textAlign = "right"; ctx.font = "48px serif"; ctx.fillStyle = "#ffffff99";
-      ctx.fillText("\u2726", W - 70, H - 50);
+      ctx.fillText("\u2014 " + handle, W/2, startY + totalH + 50);
     }
     else if (styleIndex === 1) {
       // AQUARELA
@@ -496,13 +490,7 @@ export default function VollHub() {
       lines.forEach((l, i) => ctx.fillText(l, W/2, startY + i * lh));
       // Author
       ctx.font = "400 28px Helvetica, sans-serif"; ctx.fillStyle = "#8F5C5C88";
-      ctx.fillText("\u2014 Rafael Juliano", W/2, startY + totalH + 50);
-      // Branding
-      ctx.textAlign = "left"; ctx.font = "500 24px Helvetica, sans-serif"; ctx.fillStyle = "#8F5C5C66";
-      ctx.fillText("VOLL Pilates Hub \u00B7 " + handle, 80, H - 60);
-      // Star
-      ctx.textAlign = "right"; ctx.font = "44px serif"; ctx.fillStyle = "#ffffff88";
-      ctx.fillText("\u2726", W - 70, H - 50);
+      ctx.fillText("\u2014 " + handle, W/2, startY + totalH + 50);
     }
     else if (styleIndex === 2) {
       // POST-IT on corkboard
@@ -538,10 +526,7 @@ export default function VollHub() {
       lines.forEach((l, i) => ctx.fillText(l, 0, startY + i * lh));
       // Author
       ctx.font = "400 26px Helvetica, sans-serif"; ctx.fillStyle = "#3E2B1D88";
-      ctx.fillText("\u2014 Rafael Juliano", 0, startY + totalH + 40);
-      // Handle
-      ctx.textAlign = "left"; ctx.font = "400 20px Helvetica"; ctx.fillStyle = "#3E2B1D55";
-      ctx.fillText(handle, -350, 390);
+      ctx.fillText("\u2014 " + handle, 0, startY + totalH + 40);
       ctx.restore();
     }
     else {
@@ -573,16 +558,7 @@ export default function VollHub() {
       lines.forEach((l, i) => ctx.fillText(l, 100, startY + i * lh));
       // Author
       ctx.fillStyle = "#7DE2C7"; ctx.font = "600 30px Helvetica, sans-serif";
-      ctx.fillText("\u2014 Rafael Juliano", 100, startY + totalH + 50);
-      // Bottom branding
-      ctx.fillStyle = "#ffffff33"; ctx.fillRect(80, H - 140, W - 160, 1);
-      ctx.fillStyle = "#7DE2C7"; ctx.font = "700 28px Helvetica, sans-serif";
-      ctx.fillText("VOLL PILATES HUB", 80, H - 90);
-      ctx.fillStyle = "#ffffff77"; ctx.font = "500 24px Helvetica, sans-serif";
-      ctx.fillText(handle, 80, H - 55);
-      ctx.fillStyle = "#FFD863"; ctx.font = "600 22px Helvetica, sans-serif";
-      const url = "rafael.grupovoll.com.br";
-      ctx.textAlign = "right"; ctx.fillText(url, W - 80, H - 70);
+      ctx.fillText("\u2014 " + handle, 100, startY + totalH + 50);
     }
     return canvas;
   };
@@ -631,6 +607,27 @@ export default function VollHub() {
       const c = drawReflectionCanvas(styleIndex, quote, handle);
       return c.toDataURL("image/jpeg", 0.5);
     } catch(e) { return ""; }
+  };
+
+  // ─── GENERATE & UPLOAD ALL 4 STYLES TO SUPABASE STORAGE ───
+  const generateAndUploadAllStyles = async (reflectionId, quote) => {
+    if (!quote) return null;
+    const handle = config.instagramHandle || "@rafael.voll";
+    const urls = {};
+    const canvasToBlob = (canvas) => new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    for (let i = 0; i < 4; i++) {
+      try {
+        const canvas = drawReflectionCanvas(i, quote, handle);
+        const blob = await canvasToBlob(canvas);
+        if (!blob) continue;
+        const url = await db.uploadReflectionImage(reflectionId, i, blob);
+        if (url) urls[`style_${i}`] = url;
+      } catch (e) { console.error(`Error generating style ${i}:`, e); }
+    }
+    if (Object.keys(urls).length > 0) {
+      await db.updateReflection(reflectionId, { imageUrl: JSON.stringify(urls) });
+    }
+    return urls;
   };
 
   // ─── SHARE VIA WHATSAPP (full text + link) ───
@@ -2204,8 +2201,14 @@ export default function VollHub() {
                     <button onClick={async () => {
                       const ref = adminRefEdit || emptyRef;
                       if (!ref.title || !ref.body || !ref.publishDate) { showT("Preencha título, texto e data!"); return; }
+                      let savedId = ref.id;
                       if (ref.id) { await db.updateReflection(ref.id, ref); showT("Reflexão atualizada! ✅"); }
-                      else { await db.addReflection(ref); showT("Reflexão programada! ✅"); }
+                      else { const created = await db.addReflection(ref); if (created) savedId = created.id; showT("Reflexão programada! ✅"); }
+                      if (savedId && ref.quote) {
+                        showT("Gerando imagens dos 4 estilos...");
+                        await generateAndUploadAllStyles(savedId, ref.quote);
+                        showT("Imagens salvas no Storage! 📸");
+                      }
                       setAdminRefEdit(null); addLog(ref.id ? `Editou reflexão: ${ref.title}` : `Criou reflexão: ${ref.title}`);
                     }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, border: "none" }}>
                       {adminRefEdit?.id ? "Salvar" : "Programar"} 💾

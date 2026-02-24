@@ -269,6 +269,19 @@ export function useSupabase() {
     return true
   }
 
+  // ─── STORAGE: Upload reflection images ───
+  const uploadReflectionImage = async (reflectionId, styleIndex, blob) => {
+    const path = `${reflectionId}/style_${styleIndex}.png`
+    const { error } = await supabase.storage
+      .from('reflection-images')
+      .upload(path, blob, { contentType: 'image/png', upsert: true })
+    if (error) { console.error('Upload error:', error); return null }
+    const { data: urlData } = supabase.storage
+      .from('reflection-images')
+      .getPublicUrl(path)
+    return urlData?.publicUrl || null
+  }
+
   return {
     // State
     materials, leads, adminUsers, config, reflections, loading, error,
@@ -282,6 +295,8 @@ export function useSupabase() {
     authenticateAdmin, addAdminUser, updateAdminUser, deleteAdminUser,
     // Reflections
     addReflection, updateReflection, deleteReflection, likeReflection,
+    // Storage
+    uploadReflectionImage,
     // Config
     updateConfig, updateConfigBatch,
     // Page views

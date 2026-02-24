@@ -117,5 +117,15 @@ create policy "public_admin_users" on admin_users for all using (true) with chec
 create policy "public_config" on config for all using (true) with check (true);
 
 -- ═══════════════════════════════════════════════
+-- STORAGE: Bucket para imagens de reflexão
+-- ═══════════════════════════════════════════════
+insert into storage.buckets (id, name, public) values ('reflection-images', 'reflection-images', true)
+on conflict (id) do nothing;
+
+create policy "public_read_reflection_images" on storage.objects for select using (bucket_id = 'reflection-images');
+create policy "public_insert_reflection_images" on storage.objects for insert with check (bucket_id = 'reflection-images');
+create policy "public_update_reflection_images" on storage.objects for update using (bucket_id = 'reflection-images');
+
+-- ═══════════════════════════════════════════════
 -- PRONTO! ✅ Agora configure o app com suas credenciais
 -- ═══════════════════════════════════════════════
