@@ -2526,7 +2526,7 @@ export default function VollHub() {
                 {(() => {
                   const timeLeft = Math.max(0, PHASE_TIMER - phaseTimer);
                   const canSubmit = isPhaseFieldsComplete(activePhase) && timeLeft === 0;
-                  return <button onClick={() => { if (timeLeft > 0) return showT(`Aguarde ${timeLeft}s para enviar...`); handlePhaseSubmit(activePhase); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: canSubmit ? `linear-gradient(135deg, #c49500, #FFD863)` : T.inputBg, color: canSubmit ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: canSubmit ? 1 : 0.5, transition: "all 0.3s" }}>{timeLeft > 0 ? `⏳ Aguarde ${timeLeft}s...` : (activePhase.ctaText || "🎁 Desbloquear prêmio!")}</button>;
+                  return <button onClick={() => { if (timeLeft > 0) return showT(`Aguarde ${timeLeft}s para enviar...`); handlePhaseSubmit(activePhase); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: canSubmit ? `linear-gradient(135deg, #c49500, #FFD863)` : T.inputBg, color: canSubmit ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: canSubmit ? 1 : 0.5, transition: "all 0.3s" }}>{timeLeft > 0 ? `⏳ Aguarde ${timeLeft}s...` : (phase.ctaText || "🎁 Desbloquear prêmio!")}</button>;
                 })()}
               </div>
             );
