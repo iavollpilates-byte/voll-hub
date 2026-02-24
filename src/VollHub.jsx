@@ -437,110 +437,174 @@ export default function VollHub() {
     }
   };
   // ─── CREDITS HELPERS ───
-  // ─── REFLECTION SHARE TEMPLATES (4 styles) ───
+  // ─── REFLECTION SHARE (4 Canvas styles) ───
   const reflectionStyles = [
-    { name: "Minimalista", emoji: "✨" },
-    { name: "Aquarela", emoji: "🎨" },
-    { name: "Post-it", emoji: "📌" },
-    { name: "iOS Notes", emoji: "📱" },
+    { name: "Minimalista", emoji: "✨", previewBg: "#F2E6DE", previewColor: "#2A2A2A" },
+    { name: "Aquarela", emoji: "🎨", previewBg: "linear-gradient(135deg,#F9F2ED,#f0ddd0)", previewColor: "#8F5C5C" },
+    { name: "Post-it", emoji: "📌", previewBg: "#D0B084", previewColor: "#3E2B1D" },
+    { name: "Dark", emoji: "🌙", previewBg: "linear-gradient(135deg,#1a1a2e,#16213e)", previewColor: "#fff" },
   ];
 
-  const getReflectionHTML = (styleIndex, quote, authorName, handle) => {
+  const wrapCanvasText = (ctx, text, maxW) => {
+    const words = text.split(" "); const lines = []; let line = "";
+    words.forEach(w => { const t = line + (line ? " " : "") + w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; });
+    if (line) lines.push(line); return lines;
+  };
+
+  const drawReflectionCanvas = (styleIndex, quote, handle) => {
+    const W = 1080, H = 1350;
+    const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d");
     const q = quote || "";
-    // Split quote into primary (first sentence) and secondary (rest) if short enough
-    const parts = q.split(/(?<=\.)\s+/);
-    const primary = parts[0] || q;
-    const secondary = parts.length > 1 ? parts.slice(1).join(" ") : "";
 
     if (styleIndex === 0) {
       // MINIMALISTA BEGE
-      return `<div style="background-color:#F2E6DE;width:1080px;height:1350px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:80px;box-sizing:border-box;position:relative;font-family:'Playfair Display',Georgia,serif;">
-        <div style="font-family:'Playfair Display',Georgia,serif;font-weight:600;font-size:${q.length > 80 ? 72 : 88}px;line-height:1.15;color:#2A2A2A;margin-bottom:40px;">${primary}</div>
-        ${secondary ? `<div style="font-family:'Montserrat',Helvetica,sans-serif;font-weight:400;font-size:36px;line-height:1.5;color:#2A2A2A;max-width:85%;">${secondary}</div>` : ""}
-        <div style="position:absolute;bottom:60px;left:80px;font-family:'Montserrat',Helvetica,sans-serif;font-size:28px;color:#2A2A2A88;">VOLL Pilates Hub &middot; ${handle}</div>
-        <div style="position:absolute;bottom:55px;right:70px;font-size:56px;color:#fff;opacity:0.6;">&#10022;</div>
-      </div>`;
+      ctx.fillStyle = "#F2E6DE"; ctx.fillRect(0, 0, W, H);
+      // Quote
+      ctx.fillStyle = "#2A2A2A"; ctx.font = `600 ${q.length > 80 ? 64 : 78}px Georgia, serif`; ctx.textAlign = "center";
+      const lines = wrapCanvasText(ctx, q, W - 180);
+      const totalH = lines.length * (q.length > 80 ? 82 : 98);
+      const startY = (H - totalH) / 2;
+      lines.forEach((l, i) => ctx.fillText(l, W/2, startY + i * (q.length > 80 ? 82 : 98)));
+      // Author
+      ctx.font = "400 30px Helvetica, sans-serif"; ctx.fillStyle = "#2A2A2A99";
+      ctx.fillText("\u2014 Rafael Juliano", W/2, startY + totalH + 50);
+      // Branding
+      ctx.textAlign = "left"; ctx.font = "500 26px Helvetica, sans-serif"; ctx.fillStyle = "#2A2A2A66";
+      ctx.fillText("VOLL Pilates Hub \u00B7 " + handle, 80, H - 60);
+      // Star
+      ctx.textAlign = "right"; ctx.font = "48px serif"; ctx.fillStyle = "#ffffff99";
+      ctx.fillText("\u2726", W - 70, H - 50);
     }
-    if (styleIndex === 1) {
+    else if (styleIndex === 1) {
       // AQUARELA
-      return `<div style="background:linear-gradient(135deg,#F9F2ED 0%,#f0ddd0 30%,#e8cfc0 60%,#f5e6da 100%);width:1080px;height:1350px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:80px;box-sizing:border-box;position:relative;font-family:'Playfair Display',Georgia,serif;">
-        <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 20% 20%,#f4c2c255 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,#c2d4f455 0%,transparent 50%),radial-gradient(ellipse at 50% 50%,#d4c2f422 0%,transparent 60%);"></div>
-        <div style="position:relative;z-index:1;font-family:'Playfair Display',Georgia,serif;font-weight:500;font-size:${q.length > 80 ? 68 : 84}px;line-height:1.15;color:#8F5C5C;margin-bottom:40px;">${primary}</div>
-        ${secondary ? `<div style="position:relative;z-index:1;font-family:'Montserrat',Helvetica,sans-serif;font-weight:400;font-size:34px;line-height:1.5;color:#8F5C5C;max-width:85%;">${secondary}</div>` : ""}
-        <div style="position:absolute;bottom:60px;left:80px;font-family:'Montserrat',Helvetica,sans-serif;font-size:26px;color:#8F5C5C88;z-index:1;">VOLL Pilates Hub &middot; ${handle}</div>
-        <div style="position:absolute;bottom:55px;right:70px;font-size:50px;color:#fff;opacity:0.7;z-index:1;">&#10022;</div>
-      </div>`;
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, "#F9F2ED"); g.addColorStop(0.3, "#f0ddd0"); g.addColorStop(0.6, "#e8cfc0"); g.addColorStop(1, "#f5e6da");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // Watercolor blobs
+      ctx.globalAlpha = 0.12;
+      ctx.beginPath(); ctx.arc(W*0.2, H*0.2, 300, 0, Math.PI*2); ctx.fillStyle = "#f4c2c2"; ctx.fill();
+      ctx.beginPath(); ctx.arc(W*0.8, H*0.8, 280, 0, Math.PI*2); ctx.fillStyle = "#c2d4f4"; ctx.fill();
+      ctx.beginPath(); ctx.arc(W*0.5, H*0.5, 250, 0, Math.PI*2); ctx.fillStyle = "#d4c2f4"; ctx.fill();
+      ctx.globalAlpha = 1;
+      // Quote
+      ctx.fillStyle = "#8F5C5C"; ctx.font = `500 ${q.length > 80 ? 62 : 76}px Georgia, serif`; ctx.textAlign = "center";
+      const lines = wrapCanvasText(ctx, q, W - 180);
+      const lh = q.length > 80 ? 80 : 96;
+      const totalH = lines.length * lh;
+      const startY = (H - totalH) / 2;
+      lines.forEach((l, i) => ctx.fillText(l, W/2, startY + i * lh));
+      // Author
+      ctx.font = "400 28px Helvetica, sans-serif"; ctx.fillStyle = "#8F5C5C88";
+      ctx.fillText("\u2014 Rafael Juliano", W/2, startY + totalH + 50);
+      // Branding
+      ctx.textAlign = "left"; ctx.font = "500 24px Helvetica, sans-serif"; ctx.fillStyle = "#8F5C5C66";
+      ctx.fillText("VOLL Pilates Hub \u00B7 " + handle, 80, H - 60);
+      // Star
+      ctx.textAlign = "right"; ctx.font = "44px serif"; ctx.fillStyle = "#ffffff88";
+      ctx.fillText("\u2726", W - 70, H - 50);
     }
-    if (styleIndex === 2) {
-      // POST-IT
-      return `<div style="background-color:#D0B084;background-image:radial-gradient(#c4a070 15%,transparent 16%),radial-gradient(#bc9868 15%,transparent 16%);background-size:24px 24px;background-position:0 0,12px 12px;width:1080px;height:1350px;display:flex;justify-content:center;align-items:center;padding:60px;box-sizing:border-box;">
-        <div style="background-color:#FDF289;width:85%;padding:80px 60px 100px;box-sizing:border-box;position:relative;transform:rotate(-2deg);box-shadow:10px 16px 30px rgba(0,0,0,0.2);border-radius:4px 4px 30px 4px;text-align:center;color:#3E2B1D;">
-          <div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ff6b6b,#c92a2a);box-shadow:4px 4px 10px rgba(0,0,0,0.3);z-index:10;"></div>
-          <div style="font-family:'Dancing Script',cursive,'Comic Sans MS';font-weight:600;font-size:${q.length > 60 ? 56 : 68}px;line-height:1.3;margin-bottom:30px;">${primary}</div>
-          ${secondary ? `<div style="font-family:'Dancing Script',cursive,'Comic Sans MS';font-weight:600;font-size:48px;line-height:1.3;color:#3E2B1Dcc;">${secondary}</div>` : ""}
-          <div style="position:absolute;bottom:30px;left:60px;font-family:Helvetica,sans-serif;font-size:22px;color:#3E2B1D77;">${handle}</div>
-        </div>
-      </div>`;
+    else if (styleIndex === 2) {
+      // POST-IT on corkboard
+      ctx.fillStyle = "#D0B084"; ctx.fillRect(0, 0, W, H);
+      // Cork texture dots
+      ctx.globalAlpha = 0.15;
+      for (let x = 0; x < W; x += 20) for (let y = 0; y < H; y += 20) {
+        ctx.beginPath(); ctx.arc(x + Math.random()*8, y + Math.random()*8, 2, 0, Math.PI*2);
+        ctx.fillStyle = Math.random() > 0.5 ? "#bc9868" : "#c4a070"; ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // Note shadow
+      ctx.save(); ctx.translate(W/2, H/2); ctx.rotate(-0.035);
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.fillRect(-380+8, -420+12, 760, 840);
+      // Yellow note
+      ctx.fillStyle = "#FDF289";
+      ctx.fillRect(-380, -420, 760, 840);
+      // Fold corner
+      ctx.fillStyle = "#eedc70";
+      ctx.beginPath(); ctx.moveTo(380, 420); ctx.lineTo(380, 380); ctx.lineTo(340, 420); ctx.closePath(); ctx.fill();
+      // Pin
+      const pg = ctx.createRadialGradient(-10, -420-5, 2, 0, -420, 18);
+      pg.addColorStop(0, "#ff6b6b"); pg.addColorStop(1, "#c92a2a");
+      ctx.beginPath(); ctx.arc(0, -420, 18, 0, Math.PI*2); ctx.fillStyle = pg; ctx.fill();
+      ctx.fillStyle = "#999"; ctx.fillRect(-2, -420+16, 4, 10);
+      // Text on note
+      ctx.fillStyle = "#3E2B1D"; ctx.font = `600 ${q.length > 60 ? 48 : 58}px 'Comic Sans MS', cursive`; ctx.textAlign = "center";
+      const lines = wrapCanvasText(ctx, q, 680);
+      const lh = q.length > 60 ? 64 : 76;
+      const totalH = lines.length * lh;
+      const startY = -totalH/2 + 20;
+      lines.forEach((l, i) => ctx.fillText(l, 0, startY + i * lh));
+      // Author
+      ctx.font = "400 26px Helvetica, sans-serif"; ctx.fillStyle = "#3E2B1D88";
+      ctx.fillText("\u2014 Rafael Juliano", 0, startY + totalH + 40);
+      // Handle
+      ctx.textAlign = "left"; ctx.font = "400 20px Helvetica"; ctx.fillStyle = "#3E2B1D55";
+      ctx.fillText(handle, -350, 390);
+      ctx.restore();
     }
-    // iOS Notes
-    return `<div style="position:relative;width:1080px;height:1350px;overflow:hidden;background:#1c1c1e;">
-      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#2d1f3d,#1a2a3a,#2a1f2f);filter:blur(0px);"></div>
-      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 30% 40%,#6b3fa055 0%,transparent 60%),radial-gradient(ellipse at 70% 60%,#3f6ba055 0%,transparent 60%);"></div>
-      <div style="position:relative;z-index:2;height:100%;padding:50px;box-sizing:border-box;display:flex;flex-direction:column;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:80px;font-size:34px;color:#e3c58e;font-weight:500;">
-          <div style="display:flex;align-items:center;">&lsaquo; Notas</div>
-          <div style="font-size:40px;">&#8943;</div>
-        </div>
-        <div style="font-size:54px;font-weight:700;margin-bottom:40px;color:#fff;letter-spacing:1px;">Lembrete Importante:</div>
-        <div style="font-size:${q.length > 80 ? 44 : 52}px;line-height:1.45;font-weight:400;color:#ffffffdd;">${q}</div>
-        <div style="margin-top:auto;font-size:26px;color:#e3c58e88;">${handle} &middot; VOLL Pilates Hub</div>
-      </div>
-    </div>`;
+    else {
+      // DARK MODE
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, "#0a1f1a"); g.addColorStop(0.5, "#0d2920"); g.addColorStop(1, "#061510");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // Decorative circles
+      ctx.globalAlpha = 0.07;
+      ctx.beginPath(); ctx.arc(W*0.85, H*0.15, 300, 0, Math.PI*2); ctx.fillStyle = "#7DE2C7"; ctx.fill();
+      ctx.beginPath(); ctx.arc(W*0.1, H*0.85, 250, 0, Math.PI*2); ctx.fillStyle = "#FFD863"; ctx.fill();
+      ctx.globalAlpha = 1;
+      // Accent line
+      const lg = ctx.createLinearGradient(80, 0, W-80, 0);
+      lg.addColorStop(0, "#349980"); lg.addColorStop(1, "#7DE2C7");
+      ctx.fillStyle = lg; ctx.fillRect(80, 80, W-160, 4);
+      // Label
+      ctx.fillStyle = "#FFD863"; ctx.font = "600 28px Helvetica, sans-serif"; ctx.textAlign = "left";
+      ctx.fillText("\u{1F4AD}  REFLEX\u00C3O DO DIA", 80, 150);
+      // Big quote mark
+      ctx.fillStyle = "#7DE2C744"; ctx.font = "800 180px Georgia, serif";
+      ctx.fillText("\u201C", 50, 320);
+      // Quote
+      ctx.fillStyle = "#ffffff"; ctx.font = `700 ${q.length > 80 ? 48 : 56}px Helvetica, sans-serif`; ctx.textAlign = "left";
+      const lines = wrapCanvasText(ctx, q, W - 200);
+      const lh = q.length > 80 ? 64 : 74;
+      const totalH = lines.length * lh;
+      const startY = Math.max(380, (H - totalH) / 2);
+      lines.forEach((l, i) => ctx.fillText(l, 100, startY + i * lh));
+      // Author
+      ctx.fillStyle = "#7DE2C7"; ctx.font = "600 30px Helvetica, sans-serif";
+      ctx.fillText("\u2014 Rafael Juliano", 100, startY + totalH + 50);
+      // Bottom branding
+      ctx.fillStyle = "#ffffff33"; ctx.fillRect(80, H - 140, W - 160, 1);
+      ctx.fillStyle = "#7DE2C7"; ctx.font = "700 28px Helvetica, sans-serif";
+      ctx.fillText("VOLL PILATES HUB", 80, H - 90);
+      ctx.fillStyle = "#ffffff77"; ctx.font = "500 24px Helvetica, sans-serif";
+      ctx.fillText(handle, 80, H - 55);
+      ctx.fillStyle = "#FFD863"; ctx.font = "600 22px Helvetica, sans-serif";
+      const url = "rafael.grupovoll.com.br";
+      ctx.textAlign = "right"; ctx.fillText(url, W - 80, H - 70);
+    }
+    return canvas;
   };
 
-  // ─── SHARE: GENERATE IMAGE FROM HTML ───
+  // Generate & share
   const generateShareImage = async (styleIndex) => {
     if (!todayReflection?.quote) { showT("Sem frase para compartilhar"); return; }
     setShareGenerating(true);
     try {
       const handle = config.instagramHandle || "@rafael.voll";
-      const html = getReflectionHTML(styleIndex, todayReflection.quote, "Rafael Juliano", handle);
-
-      // Create off-screen container
-      const container = document.createElement("div");
-      container.style.cssText = "position:fixed;top:-9999px;left:-9999px;z-index:-1;";
-      container.innerHTML = html;
-      document.body.appendChild(container);
-      const el = container.firstElementChild;
-
-      // Load html2canvas dynamically
-      if (!window.html2canvas) {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement("script");
-          s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-          s.onload = resolve; s.onerror = reject;
-          document.head.appendChild(s);
-        });
-      }
-
-      const canvas = await window.html2canvas(el, { width: 1080, height: 1350, scale: 1, useCORS: true, backgroundColor: null });
-      document.body.removeChild(container);
-
+      const canvas = drawReflectionCanvas(styleIndex, todayReflection.quote, handle);
       canvas.toBlob(async (blob) => {
         if (!blob) { showT("Erro ao gerar imagem"); setShareGenerating(false); return; }
         const file = new File([blob], "reflexao-do-dia.png", { type: "image/png" });
-        // Try native share (mobile) which can share directly to Instagram Stories
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           try { await navigator.share({ title: todayReflection.quote, files: [file] }); }
-          catch(e) { /* user cancelled, that's ok */ }
-        } else {
-          // Desktop: download image then prompt
-          downloadBlob(blob);
-        }
+          catch(e) { /* cancelled */ }
+        } else { downloadBlob(blob); }
         setShareGenerating(false);
         setShowShareModal(false);
       }, "image/png");
-    } catch(e) { console.error(e); showT("Erro ao gerar. Tente novamente."); setShareGenerating(false); }
+    } catch(e) { console.error(e); showT("Erro ao gerar."); setShareGenerating(false); }
   };
 
   const downloadBlob = (blob) => {
@@ -548,7 +612,15 @@ export default function VollHub() {
     const a = document.createElement("a"); a.href = url; a.download = "reflexao-do-dia.png";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showT("Imagem salva! Agora abra o Instagram e poste 📸");
+    showT("Imagem salva! Agora abra o Instagram e poste \u{1F4F8}");
+  };
+
+  // Mini preview for modal (smaller canvas)
+  const getPreviewDataUrl = (styleIndex, quote, handle) => {
+    try {
+      const c = drawReflectionCanvas(styleIndex, quote, handle);
+      return c.toDataURL("image/jpeg", 0.5);
+    } catch(e) { return ""; }
   };
 
   // ─── SHARE VIA WHATSAPP (full text + link) ───
@@ -2944,8 +3016,8 @@ export default function VollHub() {
             </div>
 
             {/* Preview */}
-            <div style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16, border: `1px solid ${T.cardBorder}`, maxHeight: 340, display: "flex", justifyContent: "center", background: "#111" }}>
-              <div style={{ transform: "scale(0.28)", transformOrigin: "top center", width: 1080, height: 1350, flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: getReflectionHTML(shareSelectedStyle, todayReflection.quote, "Rafael Juliano", config.instagramHandle || "@rafael.voll") }} />
+            <div style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16, border: `1px solid ${T.cardBorder}`, maxHeight: 360, display: "flex", justifyContent: "center", background: "#111" }}>
+              <img src={getPreviewDataUrl(shareSelectedStyle, todayReflection.quote, config.instagramHandle || "@rafael.voll")} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 10 }} />
             </div>
 
             {/* Action buttons */}
