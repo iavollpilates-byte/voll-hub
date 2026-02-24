@@ -597,9 +597,12 @@ export default function VollHub() {
       canvas.toBlob(async (blob) => {
         if (!blob) { showT("Erro ao gerar imagem"); setShareGenerating(false); return; }
         const file = new File([blob], "reflexao-do-dia.png", { type: "image/png" });
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-          try { await navigator.share({ title: todayReflection.quote, files: [file] }); }
-          catch(e) { /* cancelled */ }
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: todayReflection.quote, files: [file] });
+          } catch (e) {
+            if (e.name !== "AbortError") { downloadBlob(blob); }
+          }
         } else { downloadBlob(blob); }
         setShareGenerating(false);
         setShowShareModal(false);
@@ -612,7 +615,14 @@ export default function VollHub() {
     const a = document.createElement("a"); a.href = url; a.download = "reflexao-do-dia.png";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showT("Imagem salva! Agora abra o Instagram e poste \u{1F4F8}");
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      showT("Imagem salva! Abrindo o Instagram...");
+      setTimeout(() => { window.location.href = "instagram://story-camera"; }, 800);
+    } else {
+      showT("Imagem salva! Abra o Instagram e poste.");
+      window.open(config.instagramUrl || "https://instagram.com", "_blank");
+    }
   };
 
   // Mini preview for modal (smaller canvas)
