@@ -2294,26 +2294,26 @@ export default function VollHub() {
                     <button onClick={() => db.updateConfig("creditsEnabled", creditsEnabled ? "false" : "true")} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: creditsEnabled ? T.accent + "22" : T.inputBg, color: creditsEnabled ? T.accent : T.textFaint, border: `1px solid ${creditsEnabled ? T.accent + "44" : T.inputBorder}` }}>{creditsEnabled ? "✅ Ativo" : "Desativado"}</button>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <CmsField label="Créditos iniciais (cadastro)" configKey="creditsInitial" />
-                    <CmsField label="Por indicação WhatsApp" configKey="creditsReferral" />
+                    <CmsField label="Créditos iniciais (cadastro)" ck="creditsInitial" />
+                    <CmsField label="Por indicação WhatsApp" ck="creditsReferral" />
                   </div>
                   <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 6 }}>Créditos por fase, quiz e post IG são configurados individualmente abaixo.</p>
                   <div style={{ marginTop: 8 }}>
-                    <CmsField label="Msg indicação WhatsApp ({link} = URL)" configKey="creditsReferralMsg" />
+                    <CmsField label="Msg indicação WhatsApp ({link} = URL)" ck="creditsReferralMsg" multi />
                   </div>
 
                   <p style={{ fontSize: 10, color: T.textFaint, marginTop: 8, fontFamily: "'Plus Jakarta Sans'" }}>Créditos por fase: configure em cada fase no builder acima.</p>
 
                   <div style={{ marginTop: 14, borderTop: `1px solid ${T.statBorder}`, paddingTop: 14 }}>
                     <p style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>Textos dos popups de créditos</p>
-                    <CmsField label="Tooltip: título ({n} = saldo)" configKey="creditsTooltipTitle" />
-                    <CmsField label="Tooltip: descrição" configKey="creditsTooltipDesc" />
-                    <CmsField label="Tooltip: botão" configKey="creditsTooltipBtn" />
-                    <CmsField label="Modal: título" configKey="creditsStoreTitle" />
-                    <CmsField label="Modal: subtítulo das fases" configKey="creditsStorePhaseSubtitle" />
-                    <CmsField label="Modal: título indicação" configKey="creditsStoreReferralTitle" />
-                    <CmsField label="Modal: subtítulo indicação" configKey="creditsStoreReferralSubtitle" />
-                    <CmsField label="Modal: botão fechar" configKey="creditsStoreCloseBtn" />
+                    <CmsField label="Tooltip: título ({n} = saldo)" ck="creditsTooltipTitle" />
+                    <CmsField label="Tooltip: descrição" ck="creditsTooltipDesc" multi />
+                    <CmsField label="Tooltip: botão" ck="creditsTooltipBtn" />
+                    <CmsField label="Modal: título" ck="creditsStoreTitle" />
+                    <CmsField label="Modal: subtítulo das fases" ck="creditsStorePhaseSubtitle" />
+                    <CmsField label="Modal: título indicação" ck="creditsStoreReferralTitle" />
+                    <CmsField label="Modal: subtítulo indicação" ck="creditsStoreReferralSubtitle" />
+                    <CmsField label="Modal: botão fechar" ck="creditsStoreCloseBtn" />
                   </div>
                 </div>
 
