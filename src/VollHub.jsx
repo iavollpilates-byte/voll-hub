@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSupabase } from "./useSupabase";
-import { supabase } from "./supabaseClient";
 
 // ─── ICON LIBRARY ───
 const ICON_LIBRARY = [
@@ -202,6 +201,9 @@ export default function VollHub() {
   const [showDownloadedOnly, setShowDownloadedOnly] = useState(false);
   const [reflectionVote, setReflectionVote] = useState(null); // "like" | "dislike" | null
   const [reflectionExpanded, setReflectionExpanded] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareSelectedStyle, setShareSelectedStyle] = useState(0);
+  const [shareGenerating, setShareGenerating] = useState(false);
   const [adminRefEdit, setAdminRefEdit] = useState(null); // editing reflection in CMS
   const [adminRefGenPrompt, setAdminRefGenPrompt] = useState(""); // AI generator prompt
   const [adminRefGenResult, setAdminRefGenResult] = useState(""); // AI generated text
@@ -435,128 +437,121 @@ export default function VollHub() {
     }
   };
   // ─── CREDITS HELPERS ───
-  // ─── SHARE REFLECTION IMAGE (user shares pre-made image from admin) ───
-  const shareReflectionImage = async () => {
-    if (!todayReflection?.imageUrl) { showT("Imagem não disponível"); return; }
-    try {
-      const res = await fetch(todayReflection.imageUrl);
-      const blob = await res.blob();
-      const file = new File([blob], "reflexao-do-dia.png", { type: "image/png" });
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: todayReflection.quote || todayReflection.title, text: `${todayReflection.quote || todayReflection.title} — VOLL Pilates Hub`, files: [file] });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href = url; a.download = "reflexao-do-dia.png";
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showT("Imagem salva! Poste no seu Instagram 📸");
-      }
-    } catch(e) { showT("Erro ao compartilhar. Tente novamente."); }
+  // ─── REFLECTION SHARE TEMPLATES (4 styles) ───
+  const reflectionStyles = [
+    { name: "Minimalista", emoji: "✨" },
+    { name: "Aquarela", emoji: "🎨" },
+    { name: "Post-it", emoji: "📌" },
+    { name: "iOS Notes", emoji: "📱" },
+  ];
+
+  const getReflectionHTML = (styleIndex, quote, authorName, handle) => {
+    const q = quote || "";
+    // Split quote into primary (first sentence) and secondary (rest) if short enough
+    const parts = q.split(/(?<=\.)\s+/);
+    const primary = parts[0] || q;
+    const secondary = parts.length > 1 ? parts.slice(1).join(" ") : "";
+
+    if (styleIndex === 0) {
+      // MINIMALISTA BEGE
+      return `<div style="background-color:#F2E6DE;width:1080px;height:1350px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:80px;box-sizing:border-box;position:relative;font-family:'Playfair Display',Georgia,serif;">
+        <div style="font-family:'Playfair Display',Georgia,serif;font-weight:600;font-size:${q.length > 80 ? 72 : 88}px;line-height:1.15;color:#2A2A2A;margin-bottom:40px;">${primary}</div>
+        ${secondary ? `<div style="font-family:'Montserrat',Helvetica,sans-serif;font-weight:400;font-size:36px;line-height:1.5;color:#2A2A2A;max-width:85%;">${secondary}</div>` : ""}
+        <div style="position:absolute;bottom:60px;left:80px;font-family:'Montserrat',Helvetica,sans-serif;font-size:28px;color:#2A2A2A88;">VOLL Pilates Hub &middot; ${handle}</div>
+        <div style="position:absolute;bottom:55px;right:70px;font-size:56px;color:#fff;opacity:0.6;">&#10022;</div>
+      </div>`;
+    }
+    if (styleIndex === 1) {
+      // AQUARELA
+      return `<div style="background:linear-gradient(135deg,#F9F2ED 0%,#f0ddd0 30%,#e8cfc0 60%,#f5e6da 100%);width:1080px;height:1350px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:80px;box-sizing:border-box;position:relative;font-family:'Playfair Display',Georgia,serif;">
+        <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 20% 20%,#f4c2c255 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,#c2d4f455 0%,transparent 50%),radial-gradient(ellipse at 50% 50%,#d4c2f422 0%,transparent 60%);"></div>
+        <div style="position:relative;z-index:1;font-family:'Playfair Display',Georgia,serif;font-weight:500;font-size:${q.length > 80 ? 68 : 84}px;line-height:1.15;color:#8F5C5C;margin-bottom:40px;">${primary}</div>
+        ${secondary ? `<div style="position:relative;z-index:1;font-family:'Montserrat',Helvetica,sans-serif;font-weight:400;font-size:34px;line-height:1.5;color:#8F5C5C;max-width:85%;">${secondary}</div>` : ""}
+        <div style="position:absolute;bottom:60px;left:80px;font-family:'Montserrat',Helvetica,sans-serif;font-size:26px;color:#8F5C5C88;z-index:1;">VOLL Pilates Hub &middot; ${handle}</div>
+        <div style="position:absolute;bottom:55px;right:70px;font-size:50px;color:#fff;opacity:0.7;z-index:1;">&#10022;</div>
+      </div>`;
+    }
+    if (styleIndex === 2) {
+      // POST-IT
+      return `<div style="background-color:#D0B084;background-image:radial-gradient(#c4a070 15%,transparent 16%),radial-gradient(#bc9868 15%,transparent 16%);background-size:24px 24px;background-position:0 0,12px 12px;width:1080px;height:1350px;display:flex;justify-content:center;align-items:center;padding:60px;box-sizing:border-box;">
+        <div style="background-color:#FDF289;width:85%;padding:80px 60px 100px;box-sizing:border-box;position:relative;transform:rotate(-2deg);box-shadow:10px 16px 30px rgba(0,0,0,0.2);border-radius:4px 4px 30px 4px;text-align:center;color:#3E2B1D;">
+          <div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ff6b6b,#c92a2a);box-shadow:4px 4px 10px rgba(0,0,0,0.3);z-index:10;"></div>
+          <div style="font-family:'Dancing Script',cursive,'Comic Sans MS';font-weight:600;font-size:${q.length > 60 ? 56 : 68}px;line-height:1.3;margin-bottom:30px;">${primary}</div>
+          ${secondary ? `<div style="font-family:'Dancing Script',cursive,'Comic Sans MS';font-weight:600;font-size:48px;line-height:1.3;color:#3E2B1Dcc;">${secondary}</div>` : ""}
+          <div style="position:absolute;bottom:30px;left:60px;font-family:Helvetica,sans-serif;font-size:22px;color:#3E2B1D77;">${handle}</div>
+        </div>
+      </div>`;
+    }
+    // iOS Notes
+    return `<div style="position:relative;width:1080px;height:1350px;overflow:hidden;background:#1c1c1e;">
+      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#2d1f3d,#1a2a3a,#2a1f2f);filter:blur(0px);"></div>
+      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 30% 40%,#6b3fa055 0%,transparent 60%),radial-gradient(ellipse at 70% 60%,#3f6ba055 0%,transparent 60%);"></div>
+      <div style="position:relative;z-index:2;height:100%;padding:50px;box-sizing:border-box;display:flex;flex-direction:column;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:80px;font-size:34px;color:#e3c58e;font-weight:500;">
+          <div style="display:flex;align-items:center;">&lsaquo; Notas</div>
+          <div style="font-size:40px;">&#8943;</div>
+        </div>
+        <div style="font-size:54px;font-weight:700;margin-bottom:40px;color:#fff;letter-spacing:1px;">Lembrete Importante:</div>
+        <div style="font-size:${q.length > 80 ? 44 : 52}px;line-height:1.45;font-weight:400;color:#ffffffdd;">${q}</div>
+        <div style="margin-top:auto;font-size:26px;color:#e3c58e88;">${handle} &middot; VOLL Pilates Hub</div>
+      </div>
+    </div>`;
   };
 
-  // ─── SHARE REFLECTION VIA WHATSAPP (full text + link) ───
+  // ─── SHARE: GENERATE IMAGE FROM HTML ───
+  const generateShareImage = async (styleIndex) => {
+    if (!todayReflection?.quote) { showT("Sem frase para compartilhar"); return; }
+    setShareGenerating(true);
+    try {
+      const handle = config.instagramHandle || "@rafael.voll";
+      const html = getReflectionHTML(styleIndex, todayReflection.quote, "Rafael Juliano", handle);
+
+      // Create off-screen container
+      const container = document.createElement("div");
+      container.style.cssText = "position:fixed;top:-9999px;left:-9999px;z-index:-1;";
+      container.innerHTML = html;
+      document.body.appendChild(container);
+      const el = container.firstElementChild;
+
+      // Load html2canvas dynamically
+      if (!window.html2canvas) {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+          s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+
+      const canvas = await window.html2canvas(el, { width: 1080, height: 1350, scale: 1, useCORS: true, backgroundColor: null });
+      document.body.removeChild(container);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) { showT("Erro ao gerar imagem"); setShareGenerating(false); return; }
+        const file = new File([blob], "reflexao-do-dia.png", { type: "image/png" });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ title: todayReflection.quote, files: [file] }); }
+          catch(e) { downloadBlob(blob); }
+        } else { downloadBlob(blob); }
+        setShareGenerating(false);
+      }, "image/png");
+    } catch(e) { console.error(e); showT("Erro ao gerar. Tente novamente."); setShareGenerating(false); }
+  };
+
+  const downloadBlob = (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "reflexao-do-dia.png";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showT("Imagem salva! Poste no seu Instagram 📸");
+  };
+
+  // ─── SHARE VIA WHATSAPP (full text + link) ───
   const shareReflectionWhatsApp = () => {
     if (!todayReflection) return;
     const appUrl = (config.baseUrl || "https://rafael.grupovoll.com.br") + "/?view=hub";
-    const msg = `📖 *Reflexão do dia — VOLL Pilates Hub*\n\n*${todayReflection.title}*\n\n${todayReflection.body}${todayReflection.actionText ? "\n\n✨ *Ação do dia:* " + todayReflection.actionText : ""}\n\n👉 Acesse mais conteúdos: ${appUrl}`;
+    const msg = `\u{1F4D6} *Reflexão do dia — VOLL Pilates Hub*\n\n*${todayReflection.title}*\n\n${todayReflection.body}${todayReflection.actionText ? "\n\n\u2728 *Ação do dia:* " + todayReflection.actionText : ""}\n\n\u{1F449} Acesse mais conteúdos: ${appUrl}`;
     window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
-  };
-
-  // ─── GENERATE REFLECTION IMAGE (admin only - Canvas with QUOTE) ───
-  const wrapText = (ctx, text, maxWidth) => {
-    const words = text.split(" ");
-    const lines = []; let line = "";
-    words.forEach(word => {
-      const test = line + (line ? " " : "") + word;
-      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = word; }
-      else { line = test; }
-    });
-    if (line) lines.push(line);
-    return lines;
-  };
-
-  const generateReflectionImage = async (ref) => {
-    if (!ref.quote) { showT("Preencha a frase (quote) antes de gerar a imagem!"); return null; }
-    const canvas = document.createElement("canvas");
-    const W = 1080, H = 1080; // Square for Instagram feed
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext("2d");
-
-    // Background gradient
-    const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, "#0a1f1a"); grad.addColorStop(0.5, "#0d2920"); grad.addColorStop(1, "#061510");
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
-
-    // Decorative circles
-    ctx.globalAlpha = 0.07;
-    ctx.beginPath(); ctx.arc(W * 0.9, H * 0.1, 280, 0, Math.PI * 2); ctx.fillStyle = "#7DE2C7"; ctx.fill();
-    ctx.beginPath(); ctx.arc(W * 0.1, H * 0.9, 220, 0, Math.PI * 2); ctx.fillStyle = "#FFD863"; ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Top accent line
-    const lineGrad = ctx.createLinearGradient(80, 0, W - 80, 0);
-    lineGrad.addColorStop(0, "#349980"); lineGrad.addColorStop(1, "#7DE2C7");
-    ctx.fillStyle = lineGrad;
-    ctx.roundRect ? ctx.roundRect(80, 70, W - 160, 4, 2) : ctx.fillRect(80, 70, W - 160, 4);
-    ctx.fill();
-
-    // "REFLEXÃO DO DIA" label
-    ctx.fillStyle = "#FFD863"; ctx.font = "600 26px 'Outfit', sans-serif";
-    ctx.fillText("💭  REFLEXÃO DO DIA", 80, 130);
-
-    // Date
-    ctx.fillStyle = "#FFD86377"; ctx.font = "500 22px 'Outfit', sans-serif";
-    const dateObj = new Date(ref.publishDate + "T12:00:00");
-    const dateFormatted = dateObj.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-    ctx.fillText(dateFormatted, W - ctx.measureText(dateFormatted).width - 80, 130);
-
-    // Big opening quote mark
-    ctx.fillStyle = "#7DE2C744"; ctx.font = "800 180px 'Outfit', serif";
-    ctx.fillText("\u201C", 50, 300);
-
-    // Quote text — centered vertically
-    ctx.fillStyle = "#ffffff"; ctx.font = "700 52px 'Outfit', sans-serif";
-    const quoteLines = wrapText(ctx, ref.quote, W - 200);
-    const totalQuoteHeight = quoteLines.length * 68;
-    const quoteStartY = Math.max(340, (H - totalQuoteHeight) / 2 + 20);
-    quoteLines.forEach((line, i) => { ctx.fillText(line, 100, quoteStartY + i * 68); });
-
-    // Author line
-    const authorY = quoteStartY + quoteLines.length * 68 + 40;
-    ctx.fillStyle = "#7DE2C7"; ctx.font = "600 28px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("— Rafael Juliano", 100, authorY);
-
-    // Bottom separator
-    ctx.fillStyle = "#ffffff22"; ctx.fillRect(80, H - 130, W - 160, 1);
-
-    // Bottom branding
-    ctx.fillStyle = "#7DE2C7"; ctx.font = "700 26px 'Outfit', sans-serif";
-    ctx.fillText("VOLL PILATES HUB", 80, H - 80);
-    ctx.fillStyle = "#ffffff77"; ctx.font = "500 22px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(config.instagramHandle || "@rafael.voll", 80, H - 48);
-    ctx.fillStyle = "#FFD863"; ctx.font = "600 20px 'Outfit', sans-serif";
-    const url = config.baseUrl || "rafael.grupovoll.com.br";
-    ctx.fillText(url, W - ctx.measureText(url).width - 80, H - 60);
-
-    // Upload to Supabase Storage
-    return new Promise((resolve) => {
-      canvas.toBlob(async (blob) => {
-        if (!blob) { resolve(null); return; }
-        const fileName = `reflection-${ref.publishDate}-${Date.now()}.png`;
-        const { data, error } = await supabase.storage.from("reflections").upload(fileName, blob, { contentType: "image/png", upsert: true });
-        if (error) {
-          console.error("Upload error:", error);
-          const localUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a"); a.href = localUrl; a.download = fileName;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          URL.revokeObjectURL(localUrl);
-          showT("Erro no upload. Imagem baixada localmente.");
-          resolve(null); return;
-        }
-        const { data: pubData } = supabase.storage.from("reflections").getPublicUrl(fileName);
-        resolve(pubData.publicUrl);
-      }, "image/png");
-    });
   };
 
   // ─── REFLECTION VOTE ───
@@ -2151,6 +2146,7 @@ export default function VollHub() {
                           </div>
                           <p style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</p>
                           <p style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>{r.body.substring(0, 80)}...</p>
+                          {r.quote && <p style={{ fontSize: 10, color: T.accent, marginTop: 4 }}>📸 {r.quote}</p>}
                           {r.inspiration && <p style={{ fontSize: 10, color: T.gold, marginTop: 4 }}>💡 {r.inspiration}</p>}
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
@@ -2159,15 +2155,9 @@ export default function VollHub() {
                             <span>👎 {r.dislikes}</span>
                           </div>
                           <div style={{ display: "flex", gap: 4 }}>
-                            <button onClick={async () => {
-                              showT("Gerando imagem...");
-                              const imgUrl = await generateReflectionImage(r);
-                              if (imgUrl) { await db.updateReflection(r.id, { imageUrl: imgUrl }); showT("Imagem gerada e salva! 📸"); addLog(`Gerou imagem: ${r.title}`); }
-                            }} style={{ padding: "4px 10px", borderRadius: 8, background: T.gold + "22", border: `1px solid ${T.gold}44`, fontSize: 12 }} title="Gerar imagem">{r.imageUrl ? "🔄" : "📸"}</button>
                             <button onClick={() => setAdminRefEdit({ ...r })} style={{ padding: "4px 10px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 12 }}>✏️</button>
                             <button onClick={async () => { if (confirm("Excluir reflexão?")) { await db.deleteReflection(r.id); showT("Excluída! 🗑️"); addLog(`Excluiu reflexão: ${r.title}`); } }} style={{ padding: "4px 10px", borderRadius: 8, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 12 }}>🗑️</button>
                           </div>
-                          {r.imageUrl && <a href={r.imageUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: T.accent, marginTop: 2 }}>🖼️ Ver imagem</a>}
                         </div>
                       </div>
                     </div>
@@ -2549,7 +2539,7 @@ export default function VollHub() {
                 <button onClick={() => voteReflection(true)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "like" ? T.accent + "22" : T.statBg, border: `1px solid ${reflectionVote === "like" ? T.accent + "44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "like" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👍</button>
                 <button onClick={() => voteReflection(false)} disabled={!!reflectionVote} style={{ padding: "6px 14px", borderRadius: 10, background: reflectionVote === "dislike" ? "#e8443a22" : T.statBg, border: `1px solid ${reflectionVote === "dislike" ? "#e8443a44" : T.statBorder}`, fontSize: 14, opacity: reflectionVote && reflectionVote !== "dislike" ? 0.4 : 1, cursor: reflectionVote ? "default" : "pointer" }}>👎</button>
               </div>
-              {todayReflection.imageUrl && <button onClick={shareReflectionImage} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📸 Story</button>}
+              {todayReflection.quote && <button onClick={() => setShowShareModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📸 Story</button>}
               <button onClick={shareReflectionWhatsApp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📲 WhatsApp</button>
             </div>
           </div>
@@ -2929,6 +2919,40 @@ export default function VollHub() {
           </div>
         );
       })()}
+
+      {/* SHARE REFLECTION MODAL */}
+      {showShareModal && todayReflection?.quote && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowShareModal(false)}>
+          <div style={{ position: "absolute", inset: 0, background: "#000000aa", backdropFilter: "blur(4px)" }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: "100%", maxWidth: 480, background: theme === "dark" ? "#1a1e1c" : "#fff", borderRadius: "24px 24px 0 0", padding: "20px 16px 30px", animation: "slideUp 0.3s ease" }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: T.textFaint + "44", margin: "0 auto 16px" }} />
+            <p style={{ fontSize: 16, fontWeight: 700, color: T.text, textAlign: "center", marginBottom: 4 }}>Compartilhar reflexão</p>
+            <p style={{ fontSize: 12, color: T.textFaint, textAlign: "center", marginBottom: 16 }}>Escolha um estilo para o seu Story</p>
+
+            {/* Style selector */}
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12, marginBottom: 16, WebkitOverflowScrolling: "touch" }}>
+              {reflectionStyles.map((s, i) => (
+                <button key={i} onClick={() => setShareSelectedStyle(i)} style={{ flex: "0 0 auto", padding: "10px 16px", borderRadius: 12, background: shareSelectedStyle === i ? T.accent + "22" : T.statBg, border: `2px solid ${shareSelectedStyle === i ? T.accent : T.statBorder}`, color: shareSelectedStyle === i ? T.accent : T.textMuted, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", transition: "all 0.2s" }}>
+                  {s.emoji} {s.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Preview */}
+            <div style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16, border: `1px solid ${T.cardBorder}`, maxHeight: 340, display: "flex", justifyContent: "center", background: "#111" }}>
+              <div style={{ transform: "scale(0.28)", transformOrigin: "top center", width: 1080, height: 1350, flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: getReflectionHTML(shareSelectedStyle, todayReflection.quote, "Rafael Juliano", config.instagramHandle || "@rafael.voll") }} />
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button disabled={shareGenerating} onClick={() => generateShareImage(shareSelectedStyle)} style={{ flex: 1, padding: "14px", borderRadius: 14, background: shareGenerating ? T.statBg : "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 14, fontWeight: 700, cursor: shareGenerating ? "wait" : "pointer" }}>
+                {shareGenerating ? "Gerando..." : "📸 Salvar / Compartilhar"}
+              </button>
+              <button onClick={() => { setShowShareModal(false); shareReflectionWhatsApp(); }} style={{ padding: "14px 18px", borderRadius: 14, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>📲</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ONBOARDING MODAL */}
       {showOnboarding && (
