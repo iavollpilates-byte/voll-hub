@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabaseClient'
 
 // ─── HELPERS: convert DB row ↔ app object ───
@@ -31,7 +31,6 @@ const matToDb = (m) => ({
 
 const leadFromDb = (r) => {
   let pr = r.phase_responses || {}
-  // Backward compat: migrate old phase columns into phaseResponses if empty
   if (Object.keys(pr).length === 0 && (r.phase1_complete || r.phase2_complete || r.phase3_complete)) {
     if (r.phase1_complete) pr["1"] = { q1: r.grau || '', q2: r.formacao || '', q3: r.atua_pilates || '', completed_at: r.last_visit || 'migrated' }
     if (r.phase2_complete) pr["2"] = { q1: r.tem_studio || '', q2: r.maior_desafio || '', q3: r.tipo_conteudo || '', completed_at: r.last_visit || 'migrated' }
@@ -90,26 +89,41 @@ export function useSupabase() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // ─── LOAD ALL ───
+  // ─── ADMIN TOKEN (for secure server-side operations) ───
+  const adminTokenRef = useRef(null)
+  const setAdminToken = (token) => { adminTokenRef.current = token }
+
+  const adminFetch = async (body) => {
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminTokenRef.current}`
+      },
+      body: JSON.stringify(body)
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Erro na API admin')
+    return result
+  }
+
+  // ─── LOAD ALL (public data only — admin_users loaded separately after auth) ───
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
-      const [matRes, leadRes, adminRes, cfgRes, refRes, phaseRes] = await Promise.all([
+      const [matRes, leadRes, cfgRes, refRes, phaseRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('leads').select('*').order('created_at', { ascending: false }),
-        supabase.from('admin_users').select('*').order('created_at', { ascending: true }),
         supabase.from('config').select('*'),
         supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
         supabase.from('phases').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       ])
       if (matRes.error) throw matRes.error
       if (leadRes.error) throw leadRes.error
-      if (adminRes.error) throw adminRes.error
       if (cfgRes.error) throw cfgRes.error
 
       setMaterials((matRes.data || []).map(matFromDb))
       setLeads((leadRes.data || []).map(leadFromDb))
-      setAdminUsers((adminRes.data || []).filter(u => u.role !== 'master').map(adminFromDb))
       setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
       setPhases((phaseRes.data || []).map(phaseFromDb))
 
@@ -117,6 +131,13 @@ export function useSupabase() {
       ;(cfgRes.data || []).forEach(r => { cfgObj[r.key] = r.value })
       setConfig(cfgObj)
       setError(null)
+
+      if (adminTokenRef.current) {
+        try {
+          const result = await adminFetch({ action: 'list_admins' })
+          if (result.data) setAdminUsers(result.data.map(adminFromDb))
+        } catch (_) {}
+      }
     } catch (e) {
       console.error('Supabase load error:', e)
       setError(e.message)
@@ -127,13 +148,61 @@ export function useSupabase() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
+  // ─── ADMIN USERS (loaded via secure API) ───
+  const loadAdminUsers = async () => {
+    try {
+      const result = await adminFetch({ action: 'list_admins' })
+      if (result.data) setAdminUsers(result.data.map(adminFromDb))
+    } catch (e) { console.error('Failed to load admin users:', e) }
+  }
+
+  const checkPinUnique = async (pin) => {
+    try {
+      const result = await adminFetch({ action: 'check_pin_unique', pin })
+      return result.unique
+    } catch (_) { return false }
+  }
+
+  const addAdminUser = async (user) => {
+    try {
+      const result = await adminFetch({
+        action: 'insert', table: 'admin_users',
+        data: { name: user.name, pin: user.pin, role: 'admin', permissions: user.permissions },
+        returnSingle: true
+      })
+      const newUser = adminFromDb(result.data)
+      setAdminUsers(p => [...p, newUser])
+      return newUser
+    } catch (e) { console.error(e); return null }
+  }
+
+  const updateAdminUser = async (id, updates) => {
+    try {
+      await adminFetch({ action: 'update', table: 'admin_users', data: updates, match: { id } })
+      setAdminUsers(p => p.map(u => u.id === id ? { ...u, ...updates } : u))
+      return true
+    } catch (e) { console.error(e); return false }
+  }
+
+  const deleteAdminUser = async (id) => {
+    try {
+      await adminFetch({ action: 'delete', table: 'admin_users', match: { id } })
+      setAdminUsers(p => p.filter(u => u.id !== id))
+      return true
+    } catch (e) { console.error(e); return false }
+  }
+
   // ─── MATERIALS ───
   const addMaterial = async (mat) => {
-    const { data, error } = await supabase.from('materials').insert(matToDb(mat)).select().single()
-    if (error) { console.error(error); return null }
-    const newMat = matFromDb(data)
-    setMaterials(p => [newMat, ...p])
-    return newMat
+    try {
+      const result = await adminFetch({
+        action: 'insert', table: 'materials',
+        data: matToDb(mat), returnSingle: true
+      })
+      const newMat = matFromDb(result.data)
+      setMaterials(p => [newMat, ...p])
+      return newMat
+    } catch (e) { console.error(e); return null }
   }
 
   const updateMaterial = async (id, updates) => {
@@ -152,6 +221,15 @@ export function useSupabase() {
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v
     })
+
+    if (adminTokenRef.current) {
+      try {
+        await adminFetch({ action: 'update', table: 'materials', data: dbUpdates, match: { id } })
+        setMaterials(p => p.map(m => m.id === id ? { ...m, ...updates } : m))
+        return true
+      } catch (e) { console.error(e); return false }
+    }
+
     const { error } = await supabase.from('materials').update(dbUpdates).eq('id', id)
     if (error) { console.error(error); return false }
     setMaterials(p => p.map(m => m.id === id ? { ...m, ...updates } : m))
@@ -159,13 +237,14 @@ export function useSupabase() {
   }
 
   const deleteMaterial = async (id) => {
-    const { error } = await supabase.from('materials').delete().eq('id', id)
-    if (error) { console.error(error); return false }
-    setMaterials(p => p.filter(m => m.id !== id))
-    return true
+    try {
+      await adminFetch({ action: 'delete', table: 'materials', match: { id } })
+      setMaterials(p => p.filter(m => m.id !== id))
+      return true
+    } catch (e) { console.error(e); return false }
   }
 
-  // ─── LEADS ───
+  // ─── LEADS (user-facing — direct Supabase) ───
   const addLead = async (lead) => {
     const { data, error } = await supabase.from('leads').insert(leadToDb(lead)).select().single()
     if (error) { console.error(error); return null }
@@ -205,51 +284,33 @@ export function useSupabase() {
     return data && data.length > 0 ? leadFromDb(data[0]) : null
   }
 
-  // ─── ADMIN USERS ───
-  const authenticateAdmin = async (pin) => {
-    const { data } = await supabase.from('admin_users').select('*').eq('pin', pin).limit(1)
-    if (data && data.length > 0) return adminFromDb(data[0])
-    return null
-  }
-
-  const addAdminUser = async (user) => {
-    const { data, error } = await supabase.from('admin_users')
-      .insert({ name: user.name, pin: user.pin, role: 'admin', permissions: user.permissions })
-      .select().single()
-    if (error) { console.error(error); return null }
-    const newUser = adminFromDb(data)
-    setAdminUsers(p => [...p, newUser])
-    return newUser
-  }
-
-  const updateAdminUser = async (id, updates) => {
-    const { error } = await supabase.from('admin_users').update(updates).eq('id', id)
-    if (error) { console.error(error); return false }
-    setAdminUsers(p => p.map(u => u.id === id ? { ...u, ...updates } : u))
-    return true
-  }
-
-  const deleteAdminUser = async (id) => {
-    const { error } = await supabase.from('admin_users').delete().eq('id', id)
-    if (error) { console.error(error); return false }
-    setAdminUsers(p => p.filter(u => u.id !== id))
-    return true
-  }
-
   // ─── REFLECTIONS ───
   const addReflection = async (ref) => {
     const row = { title: ref.title, body: ref.body, action_text: ref.actionText || '', quote: ref.quote || '', inspiration: ref.inspiration || '', publish_date: ref.publishDate, active: ref.active !== false, likes: 0, dislikes: 0, image_url: ref.imageUrl || '' }
-    const { data, error } = await supabase.from('reflections').insert(row).select().single()
-    if (error) { console.error(error); return null }
-    const newRef = { id: data.id, title: data.title, body: data.body, actionText: data.action_text || '', quote: data.quote || '', inspiration: data.inspiration || '', publishDate: data.publish_date, active: data.active, likes: data.likes || 0, dislikes: data.dislikes || 0, imageUrl: data.image_url || '', createdAt: data.created_at }
-    setReflections(p => [newRef, ...p])
-    return newRef
+    try {
+      const result = await adminFetch({
+        action: 'insert', table: 'reflections',
+        data: row, returnSingle: true
+      })
+      const newRef = { id: result.data.id, title: result.data.title, body: result.data.body, actionText: result.data.action_text || '', quote: result.data.quote || '', inspiration: result.data.inspiration || '', publishDate: result.data.publish_date, active: result.data.active, likes: result.data.likes || 0, dislikes: result.data.dislikes || 0, imageUrl: result.data.image_url || '', createdAt: result.data.created_at }
+      setReflections(p => [newRef, ...p])
+      return newRef
+    } catch (e) { console.error(e); return null }
   }
 
   const updateReflection = async (id, updates) => {
     const dbUpdates = {}
     const keyMap = { title: 'title', body: 'body', actionText: 'action_text', quote: 'quote', inspiration: 'inspiration', publishDate: 'publish_date', active: 'active', likes: 'likes', dislikes: 'dislikes', imageUrl: 'image_url' }
     Object.entries(updates).forEach(([k, v]) => { if (keyMap[k]) dbUpdates[keyMap[k]] = v })
+
+    if (adminTokenRef.current) {
+      try {
+        await adminFetch({ action: 'update', table: 'reflections', data: dbUpdates, match: { id } })
+        setReflections(p => p.map(r => r.id === id ? { ...r, ...updates } : r))
+        return true
+      } catch (e) { console.error(e); return false }
+    }
+
     const { error } = await supabase.from('reflections').update(dbUpdates).eq('id', id)
     if (error) { console.error(error); return false }
     setReflections(p => p.map(r => r.id === id ? { ...r, ...updates } : r))
@@ -257,10 +318,11 @@ export function useSupabase() {
   }
 
   const deleteReflection = async (id) => {
-    const { error } = await supabase.from('reflections').delete().eq('id', id)
-    if (error) { console.error(error); return false }
-    setReflections(p => p.filter(r => r.id !== id))
-    return true
+    try {
+      await adminFetch({ action: 'delete', table: 'reflections', match: { id } })
+      setReflections(p => p.filter(r => r.id !== id))
+      return true
+    } catch (e) { console.error(e); return false }
   }
 
   const likeReflection = async (id, isLike) => {
@@ -277,32 +339,48 @@ export function useSupabase() {
   // ─── PHASES ───
   const addPhase = async (phase) => {
     const row = { title: phase.title, icon: phase.icon || '📋', prize: phase.prize || '', prize_url: phase.prizeUrl || '', credits: phase.credits ?? 2, sort_order: phase.sortOrder ?? 0, active: phase.active !== false, questions: phase.questions || [], cta_text: phase.ctaText || '' }
-    const { data, error } = await supabase.from('phases').insert(row).select().single()
-    if (error) { console.error(error); return null }
-    const newPhase = phaseFromDb(data)
-    setPhases(p => [...p, newPhase].sort((a, b) => a.sortOrder - b.sortOrder))
-    return newPhase
+    try {
+      const result = await adminFetch({
+        action: 'insert', table: 'phases',
+        data: row, returnSingle: true
+      })
+      const newPhase = phaseFromDb(result.data)
+      setPhases(p => [...p, newPhase].sort((a, b) => a.sortOrder - b.sortOrder))
+      return newPhase
+    } catch (e) { console.error(e); return null }
   }
 
   const updatePhase = async (id, updates) => {
     const dbUpdates = {}
     const keyMap = { title: 'title', icon: 'icon', prize: 'prize', prizeUrl: 'prize_url', credits: 'credits', sortOrder: 'sort_order', active: 'active', questions: 'questions', ctaText: 'cta_text' }
     Object.entries(updates).forEach(([k, v]) => { if (keyMap[k]) dbUpdates[keyMap[k]] = v })
-    const { error } = await supabase.from('phases').update(dbUpdates).eq('id', id)
-    if (error) { console.error(error); return false }
-    setPhases(p => p.map(ph => ph.id === id ? { ...ph, ...updates } : ph).sort((a, b) => a.sortOrder - b.sortOrder))
-    return true
+    try {
+      await adminFetch({ action: 'update', table: 'phases', data: dbUpdates, match: { id } })
+      setPhases(p => p.map(ph => ph.id === id ? { ...ph, ...updates } : ph).sort((a, b) => a.sortOrder - b.sortOrder))
+      return true
+    } catch (e) { console.error(e); return false }
   }
 
   const deletePhase = async (id) => {
-    const { error } = await supabase.from('phases').delete().eq('id', id)
-    if (error) { console.error(error); return false }
-    setPhases(p => p.filter(ph => ph.id !== id))
-    return true
+    try {
+      await adminFetch({ action: 'delete', table: 'phases', match: { id } })
+      setPhases(p => p.filter(ph => ph.id !== id))
+      return true
+    } catch (e) { console.error(e); return false }
   }
 
   // ─── CONFIG ───
   const updateConfig = async (key, value) => {
+    if (adminTokenRef.current) {
+      try {
+        await adminFetch({
+          action: 'upsert', table: 'config',
+          data: { key, value: String(value), updated_at: new Date().toISOString() }
+        })
+        setConfig(p => ({ ...p, [key]: String(value) }))
+        return true
+      } catch (e) { console.error(e); return false }
+    }
     const { error } = await supabase.from('config').upsert({ key, value: String(value), updated_at: new Date().toISOString() })
     if (error) { console.error(error); return false }
     setConfig(p => ({ ...p, [key]: String(value) }))
@@ -313,6 +391,17 @@ export function useSupabase() {
     const rows = Object.entries(updates).map(([key, value]) => ({
       key, value: String(value), updated_at: new Date().toISOString()
     }))
+    if (adminTokenRef.current) {
+      try {
+        await adminFetch({ action: 'upsert', table: 'config', data: rows })
+        setConfig(p => {
+          const next = { ...p }
+          Object.entries(updates).forEach(([k, v]) => { next[k] = String(v) })
+          return next
+        })
+        return true
+      } catch (e) { console.error(e); return false }
+    }
     const { error } = await supabase.from('config').upsert(rows)
     if (error) { console.error(error); return false }
     setConfig(p => {
@@ -323,7 +412,7 @@ export function useSupabase() {
     return true
   }
 
-  // ─── STORAGE: Upload reflection images ───
+  // ─── STORAGE ───
   const uploadReflectionImage = async (reflectionId, styleIndex, blob) => {
     const path = `${reflectionId}/style_${styleIndex}.png`
     const { error } = await supabase.storage
@@ -345,25 +434,17 @@ export function useSupabase() {
   }
 
   return {
-    // State
     materials, leads, adminUsers, config, reflections, phases, loading, error,
-    // Setters (for local-only updates like optimistic UI)
     setMaterials, setLeads, setPhases,
-    // Materials
     addMaterial, updateMaterial, deleteMaterial,
-    // Leads
     addLead, updateLead, findLeadByWhatsApp,
-    // Admin
-    authenticateAdmin, addAdminUser, updateAdminUser, deleteAdminUser,
-    // Reflections
+    addAdminUser, updateAdminUser, deleteAdminUser,
+    loadAdminUsers, checkPinUnique,
     addReflection, updateReflection, deleteReflection, likeReflection,
-    // Phases
     addPhase, updatePhase, deletePhase,
-    // Storage
     uploadReflectionImage, uploadOgImage,
-    // Config
     updateConfig, updateConfigBatch,
-    // Page views
+    setAdminToken,
     incrementPageView: async () => {
       try {
         const { data } = await supabase.from('config').select('*').eq('key', 'pageViews').limit(1)
@@ -375,7 +456,6 @@ export function useSupabase() {
         }
       } catch(e) {}
     },
-    // Reload
     reload: loadAll,
   }
 }

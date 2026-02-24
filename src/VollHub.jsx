@@ -64,8 +64,6 @@ const DEFAULT_CONFIG = {
   bioStat2: "+85 mil", bioStat2Label: "Instrutores Formados",
 };
 
-const MASTER_PIN = "9512";
-
 const DEFAULT_BIO_LINKS = [
   { id: "1", title: "Pós Internacional", subtitle: "Formação internacional em Pilates", icon: "🌎", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/pos-internacional", active: true, clicks: 0, highlight: true, badge: "🔥 NOVO", color: "linear-gradient(135deg, #1a3a30, #0d2920)" },
   { id: "2", title: "Encontro Pilates 2026", subtitle: "O maior evento de Pilates do Brasil", icon: "🎪", imageUrl: "", url: "https://encontropilates.com.br/", active: true, clicks: 0, highlight: true, badge: "⭐ IMPERDÍVEL", color: "linear-gradient(135deg, #2a1a3a, #1a0d29)" },
@@ -82,7 +80,6 @@ const DEFAULT_BIO_LINKS = [
   { id: "13", title: "Grupos Exclusivos", subtitle: "WhatsApp e Telegram", icon: "👥", imageUrl: "", url: "https://vollpilates.com.br/rafael/grupos-exclusivos/", active: true, clicks: 0 },
   { id: "hub", title: "Materiais Gratuitos", subtitle: "E-books, guias e vídeos exclusivos", icon: "🎁", imageUrl: "", url: "_hub", active: true, clicks: 0, highlight: true, badge: "GRÁTIS", color: "linear-gradient(135deg, #0d2920, #1a3a20)" },
 ];
-const MASTER_USER = { id: 0, name: "MASTER PICA", pin: MASTER_PIN, role: "master", permissions: { materials_view: true, materials_edit: true, leads_view: true, leads_export: true, leads_whatsapp: true, textos_edit: true, users_manage: true } };
 
 const PERM_LABELS = {
   materials_view: { label: "Ver materiais", icon: "📄", group: "Materiais" },
@@ -796,10 +793,26 @@ export default function VollHub() {
     setUnlockTarget(null); setRefName(""); setRefWA(""); showT("Desbloqueado! 🎉");
   };
   const handleAdminLogin = async () => {
-    if (adminPin === MASTER_PIN) { setCurrentAdmin(MASTER_USER); setView("admin"); setAdminPin(""); setAdminTab("materials"); return; }
-    const found = await db.authenticateAdmin(adminPin);
-    if (found) { setCurrentAdmin(found); setView("admin"); setAdminPin(""); setAdminTab(found.permissions.materials_view ? "materials" : found.permissions.leads_view ? "leads" : "textos"); return; }
-    showT("PIN incorreto!");
+    try {
+      const res = await fetch('/api/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: adminPin })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        db.setAdminToken(result.token);
+        setCurrentAdmin(result.admin);
+        setView("admin");
+        setAdminPin("");
+        setAdminTab(result.admin.permissions.materials_view ? "materials" : result.admin.permissions.leads_view ? "leads" : "textos");
+        db.loadAdminUsers();
+        return;
+      }
+      showT(result.error || "PIN incorreto!");
+    } catch (e) {
+      showT("Erro ao verificar PIN. Tente novamente.");
+    }
   };
   const updCfg = (k, v) => { db.updateConfig(k, v); addLog(`Editou config: ${k}`); };
   const updMat = (id, k, v) => { const mat = materials.find(m => m.id === id); db.updateMaterial(id, { [k]: v }); addLog(`Editou material "${mat?.title || id}": ${k}`); };
@@ -1439,7 +1452,7 @@ export default function VollHub() {
               <button onClick={() => { db.reload(); showT("Dados atualizados! 🔄"); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>🔄</button>
               <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
               <button onClick={() => setView("hub")} style={{ padding: "8px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>👁 Preview</button>
-              <button onClick={() => { setView("linktree"); setCurrentAdmin(null); }} style={{ padding: "8px 14px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 12, fontWeight: 600 }}>Sair</button>
+              <button onClick={() => { setView("linktree"); setCurrentAdmin(null); db.setAdminToken(null); }} style={{ padding: "8px 14px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 12, fontWeight: 600 }}>Sair</button>
             </div>
           </header>
 
@@ -2414,25 +2427,17 @@ export default function VollHub() {
                 {/* AI GENERATOR */}
                 <div style={{ background: theme === "dark" ? "#1a1a10" : "#fffdf5", border: `1px solid ${T.gold}33`, borderRadius: 14, padding: 16 }}>
                   <p style={{ fontSize: 14, fontWeight: 700, color: T.gold, marginBottom: 10 }}>🤖 Gerador de Reflexões</p>
-                  {!config.geminiApiKey && (
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔑 API Key (Google Gemini)</label>
-                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                        <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 11, fontFamily: "'Plus Jakarta Sans'" }} />
-                        <button onClick={() => { const v = document.getElementById("geminiKeyInput").value.trim(); if (v) { db.updateConfig("geminiApiKey", v); showT("API Key salva!"); } }} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>Salvar</button>
-                      </div>
-                    </div>
-                  )}
                   <textarea value={adminRefGenPrompt} onChange={e => setAdminRefGenPrompt(e.target.value)} placeholder="Tema ou palavras-chave... Ex: 'importância de cobrar o preço justo', 'como lidar com aluna que reclama do preço'" rows={2} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical" }} />
-                  <button disabled={adminRefGenLoading || !adminRefGenPrompt.trim() || !config.geminiApiKey} onClick={async () => {
+                  <button disabled={adminRefGenLoading || !adminRefGenPrompt.trim()} onClick={async () => {
                     setAdminRefGenLoading(true);
                     try {
-                      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.geminiApiKey}`, {
+                      const prompt = `Você é Rafael Juliano, fundador da VOLL Pilates Group, a maior escola de formação em Pilates da América Latina. Escreva uma reflexão do dia curta (máximo 3 parágrafos, leitura em menos de 1 minuto) para donos de estúdio de Pilates sobre o tema: "${adminRefGenPrompt}". Use tom direto, provocativo e prático. Inclua uma ação concreta que a pessoa pode fazer HOJE. Também gere uma frase curta inspiracional (máximo 15 palavras) para a imagem do story. Responda APENAS em JSON puro sem markdown: {"title":"...","body":"...","actionText":"...","quote":"..."}`;
+                      const res = await fetch('/api/generate-reflection', {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: `Você é Rafael Juliano, fundador da VOLL Pilates Group, a maior escola de formação em Pilates da América Latina. Escreva uma reflexão do dia curta (máximo 3 parágrafos, leitura em menos de 1 minuto) para donos de estúdio de Pilates sobre o tema: "${adminRefGenPrompt}". Use tom direto, provocativo e prático. Inclua uma ação concreta que a pessoa pode fazer HOJE. Também gere uma frase curta inspiracional (máximo 15 palavras) para a imagem do story. Responda APENAS em JSON puro sem markdown: {"title":"...","body":"...","actionText":"...","quote":"..."}` }] }] })
+                        body: JSON.stringify({ prompt })
                       });
-                      if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || "Erro na API"); }
+                      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Erro na API"); }
                       const data = await res.json();
                       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
                       const clean = text.replace(/```json|```/g, "").trim();
@@ -2442,8 +2447,8 @@ export default function VollHub() {
                       showT("Reflexão gerada! Edite e salve abaixo.");
                     } catch(e) { console.error(e); showT("Erro: " + (e.message || "Tente novamente.")); }
                     setAdminRefGenLoading(false);
-                  }} style={{ marginTop: 8, padding: "10px 20px", borderRadius: 10, background: adminRefGenLoading ? T.statBg : `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 13, fontWeight: 700, border: "none", opacity: adminRefGenLoading || !adminRefGenPrompt.trim() || !config.geminiApiKey ? 0.5 : 1 }}>
-                    {adminRefGenLoading ? "Gerando..." : !config.geminiApiKey ? "🔑 Configure a API Key" : "✨ Gerar reflexão"}
+                  }} style={{ marginTop: 8, padding: "10px 20px", borderRadius: 10, background: adminRefGenLoading ? T.statBg : `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 13, fontWeight: 700, border: "none", opacity: adminRefGenLoading || !adminRefGenPrompt.trim() ? 0.5 : 1 }}>
+                    {adminRefGenLoading ? "Gerando..." : "✨ Gerar reflexão"}
                   </button>
                 </div>
 
@@ -2574,7 +2579,8 @@ export default function VollHub() {
 
                   <button onClick={async () => {
                     if (!newUser.name.trim() || newUser.pin.length !== 4) return showT("Preencha nome e PIN (4 dígitos)!");
-                    if (newUser.pin === MASTER_PIN || adminUsers.some((u) => u.pin === newUser.pin)) return showT("PIN já em uso!");
+                    const isUnique = await db.checkPinUnique(newUser.pin);
+                    if (!isUnique) return showT("PIN já em uso!");
                     await db.addAdminUser({ name: newUser.name, pin: newUser.pin, permissions: newUser.permissions });
                     setNewUser({ name: "", pin: "", permissions: { materials_view: true, materials_edit: false, leads_view: true, leads_export: false, leads_whatsapp: false, textos_edit: false, users_manage: false } });
                     setShowNewUser(false); showT("Admin criado! 🎉");
@@ -2587,8 +2593,8 @@ export default function VollHub() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 40, height: 40, borderRadius: "50%", background: `linear-gradient(135deg, #c49500, #FFD863)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>👑</div>
                   <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: 15, fontWeight: 800, color: T.gold }}>MASTER PICA</h3>
-                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>PIN: {MASTER_PIN} · Acesso total</p>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: T.gold }}>{currentAdmin?.role === "master" ? currentAdmin.name : "MASTER"}</h3>
+                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔒 PIN protegido · Acesso total</p>
                   </div>
                   <span style={{ fontSize: 9, padding: "3px 8px", borderRadius: 5, background: T.gold + "22", color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>MASTER</span>
                 </div>
@@ -2606,7 +2612,7 @@ export default function VollHub() {
                       <div style={{ width: 40, height: 40, borderRadius: "50%", background: T.avBg, border: `2px solid ${T.avBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: T.accent }}>{u.name.charAt(0).toUpperCase()}</div>
                       <div style={{ flex: 1 }}>
                         <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{u.name}</h3>
-                        <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>PIN: {u.pin} · {Object.values(u.permissions).filter(Boolean).length} permissões</p>
+                        <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔒 PIN protegido · {Object.values(u.permissions).filter(Boolean).length} permissões</p>
                       </div>
                       <button onClick={() => setEditUserId(isEditing ? null : u.id)} style={{ padding: "5px 10px", borderRadius: 7, background: T.tabBg, border: `1px solid ${T.tabBorder}`, color: T.textMuted, fontSize: 11, fontWeight: 600 }}>{isEditing ? "Fechar" : "✏️"}</button>
                     </div>
