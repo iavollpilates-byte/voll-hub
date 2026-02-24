@@ -2233,7 +2233,7 @@ export default function VollHub() {
                     return (
                       <div style={{ overflowX: "auto" }}>
                         <table style={{ width: "100%", fontSize: 11, fontFamily: "'Plus Jakarta Sans'", borderCollapse: "collapse" }}>
-                          <thead><tr>{["Nome", "Streak", "Record", "Leituras", "DLs", "Dias"].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 4px", borderBottom: `1px solid ${T.inputBorder}`, color: T.textFaint, fontWeight: 600, fontSize: 10 }}>{h}</th>)}</tr></thead>
+                          <thead><tr>{["Nome", "Streak", "Record", "Leituras", "Materiais", "Dias"].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 4px", borderBottom: `1px solid ${T.inputBorder}`, color: T.textFaint, fontWeight: 600, fontSize: 10 }}>{h}</th>)}</tr></thead>
                           <tbody>{ranked.map((l, i) => <tr key={i}><td style={{ padding: "5px 4px", color: T.text, fontWeight: 600 }}>{l.name?.split(" ")[0]}</td><td style={{ padding: "5px 4px", color: T.gold }}>{l.streak}</td><td style={{ padding: "5px 4px", color: T.accent }}>{l.best}</td><td style={{ padding: "5px 4px", color: T.textMuted }}>{l.reads}</td><td style={{ padding: "5px 4px", color: T.textMuted }}>{l.dls}</td><td style={{ padding: "5px 4px", color: T.textMuted }}>{l.days}</td></tr>)}</tbody>
                         </table>
                       </div>
