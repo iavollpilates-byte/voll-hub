@@ -23,8 +23,16 @@
     <meta name="twitter:description" content="E-books, guias e materiais exclusivos de Pilates." />
     <meta name="twitter:image" content="https://bofbhfsvxfqolpvdtvfz.supabase.co/storage/v1/object/public/reflection-images/og/latest.png" />
 
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#349980" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VOLL Hub" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/foto-rafa.webp" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -41,5 +49,12 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

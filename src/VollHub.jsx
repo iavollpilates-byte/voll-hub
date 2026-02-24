@@ -162,6 +162,13 @@ export default function VollHub() {
       }
     } catch (e) {}
   }, []);
+
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setDeferredInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const setUnlock = (m) => { setUnlockTarget(m); setPreviewImgIdx(0); };
@@ -220,6 +227,8 @@ export default function VollHub() {
   const [gamificationPopup, setGamificationPopup] = useState(null);
   const [gamificationQueue, setGamificationQueue] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
 
   const getStreakRules = () => { try { return config.streakRules ? JSON.parse(config.streakRules) : [{ every: 5, credits: 1, message: "dias seguidos! +1 credito" }, { at: 30, credits: 3, message: "1 mes de dedicacao! +3 creditos" }]; } catch(e) { return []; } };
   const getMilestones = () => { try { return config.milestones ? JSON.parse(config.milestones) : [{ days: 10, title: "10 dias!", message: "Voce e incrivel! Continue assim!", credits: 0 }, { days: 20, title: "20 dias!", message: "Dedicacao de verdade!", credits: 1 }, { days: 30, title: "1 mes!", message: "Que comprometimento!", credits: 2 }, { days: 50, title: "50 dias!", message: "Voce e referencia!", credits: 3 }, { days: 100, title: "100 dias!", message: "Lendario! Poucos chegam aqui!", credits: 5 }]; } catch(e) { return []; } };
@@ -494,6 +503,11 @@ export default function VollHub() {
     }
     setView("hub");
     if (!existing && !localStorage.getItem("vollhub_onboarding_done")) { setShowOnboarding(true); setOnboardingStep(0); }
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+    const visits = existing ? (existing.visits || 0) + 1 : 1;
+    if (visits >= 2 && !isStandalone && !localStorage.getItem("vollhub_install_dismissed") && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      setTimeout(() => setShowInstallGuide(true), 2000);
+    }
     const pr = existing?.phaseResponses || {};
     setPhaseResponses(pr);
     localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr, streak: existing ? { count: existing.streakCount, lastDate: existing.streakLastDate, best: existing.streakBest } : { count: 1, lastDate: todayStr, best: 1 }, totalDays: existing ? existing.totalDays : 1 }));
@@ -2970,24 +2984,6 @@ export default function VollHub() {
           )}
         </div>
 
-        {/* CTA Banner — Dynamic */}
-        {(() => {
-          const b = getBannerContent();
-          return (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 18, background: b.icon === "🔓" ? (theme === "dark" ? "linear-gradient(135deg, #1a1610, #0d1210)" : "linear-gradient(135deg, #fdf0e0, #fdf8f0)") : T.ctaBanBg, border: `1px solid ${b.icon === "🔓" ? T.gold + "33" : T.ctaBanBrd}`, marginTop: 20, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease 0.4s" }}>
-              <span style={{ fontSize: 24 }}>{b.icon}</span>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{b.title}</h3>
-                <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{b.desc}</p>
-              </div>
-              {b.link ? (
-                <a href={b.link} target="_blank" rel="noreferrer" style={{ padding: "7px 14px", borderRadius: 10, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 12, fontWeight: 700, border: "none", whiteSpace: "nowrap", textDecoration: "none" }}>{b.btn}</a>
-              ) : (
-                <button style={{ padding: "7px 14px", borderRadius: 10, background: T.gold + "22", color: T.gold, fontSize: 12, fontWeight: 600, border: `1px solid ${T.gold}33`, whiteSpace: "nowrap" }}>{b.btn}</button>
-              )}
-            </div>
-          );
-        })()}
         <footer style={{ textAlign: "center", padding: "24px 0 8px" }}><a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a></footer>
       </div>
 
@@ -3400,6 +3396,54 @@ export default function VollHub() {
           </div>
         </div>
       )}
+
+      {/* INSTALL PWA GUIDE MODAL */}
+      {showInstallGuide && (() => {
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        const dismiss = (permanent) => { setShowInstallGuide(false); if (permanent) localStorage.setItem("vollhub_install_dismissed", "1"); };
+        const triggerInstall = async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); const { outcome } = await deferredInstallPrompt.userChoice; if (outcome === "accepted") dismiss(true); setDeferredInstallPrompt(null); } };
+        const steps = isIOS ? [
+          { icon: "↑", text: "Toque no botão Compartilhar (quadrado com seta para cima) na barra inferior do Safari" },
+          { icon: "➕", text: "Role para baixo e toque em \"Adicionar à Tela de Início\"" },
+          { icon: "✅", text: "Confirme o nome e toque em \"Adicionar\". Pronto!" },
+        ] : [
+          { icon: "⋮", text: "Toque no menu (3 pontinhos) no canto superior direito do Chrome" },
+          { icon: "📲", text: "Selecione \"Adicionar à tela inicial\" ou \"Instalar app\"" },
+          { icon: "✅", text: "Confirme e pronto! O VOLL Hub aparece como um app" },
+        ];
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 10002, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => dismiss(false)}>
+            <div style={{ position: "absolute", inset: 0, background: "#000000cc", backdropFilter: "blur(6px)" }} />
+            <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: "100%", maxWidth: 380, background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "28px 22px 22px", animation: "fadeInUp 0.4s ease" }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ width: 72, height: 72, borderRadius: 18, background: `linear-gradient(135deg, ${T.accent}22, ${T.accent}08)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}><span style={{ fontSize: 36 }}>📱</span></div>
+                <h2 style={{ fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 6 }}>Instale o VOLL Hub</h2>
+                <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>Acesse mais rápido, direto da tela inicial do seu celular — como um app de verdade!</p>
+              </div>
+
+              {deferredInstallPrompt && isAndroid ? (
+                <button onClick={triggerInstall} style={{ width: "100%", padding: "16px", borderRadius: 14, background: `linear-gradient(135deg, ${T.accent}, #7DE2C7)`, color: "#060a09", fontSize: 15, fontWeight: 700, border: "none", marginBottom: 12 }}>Instalar agora</button>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1 }}>{isIOS ? "No Safari" : "No Chrome"} — 3 passos:</p>
+                  {steps.map((s, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}` }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: T.accent + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{i + 1}</div>
+                      <p style={{ fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{s.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => dismiss(true)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: T.accent + "15", border: `1px solid ${T.accent}33`, color: T.accent, fontSize: 13, fontWeight: 700 }}>Já instalei</button>
+                <button onClick={() => dismiss(false)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 13, fontWeight: 600 }}>Agora não</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* SHARE REFLECTION MODAL */}
       {showShareModal && todayReflection?.quote && (
