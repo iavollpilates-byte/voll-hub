@@ -529,11 +529,16 @@ export default function VollHub() {
       canvas.toBlob(async (blob) => {
         if (!blob) { showT("Erro ao gerar imagem"); setShareGenerating(false); return; }
         const file = new File([blob], "reflexao-do-dia.png", { type: "image/png" });
+        // Try native share (mobile) which can share directly to Instagram Stories
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           try { await navigator.share({ title: todayReflection.quote, files: [file] }); }
-          catch(e) { downloadBlob(blob); }
-        } else { downloadBlob(blob); }
+          catch(e) { /* user cancelled, that's ok */ }
+        } else {
+          // Desktop: download image then prompt
+          downloadBlob(blob);
+        }
         setShareGenerating(false);
+        setShowShareModal(false);
       }, "image/png");
     } catch(e) { console.error(e); showT("Erro ao gerar. Tente novamente."); setShareGenerating(false); }
   };
@@ -543,7 +548,7 @@ export default function VollHub() {
     const a = document.createElement("a"); a.href = url; a.download = "reflexao-do-dia.png";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showT("Imagem salva! Poste no seu Instagram 📸");
+    showT("Imagem salva! Agora abra o Instagram e poste 📸");
   };
 
   // ─── SHARE VIA WHATSAPP (full text + link) ───
@@ -2946,7 +2951,7 @@ export default function VollHub() {
             {/* Action buttons */}
             <div style={{ display: "flex", gap: 10 }}>
               <button disabled={shareGenerating} onClick={() => generateShareImage(shareSelectedStyle)} style={{ flex: 1, padding: "14px", borderRadius: 14, background: shareGenerating ? T.statBg : "linear-gradient(135deg, #349980, #7DE2C7)", border: "none", color: "#060a09", fontSize: 14, fontWeight: 700, cursor: shareGenerating ? "wait" : "pointer" }}>
-                {shareGenerating ? "Gerando..." : "📸 Salvar / Compartilhar"}
+                {shareGenerating ? "Gerando..." : "📸 Compartilhar no Instagram"}
               </button>
               <button onClick={() => { setShowShareModal(false); shareReflectionWhatsApp(); }} style={{ padding: "14px 18px", borderRadius: 14, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>📲</button>
             </div>
