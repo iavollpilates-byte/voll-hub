@@ -40,27 +40,13 @@ const DEFAULT_CONFIG = {
   instagramUrl: "https://instagram.com/rafael.voll", instagramHandle: "@rafael.voll",
   baseUrl: "https://seuapp.com",
   logoUrl: "",
-  // Profile phases
+  // Profile phases (now dynamic via phases table)
   profileEnabled: "true",
-  phase1Title: "Fase 1 · Sobre você", phase1Prize: "🎁 Pack de Exercícios em Vídeo", phase1PrizeUrl: "", phase1Icon: "🎓", phase1Enabled: "true",
-  phase2Title: "Fase 2 · Seu negócio", phase2Prize: "🎁 Guia: Como Montar seu Studio", phase2PrizeUrl: "", phase2Icon: "💼", phase2Enabled: "true",
-  phase3Title: "Fase 3 · Mentoria", phase3Prize: "🎁 Áudio exclusivo de Mentoria", phase3PrizeUrl: "", phase3Icon: "✨", phase3Enabled: "true",
-  // Phase questions (pipe-separated for selects: "opt1|opt2|opt3")
-  phase1Q1Label: "Você é:", phase1Q1Key: "grau", phase1Q1Type: "select", phase1Q1Options: "Estudante|Graduado|Pós-Graduado",
-  phase1Q2Label: "Formação:", phase1Q2Key: "formacao", phase1Q2Type: "select", phase1Q2Options: "Fisioterapia|Educação Física|Enfermagem|Dança|Outros",
-  phase1Q3Label: "Atua com Pilates?", phase1Q3Key: "atuaPilates", phase1Q3Type: "select", phase1Q3Options: "Não|Sim há menos de 1 ano|Sim entre 1 a 3 anos|Sim entre 3 a 5 anos|Sim entre 5 a 8 anos|Sim há mais de 8 anos",
-  phase2Q1Label: "Você tem Studio?", phase2Q1Key: "temStudio", phase2Q1Type: "select", phase2Q1Options: "Não e não pretendo|Não, mas pretendo|Sim",
-  phase2Q2Label: "Qual é o seu maior desafio hoje?", phase2Q2Key: "maiorDesafio", phase2Q2Type: "text", phase2Q2Options: "",
-  phase2Q3Label: "Que tipo de conteúdo te ajudaria mais hoje?", phase2Q3Key: "tipoConteudo", phase2Q3Type: "text", phase2Q3Options: "",
-  phase3Q1Label: "Estamos em uma Mentoria, eu e você. Você pode fazer UMA pergunta pra mim. Qual seria?", phase3Q1Key: "perguntaMentoria", phase3Q1Type: "text", phase3Q1Options: "",
-  phase3Q2Label: "Me diga qual o seu maior Sonho?", phase3Q2Key: "maiorSonho", phase3Q2Type: "text", phase3Q2Options: "",
-  phase3Q3Label: "O profissional do Pilates que você mais admira:", phase3Q3Key: "profAdmira", phase3Q3Type: "text", phase3Q3Options: "",
   // Bio / Linktree
   bioPhotoUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/foto-rafa.webp",
   // Credits system
   creditsEnabled: "true",
   creditsInitial: "3",
-  phase1Credits: "2", phase2Credits: "2", phase3Credits: "2",
   creditsReferral: "2",
   creditsReferralMsg: "Oi! Conheça o Hub de Materiais Gratuitos de Pilates do Rafael Juliano. Tem e-books, guias e vídeos incríveis! Acesse: {link}",
   bioName: "RAFAEL JULIANO",
@@ -131,7 +117,7 @@ export default function VollHub() {
 
   // ─── SUPABASE (must be before anything that uses config) ───
   const db = useSupabase();
-  const { materials, leads, adminUsers, reflections: dbReflections, loading: dbLoading, error: dbError } = db;
+  const { materials, leads, adminUsers, reflections: dbReflections, phases: dbPhases, loading: dbLoading, error: dbError } = db;
   const config = { ...DEFAULT_CONFIG, ...db.config };
 
   // Bio links
@@ -157,6 +143,7 @@ export default function VollHub() {
           setUserName(u.name);
           setUserWhatsApp(u.whatsapp);
           if (u.downloaded) setDownloaded(u.downloaded);
+          if (u.phaseResponses) setPhaseResponses(u.phaseResponses);
           if (u.profile) setUserProfile(u.profile);
           if (u.credits !== undefined) setUserCredits(u.credits);
           if (u.creditsEarned) setUserCreditsEarned(u.creditsEarned);
@@ -290,32 +277,32 @@ export default function VollHub() {
   const [linkCopied, setLinkCopied] = useState(null);
   const spotlightRef = useRef(null);
 
-  // ─── USER PROFILE (3 PHASES) ───
-  const [userProfile, setUserProfile] = useState({ grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1: false, phase2: false, phase3: false });
-  const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
+  // ─── USER PROFILE (DYNAMIC PHASES) ───
+  const [phaseResponses, setPhaseResponses] = useState({});
   const [activePhase, setActivePhase] = useState(null);
   const [phaseStartTime, setPhaseStartTime] = useState(null);
   const [phaseTimer, setPhaseTimer] = useState(0);
   const openPhase = (id) => { setActivePhase(id); setPhaseStartTime(Date.now()); setPhaseTimer(0); };
-  const ALL_PHASES = [1,2,3].map(n => ({
-    id: n,
-    icon: config[`phase${n}Icon`] || ["🎓","💼","✨"][n-1],
-    enabled: config[`phase${n}Enabled`] !== "false",
-    fields: [1,2,3].map(q => {
-      const label = config[`phase${n}Q${q}Label`] || "";
-      const key = config[`phase${n}Q${q}Key`] || "";
-      const type = config[`phase${n}Q${q}Type`] || "text";
-      const optStr = config[`phase${n}Q${q}Options`] || "";
-      const options = type === "select" && optStr ? (Array.isArray(optStr) ? optStr : optStr.split("|").map(s => s.trim()).filter(Boolean)) : [];
-      return { key, label, type, options, placeholder: type === "text" ? "Digite aqui..." : "" };
-    }).filter(f => f.key && f.label),
-  }));
-  const PHASES = ALL_PHASES.filter(p => p.enabled);
-  const isPhaseFieldsComplete = (phaseId) => PHASES.find(p => p.id === phaseId)?.fields.every(f => userProfile[f.key]?.trim()) || false;
-  const isPhaseUnlocked = (phaseId) => userProfile[`phase${phaseId}`];
+  const PHASES = (dbPhases || []).filter(p => p.active);
+  const getPhaseAnswer = (phaseId, qId) => (phaseResponses[String(phaseId)] || {})[qId] || "";
+  const setPhaseAnswer = (phaseId, qId, val) => setPhaseResponses(prev => ({ ...prev, [String(phaseId)]: { ...(prev[String(phaseId)] || {}), [qId]: val } }));
+  const isPhaseFieldsComplete = (phaseId) => {
+    const phase = PHASES.find(p => p.id === phaseId);
+    if (!phase) return false;
+    return phase.questions.every(q => {
+      if (q.required === false) return true;
+      const val = getPhaseAnswer(phaseId, q.id);
+      if (Array.isArray(val)) return val.length > 0;
+      return typeof val === "string" ? val.trim().length > 0 : !!val;
+    });
+  };
+  const isPhaseUnlocked = (phaseId) => !!(phaseResponses[String(phaseId)]?.completed_at);
   const completedPhases = PHASES.filter(p => isPhaseUnlocked(p.id)).length;
   const profileEnabled = config.profileEnabled !== "false";
   const profileComplete = PHASES.length > 0 && completedPhases === PHASES.length;
+  // Backward compat: keep old userProfile for legacy lead columns
+  const [userProfile, setUserProfile] = useState({});
+  const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
 
   const T = THEMES[theme];
 
@@ -356,7 +343,7 @@ export default function VollHub() {
     } else if (vParam === "hub" || vParam === "materiais") {
       try {
         const saved = localStorage.getItem("vollhub_user");
-        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.profile) setUserProfile(u.profile); setView("hub"); } else { setView("landing"); } }
+        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); setView("hub"); } else { setView("landing"); } }
         else { setView("landing"); }
       } catch(e) { setView("landing"); }
     } else if (vParam === "landing" || vParam === "cadastro") {
@@ -425,16 +412,14 @@ export default function VollHub() {
       setUserCredits(existing.credits ?? 3);
       setUserCreditsEarned(existing.creditsEarned || {});
     } else {
-      await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1Complete: false, phase2Complete: false, phase3Complete: false, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {} });
+      await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {} });
       setUserCredits(parseInt(config.creditsInitial) || 3);
     }
     setView("hub");
-    // Show onboarding on first visit
     if (!existing && !localStorage.getItem("vollhub_onboarding_done")) { setShowOnboarding(true); setOnboardingStep(0); }
-    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, profile: existing ? { grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete } : {} }));
-    if (existing) {
-      setUserProfile({ grau: existing.grau || "", formacao: existing.formacao || "", atuaPilates: existing.atuaPilates || "", temStudio: existing.temStudio || "", maiorDesafio: existing.maiorDesafio || "", tipoConteudo: existing.tipoConteudo || "", perguntaMentoria: existing.perguntaMentoria || "", maiorSonho: existing.maiorSonho || "", profAdmira: existing.profAdmira || "", phase1: !!existing.phase1Complete, phase2: !!existing.phase2Complete, phase3: !!existing.phase3Complete });
-    }
+    const pr = existing?.phaseResponses || {};
+    setPhaseResponses(pr);
+    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr }));
   };
   // ─── CREDITS HELPERS ───
   // ─── REFLECTION SHARE (4 Canvas styles) ───
@@ -711,7 +696,7 @@ export default function VollHub() {
     await db.updateMaterial(unlockTarget.id, { unlockType: "free" });
     if (method === "share") {
       const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
-      await db.addLead({ name: refName, whatsapp: refWA, downloads: [], visits: 0, firstVisit: dateStr, lastVisit: dateStr, source: "referral", grau: "", formacao: "", atuaPilates: "", temStudio: "", maiorDesafio: "", tipoConteudo: "", perguntaMentoria: "", maiorSonho: "", profAdmira: "", phase1Complete: false, phase2Complete: false, phase3Complete: false, surveyResponses: {} });
+      await db.addLead({ name: refName, whatsapp: refWA, downloads: [], visits: 0, firstVisit: dateStr, lastVisit: dateStr, source: "referral", phaseResponses: {}, surveyResponses: {} });
     }
     setUnlockTarget(null); setRefName(""); setRefWA(""); showT("Desbloqueado! 🎉");
   };
@@ -1187,7 +1172,7 @@ export default function VollHub() {
         // Check if user is logged in
         try {
           const saved = localStorage.getItem("vollhub_user");
-          if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.profile) setUserProfile(u.profile); setView("hub"); return; } }
+          if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); setView("hub"); return; } }
         } catch(e) {}
         setView("landing");
       } else {
@@ -1484,14 +1469,19 @@ export default function VollHub() {
               </div>
 
               {/* Profile Phase Stats */}
-              <div style={{ display: "flex", gap: 6 }}>
-                {[["🎓 Fase 1", leads.filter(l => l.phase1Complete).length], ["💼 Fase 2", leads.filter(l => l.phase2Complete).length], ["✨ Fase 3", leads.filter(l => l.phase3Complete).length]].map(([label, count]) => (
-                  <div key={label} style={{ flex: 1, background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
-                    <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: T.gold }}>{count}</span>
-                    <span style={{ fontSize: 9, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{label}</span>
-                  </div>
-                ))}
-              </div>
+              {(dbPhases || []).length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(dbPhases || []).map(phase => {
+                    const count = leads.filter(l => l.phaseResponses?.[String(phase.id)]?.completed_at).length;
+                    return (
+                      <div key={phase.id} style={{ flex: 1, minWidth: 70, background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                        <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: T.gold }}>{count}</span>
+                        <span style={{ fontSize: 9, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{phase.icon} {phase.title.slice(0, 15)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Lead Cards */}
               {segmentedLeads.map((l, i) => {
@@ -1656,7 +1646,7 @@ export default function VollHub() {
             const pageViews = parseInt(config.pageViews) || 0;
             const registeredLeads = leads.length;
             const leadsWithDl = leads.filter(l => (l.downloads || []).length > 0).length;
-            const leadsPhase1 = leads.filter(l => l.phase1Complete).length;
+            const leadsPhase1 = leads.filter(l => Object.values(l.phaseResponses || {}).some(r => r.completed_at)).length;
             const regRate = pageViews > 0 ? ((registeredLeads / pageViews) * 100).toFixed(1) : "—";
             const dlRate = registeredLeads > 0 ? ((leadsWithDl / registeredLeads) * 100).toFixed(1) : "—";
 
@@ -1902,32 +1892,71 @@ export default function VollHub() {
                 ["🔗 Links", [["URL Instagram", "instagramUrl"], ["Handle", "instagramHandle"], ["URL base do app", "baseUrl"], ["URL da logo (imagem)", "logoUrl"]]],
               ].map(([title, fields]) => (<div key={title} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>{title}</h3>{fields.map(([l, k, m]) => <CmsField key={k} label={l} ck={k} multi={m} />)}</div>))}
 
-              {/* PROFILE CONFIG */}
+              {/* PROFILE / PHASE BUILDER */}
               <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>📋 Perfil (3 Fases)</h3>
-                  <button onClick={() => updCfg("profileEnabled", config.profileEnabled === "false" ? "true" : "false")} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: config.profileEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.profileEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.profileEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.profileEnabled !== "false" ? "✅ Ativo" : "🚫 Oculto"}</button>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>📋 Fases do Perfil ({(dbPhases || []).length})</h3>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => updCfg("profileEnabled", config.profileEnabled === "false" ? "true" : "false")} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: config.profileEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.profileEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.profileEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.profileEnabled !== "false" ? "✅ Ativo" : "🚫 Oculto"}</button>
+                    <button onClick={async () => { const p = await db.addPhase({ title: `Fase ${(dbPhases || []).length + 1}`, icon: "📋", credits: 2, sortOrder: (dbPhases || []).length, questions: [{ id: "q1", label: "Pergunta 1", type: "text", required: true, options: [] }] }); if (p) showT("Fase criada!"); }} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 11, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Nova fase</button>
+                  </div>
                 </div>
-                {[1,2,3].map(n => (
-                  <div key={n} style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                {(dbPhases || []).map((phase, pi) => (
+                  <div key={phase.id} style={{ background: T.inputBg, border: `1px solid ${phase.active ? T.accent + "33" : T.inputBorder}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: T.gold }}>Fase {n}</p>
-                      <button onClick={() => updCfg(`phase${n}Enabled`, config[`phase${n}Enabled`] === "false" ? "true" : "false")} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: config[`phase${n}Enabled`] !== "false" ? T.accent + "22" : T.dangerBg, color: config[`phase${n}Enabled`] !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config[`phase${n}Enabled`] !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config[`phase${n}Enabled`] !== "false" ? "✅ Visível" : "👁 Oculta"}</button>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>{phase.icon} {phase.title}</p>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {pi > 0 && <button onClick={() => { const prev = dbPhases[pi - 1]; db.updatePhase(phase.id, { sortOrder: prev.sortOrder }); db.updatePhase(prev.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↑</button>}
+                        {pi < dbPhases.length - 1 && <button onClick={() => { const next = dbPhases[pi + 1]; db.updatePhase(phase.id, { sortOrder: next.sortOrder }); db.updatePhase(next.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↓</button>}
+                        <button onClick={() => db.updatePhase(phase.id, { active: !phase.active })} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: phase.active ? T.accent + "22" : T.dangerBg, color: phase.active ? T.accent : T.dangerTxt, border: `1px solid ${phase.active ? T.accent + "44" : T.dangerBrd}` }}>{phase.active ? "✅" : "👁"}</button>
+                        <button onClick={async () => { if (confirm("Excluir esta fase?")) { await db.deletePhase(phase.id); showT("Fase removida!"); } }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
+                      </div>
                     </div>
-                    <CmsField label="Título" ck={`phase${n}Title`} />
-                    <CmsField label="Ícone (emoji)" ck={`phase${n}Icon`} />
-                    <CmsField label="Nome do prêmio" ck={`phase${n}Prize`} />
-                    <CmsField label="🔗 Link do prêmio (PDF, Drive, etc)" ck={`phase${n}PrizeUrl`} />
-                    <p style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, marginTop: 8, marginBottom: 6 }}>Perguntas:</p>
-                    {[1,2,3].map(q => (
-                      <div key={q} style={{ background: T.statBg, borderRadius: 8, padding: 8, marginBottom: 6, border: `1px solid ${T.statBorder}` }}>
-                        <p style={{ fontSize: 9, fontWeight: 700, color: T.textFaint, marginBottom: 4 }}>Pergunta {q}</p>
-                        <CmsField label="Texto da pergunta" ck={`phase${n}Q${q}Label`} />
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-                          <CmsField label="Campo (key)" ck={`phase${n}Q${q}Key`} />
-                          <CmsField label="Tipo (select ou text)" ck={`phase${n}Q${q}Type`} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
+                      <div><label style={{ fontSize: 10, color: T.textFaint }}>Título</label><input defaultValue={phase.title} onBlur={(e) => db.updatePhase(phase.id, { title: e.target.value })} key={"pt-" + phase.id} style={inp} /></div>
+                      <div><label style={{ fontSize: 10, color: T.textFaint }}>Ícone</label><input defaultValue={phase.icon} onBlur={(e) => db.updatePhase(phase.id, { icon: e.target.value })} key={"pi-" + phase.id} style={inp} /></div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
+                      <div><label style={{ fontSize: 10, color: T.textFaint }}>Prêmio</label><input defaultValue={phase.prize} onBlur={(e) => db.updatePhase(phase.id, { prize: e.target.value })} key={"pp-" + phase.id} style={inp} /></div>
+                      <div><label style={{ fontSize: 10, color: T.textFaint }}>Créditos</label><input type="number" defaultValue={phase.credits} onBlur={(e) => db.updatePhase(phase.id, { credits: parseInt(e.target.value) || 2 })} key={"pc-" + phase.id} style={inp} /></div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: T.textFaint }}>Link do prêmio</label><input defaultValue={phase.prizeUrl} onBlur={(e) => db.updatePhase(phase.id, { prizeUrl: e.target.value })} key={"pu-" + phase.id} style={inp} placeholder="https://..." /></div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 6 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: T.textMuted }}>Perguntas ({phase.questions.length})</p>
+                      <button onClick={() => { const qs = [...phase.questions, { id: `q${Date.now()}`, label: "", type: "text", required: true, options: [] }]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44`, fontWeight: 600 }}>＋</button>
+                    </div>
+                    {phase.questions.map((q, qi) => (
+                      <div key={q.id} style={{ background: T.statBg, borderRadius: 8, padding: 8, marginBottom: 6, border: `1px solid ${T.statBorder}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <p style={{ fontSize: 9, fontWeight: 700, color: T.textFaint }}>Pergunta {qi + 1}</p>
+                          <div style={{ display: "flex", gap: 3 }}>
+                            {qi > 0 && <button onClick={() => { const qs = [...phase.questions]; [qs[qi], qs[qi-1]] = [qs[qi-1], qs[qi]]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, background: T.inputBg, color: T.textFaint, border: `1px solid ${T.inputBorder}` }}>↑</button>}
+                            {qi < phase.questions.length - 1 && <button onClick={() => { const qs = [...phase.questions]; [qs[qi], qs[qi+1]] = [qs[qi+1], qs[qi]]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, background: T.inputBg, color: T.textFaint, border: `1px solid ${T.inputBorder}` }}>↓</button>}
+                            <button onClick={() => { const qs = phase.questions.filter((_, i) => i !== qi); db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
+                          </div>
                         </div>
-                        <CmsField label="Opções (separar com |)" ck={`phase${n}Q${q}Options`} />
+                        <div style={{ marginBottom: 4 }}><label style={{ fontSize: 9, color: T.textFaint }}>Texto da pergunta</label><input defaultValue={q.label} onBlur={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], label: e.target.value }; db.updatePhase(phase.id, { questions: qs }); }} key={"ql-" + q.id} style={{ ...inp, fontSize: 12 }} /></div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 4 }}>
+                          <div><label style={{ fontSize: 9, color: T.textFaint }}>Tipo</label>
+                            <select defaultValue={q.type} onChange={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], type: e.target.value }; db.updatePhase(phase.id, { questions: qs }); }} key={"qt-" + q.id} style={{ ...inp, fontSize: 11 }}>
+                              <option value="text">Texto curto</option>
+                              <option value="textarea">Texto longo</option>
+                              <option value="select">Seleção única</option>
+                              <option value="multiselect">Múltipla escolha</option>
+                              <option value="scale">Escala 1-5</option>
+                            </select>
+                          </div>
+                          <div><label style={{ fontSize: 9, color: T.textFaint }}>Obrigatória</label>
+                            <select defaultValue={q.required !== false ? "true" : "false"} onChange={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], required: e.target.value === "true" }; db.updatePhase(phase.id, { questions: qs }); }} style={{ ...inp, fontSize: 11 }}>
+                              <option value="true">Sim</option>
+                              <option value="false">Não</option>
+                            </select>
+                          </div>
+                        </div>
+                        {(q.type === "select" || q.type === "multiselect") && (
+                          <div><label style={{ fontSize: 9, color: T.textFaint }}>Opções (separar com |)</label><input defaultValue={(q.options || []).join(" | ")} onBlur={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], options: e.target.value.split("|").map(s => s.trim()).filter(Boolean) }; db.updatePhase(phase.id, { questions: qs }); }} key={"qo-" + q.id} style={{ ...inp, fontSize: 11 }} placeholder="Opção 1 | Opção 2 | Opção 3" /></div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2071,13 +2100,7 @@ export default function VollHub() {
                     <CmsField label="Msg indicação WhatsApp ({link} = URL)" configKey="creditsReferralMsg" />
                   </div>
 
-                  {/* Per-phase credits */}
-                  <h4 style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginTop: 12, marginBottom: 6 }}>📋 Créditos por fase do perfil</h4>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                    <CmsField label="Fase 1" configKey="phase1Credits" />
-                    <CmsField label="Fase 2" configKey="phase2Credits" />
-                    <CmsField label="Fase 3" configKey="phase3Credits" />
-                  </div>
+                  <p style={{ fontSize: 10, color: T.textFaint, marginTop: 8, fontFamily: "'Plus Jakarta Sans'" }}>Créditos por fase: configure em cada fase no builder acima.</p>
                 </div>
 
                 {/* Instagram Posts */}
@@ -2396,17 +2419,15 @@ export default function VollHub() {
     const validatePhaseText = (phaseId) => {
       const phase = PHASES.find(p => p.id === phaseId);
       if (!phase) return null;
-      for (const f of phase.fields) {
-        if (f.type === "text") {
-          const val = (userProfile[f.key] || "").trim();
-          if (val.length < MIN_TEXT_LEN) return `"${f.label.slice(0, 30)}..." precisa ter pelo menos ${MIN_TEXT_LEN} caracteres.`;
-          // Check if all chars are the same
-          if (new Set(val.replace(/\s/g, "")).size <= 2) return `Resposta inválida em "${f.label.slice(0, 30)}..."`;
+      for (const q of phase.questions) {
+        if (q.type === "text" || q.type === "textarea") {
+          const val = (getPhaseAnswer(phaseId, q.id) || "").trim();
+          if (q.required !== false && val.length < MIN_TEXT_LEN) return `"${q.label.slice(0, 30)}..." precisa ter pelo menos ${MIN_TEXT_LEN} caracteres.`;
+          if (val && new Set(val.replace(/\s/g, "")).size <= 2) return `Resposta inválida em "${q.label.slice(0, 30)}..."`;
         }
       }
-      // Check duplicates across text fields
-      const textVals = phase.fields.filter(f => f.type === "text").map(f => (userProfile[f.key] || "").trim().toLowerCase());
-      if (textVals.length > 1 && new Set(textVals).size === 1 && textVals[0]) return "As respostas não podem ser todas iguais.";
+      const textVals = phase.questions.filter(q => q.type === "text" || q.type === "textarea").map(q => (getPhaseAnswer(phaseId, q.id) || "").trim().toLowerCase()).filter(Boolean);
+      if (textVals.length > 1 && new Set(textVals).size === 1) return "As respostas não podem ser todas iguais.";
       return null;
     };
 
@@ -2414,29 +2435,23 @@ export default function VollHub() {
       if (!isPhaseFieldsComplete(phaseId)) return showT("Preencha todos os campos!");
       const textErr = validatePhaseText(phaseId);
       if (textErr) return showT(textErr);
-      const newProfile = { ...userProfile, [`phase${phaseId}`]: true };
-      setUserProfile(newProfile);
-      // Save to localStorage
+      const newResponses = { ...phaseResponses, [String(phaseId)]: { ...(phaseResponses[String(phaseId)] || {}), completed_at: new Date().toISOString().slice(0, 10) } };
+      setPhaseResponses(newResponses);
       try {
         const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}");
-        saved.profile = newProfile;
+        saved.phaseResponses = newResponses;
         localStorage.setItem("vollhub_user", JSON.stringify(saved));
       } catch(e) {}
-      // Save to lead in Supabase
       const lead = await db.findLeadByWhatsApp(userWhatsApp);
       if (lead) {
+        await db.updateLead(lead.id, { phaseResponses: newResponses });
         const phase = PHASES.find(p2 => p2.id === phaseId);
-        const updates = {};
-        phase.fields.forEach(f => { updates[f.key] = userProfile[f.key]; });
-        updates[`phase${phaseId}Complete`] = true;
-        await db.updateLead(lead.id, updates);
-        // Earn credits for phase completion
-        const creditsPerPhase = parseInt(config[`phase${phaseId}Credits`]) || 2;
+        const creditsPerPhase = phase?.credits || 2;
         await earnCredits(creditsPerPhase, `phase${phaseId}`);
       }
       setActivePhase(null);
-      const creditsPerPhase2 = parseInt(config[`phase${phaseId}Credits`]) || 2;
-      showT(`🎉 Fase ${phaseId} completa! +${creditsPerPhase2} créditos!`);
+      const phase = PHASES.find(p2 => p2.id === phaseId);
+      showT(`🎉 ${phase?.title || "Fase"} completa! +${phase?.credits || 2} créditos!`);
     };
 
     return (
@@ -2469,27 +2484,43 @@ export default function VollHub() {
           {/* Active Phase Form */}
           {activePhase && (() => {
             const phase = PHASES.find(p => p.id === activePhase);
-            const phaseTitle = config[`phase${activePhase}Title`] || `Fase ${activePhase}`;
+            if (!phase) return null;
             return (
               <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}33`, borderRadius: 18, padding: "20px 18px", marginBottom: 16, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease 0.1s" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{phase.icon} {phaseTitle}</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{phase.icon} {phase.title}</h3>
                   <button onClick={() => setActivePhase(null)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
                 </div>
-                {phase.fields.map((f, i) => (
-                  <div key={f.key} style={{ marginBottom: 14, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateX(0)" : "translateX(-15px)", transition: `all 0.3s ease ${i * 0.08}s` }}>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.4 }}>{f.label}</label>
-                    {f.type === "select" ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {f.options.map(opt => (
-                          <button key={opt} onClick={() => updProfile(f.key, opt)} style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: userProfile[f.key] === opt ? T.accent + "22" : T.inputBg, color: userProfile[f.key] === opt ? T.accent : T.textMuted, border: `1.5px solid ${userProfile[f.key] === opt ? T.accent : T.inputBorder}`, transition: "all 0.2s", fontFamily: "'Plus Jakarta Sans'" }}>{opt}</button>
-                        ))}
-                      </div>
-                    ) : (
-                      <textarea value={userProfile[f.key] || ""} onChange={(e) => updProfile(f.key, e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${userProfile[f.key]?.trim() ? T.accent + "44" : T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", minHeight: 60, resize: "vertical" }} placeholder={f.placeholder} />
-                    )}
-                  </div>
-                ))}
+                {phase.questions.map((q, i) => {
+                  const val = getPhaseAnswer(phase.id, q.id);
+                  return (
+                    <div key={q.id} style={{ marginBottom: 14, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateX(0)" : "translateX(-15px)", transition: `all 0.3s ease ${i * 0.08}s` }}>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.4 }}>{q.label}{q.required === false ? "" : " *"}</label>
+                      {q.type === "select" ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {(q.options || []).map(opt => (
+                            <button key={opt} onClick={() => setPhaseAnswer(phase.id, q.id, opt)} style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: val === opt ? T.accent + "22" : T.inputBg, color: val === opt ? T.accent : T.textMuted, border: `1.5px solid ${val === opt ? T.accent : T.inputBorder}`, transition: "all 0.2s", fontFamily: "'Plus Jakarta Sans'" }}>{opt}</button>
+                          ))}
+                        </div>
+                      ) : q.type === "multiselect" ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {(q.options || []).map(opt => {
+                            const selected = Array.isArray(val) && val.includes(opt);
+                            return <button key={opt} onClick={() => { const arr = Array.isArray(val) ? [...val] : []; if (selected) setPhaseAnswer(phase.id, q.id, arr.filter(v => v !== opt)); else setPhaseAnswer(phase.id, q.id, [...arr, opt]); }} style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: selected ? T.accent + "22" : T.inputBg, color: selected ? T.accent : T.textMuted, border: `1.5px solid ${selected ? T.accent : T.inputBorder}`, transition: "all 0.2s", fontFamily: "'Plus Jakarta Sans'" }}>{selected ? "✓ " : ""}{opt}</button>;
+                          })}
+                        </div>
+                      ) : q.type === "scale" ? (
+                        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                          {[1,2,3,4,5].map(n => (
+                            <button key={n} onClick={() => setPhaseAnswer(phase.id, q.id, String(n))} style={{ width: 44, height: 44, borderRadius: 12, fontSize: 16, fontWeight: 700, background: val === String(n) ? T.accent + "22" : T.inputBg, color: val === String(n) ? T.accent : T.textMuted, border: `2px solid ${val === String(n) ? T.accent : T.inputBorder}`, transition: "all 0.2s" }}>{n}</button>
+                          ))}
+                        </div>
+                      ) : (
+                        <textarea value={val || ""} onChange={(e) => setPhaseAnswer(phase.id, q.id, e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${val?.trim() ? T.accent + "44" : T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", minHeight: q.type === "textarea" ? 90 : 60, resize: "vertical" }} placeholder="Digite aqui..." />
+                      )}
+                    </div>
+                  );
+                })}
                 {(() => {
                   const timeLeft = Math.max(0, PHASE_TIMER - phaseTimer);
                   const canSubmit = isPhaseFieldsComplete(activePhase) && timeLeft === 0;
@@ -2507,20 +2538,18 @@ export default function VollHub() {
                 const unlocked = isPhaseUnlocked(phase.id);
                 const phaseIdx = PHASES.findIndex(p => p.id === phase.id);
                 const canStart = phaseIdx === 0 || isPhaseUnlocked(PHASES[phaseIdx - 1]?.id);
-                const prize = config[`phase${phase.id}Prize`] || `Prêmio Fase ${phase.id}`;
-                const prizeUrl = config[`phase${phase.id}PrizeUrl`] || "";
                 return (
                   <div key={phase.id} onClick={() => { if (!unlocked && canStart) openPhase(phase.id); }} style={{ background: unlocked ? T.dlBg : canStart ? T.cardBg : T.statBg, border: `1px solid ${unlocked ? T.accent + "44" : canStart ? T.cardBorder : T.statBorder}`, borderRadius: 16, padding: "16px 18px", cursor: unlocked ? "default" : canStart ? "pointer" : "default", opacity: animateIn ? (canStart || unlocked ? 1 : 0.5) : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.4s ease ${i * 0.1}s` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: unlocked ? T.accent + "22" : canStart ? T.gold + "15" : T.statBg, border: `1px solid ${unlocked ? T.accent + "44" : canStart ? T.gold + "33" : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{unlocked ? "✅" : phase.icon}</div>
                       <div style={{ flex: 1 }}>
-                        <h4 style={{ fontSize: 14, fontWeight: 700, color: unlocked ? T.accent : canStart ? T.text : T.textFaint }}>{config[`phase${phase.id}Title`] || `Fase ${phase.id}`}</h4>
-                        <p style={{ fontSize: 12, color: unlocked ? T.accent : T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{unlocked ? `✅ ${prize}` : canStart ? `🎁 Prêmio: ${prize}` : "🔒 Complete a fase anterior"}</p>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: unlocked ? T.accent : canStart ? T.text : T.textFaint }}>{phase.title}</h4>
+                        <p style={{ fontSize: 12, color: unlocked ? T.accent : T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{unlocked ? `✅ ${phase.prize || "Completo!"}` : canStart ? `🎁 Prêmio: ${phase.prize || "Créditos"}` : "🔒 Complete a fase anterior"}</p>
                       </div>
                       {!unlocked && canStart && <span style={{ fontSize: 14, color: T.gold, fontWeight: 700 }}>→</span>}
                     </div>
-                    {unlocked && prizeUrl && (
-                      <a href={prizeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: "block", width: "100%", padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, textAlign: "center", textDecoration: "none", marginTop: 10 }}>📥 Baixar prêmio</a>
+                    {unlocked && phase.prizeUrl && (
+                      <a href={phase.prizeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: "block", width: "100%", padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, textAlign: "center", textDecoration: "none", marginTop: 10 }}>📥 Baixar prêmio</a>
                     )}
                   </div>
                 );
@@ -2555,7 +2584,7 @@ export default function VollHub() {
               {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
             </button>}
             <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
-            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
+            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
             {creditsEnabled && <div style={{ position: "relative" }}><button onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>
               {showCreditTooltip && <div style={{ position: "absolute", top: 44, right: 0, width: 260, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.3s ease" }}>

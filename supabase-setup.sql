@@ -116,6 +116,25 @@ create policy "public_leads" on leads for all using (true) with check (true);
 create policy "public_admin_users" on admin_users for all using (true) with check (true);
 create policy "public_config" on config for all using (true) with check (true);
 
+alter table phases enable row level security;
+create policy "public_phases" on phases for all using (true) with check (true);
+
+-- 5. FASES DINÂMICAS (builder de perfil)
+create table if not exists phases (
+  id bigint generated always as identity primary key,
+  title text not null,
+  icon text default '📋',
+  prize text default '',
+  prize_url text default '',
+  credits integer default 2,
+  sort_order integer default 0,
+  active boolean default true,
+  questions jsonb default '[]',
+  created_at timestamptz default now()
+);
+
+alter table leads add column if not exists phase_responses jsonb default '{}';
+
 -- ═══════════════════════════════════════════════
 -- STORAGE: Bucket para imagens de reflexão
 -- ═══════════════════════════════════════════════

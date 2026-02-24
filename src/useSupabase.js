@@ -29,16 +29,32 @@ const matToDb = (m) => ({
   funnel: m.funnel || null,
 })
 
-const leadFromDb = (r) => ({
-  id: r.id, name: r.name, whatsapp: r.whatsapp, downloads: r.downloads || [],
-  visits: r.visits, firstVisit: r.first_visit, lastVisit: r.last_visit, source: r.source,
-  city: r.city, role: r.role, studioName: r.studio_name, studentsCount: r.students_count,
-  goals: r.goals, surveyResponses: r.survey_responses || {},
-  grau: r.grau || '', formacao: r.formacao || '', atuaPilates: r.atua_pilates || '',
-  temStudio: r.tem_studio || '', maiorDesafio: r.maior_desafio || '', tipoConteudo: r.tipo_conteudo || '',
-  perguntaMentoria: r.pergunta_mentoria || '', maiorSonho: r.maior_sonho || '', profAdmira: r.prof_admira || '',
-  phase1Complete: !!r.phase1_complete, phase2Complete: !!r.phase2_complete, phase3Complete: !!r.phase3_complete,
-  credits: r.credits ?? 3, creditsEarned: r.credits_earned || {},
+const leadFromDb = (r) => {
+  let pr = r.phase_responses || {}
+  // Backward compat: migrate old phase columns into phaseResponses if empty
+  if (Object.keys(pr).length === 0 && (r.phase1_complete || r.phase2_complete || r.phase3_complete)) {
+    if (r.phase1_complete) pr["1"] = { q1: r.grau || '', q2: r.formacao || '', q3: r.atua_pilates || '', completed_at: r.last_visit || 'migrated' }
+    if (r.phase2_complete) pr["2"] = { q1: r.tem_studio || '', q2: r.maior_desafio || '', q3: r.tipo_conteudo || '', completed_at: r.last_visit || 'migrated' }
+    if (r.phase3_complete) pr["3"] = { q1: r.pergunta_mentoria || '', q2: r.maior_sonho || '', q3: r.prof_admira || '', completed_at: r.last_visit || 'migrated' }
+  }
+  return {
+    id: r.id, name: r.name, whatsapp: r.whatsapp, downloads: r.downloads || [],
+    visits: r.visits, firstVisit: r.first_visit, lastVisit: r.last_visit, source: r.source,
+    city: r.city, role: r.role, studioName: r.studio_name, studentsCount: r.students_count,
+    goals: r.goals, surveyResponses: r.survey_responses || {},
+    grau: r.grau || '', formacao: r.formacao || '', atuaPilates: r.atua_pilates || '',
+    temStudio: r.tem_studio || '', maiorDesafio: r.maior_desafio || '', tipoConteudo: r.tipo_conteudo || '',
+    perguntaMentoria: r.pergunta_mentoria || '', maiorSonho: r.maior_sonho || '', profAdmira: r.prof_admira || '',
+    phase1Complete: !!r.phase1_complete, phase2Complete: !!r.phase2_complete, phase3Complete: !!r.phase3_complete,
+    phaseResponses: pr,
+    credits: r.credits ?? 3, creditsEarned: r.credits_earned || {},
+  }
+}
+
+const phaseFromDb = (r) => ({
+  id: r.id, title: r.title, icon: r.icon || '📋', prize: r.prize || '', prizeUrl: r.prize_url || '',
+  credits: r.credits ?? 2, sortOrder: r.sort_order ?? 0, active: r.active !== false,
+  questions: r.questions || [], createdAt: r.created_at,
 })
 
 const leadToDb = (l) => ({
@@ -51,6 +67,7 @@ const leadToDb = (l) => ({
   tem_studio: l.temStudio || '', maior_desafio: l.maiorDesafio || '', tipo_conteudo: l.tipoConteudo || '',
   pergunta_mentoria: l.perguntaMentoria || '', maior_sonho: l.maiorSonho || '', prof_admira: l.profAdmira || '',
   phase1_complete: !!l.phase1Complete, phase2_complete: !!l.phase2Complete, phase3_complete: !!l.phase3Complete,
+  phase_responses: l.phaseResponses || {},
   credits: l.credits ?? 3, credits_earned: l.creditsEarned || {},
 })
 
@@ -65,6 +82,7 @@ export function useSupabase() {
   const [adminUsers, setAdminUsers] = useState([])
   const [config, setConfig] = useState({})
   const [reflections, setReflections] = useState([])
+  const [phases, setPhases] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -72,12 +90,13 @@ export function useSupabase() {
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
-      const [matRes, leadRes, adminRes, cfgRes, refRes] = await Promise.all([
+      const [matRes, leadRes, adminRes, cfgRes, refRes, phaseRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('leads').select('*').order('created_at', { ascending: false }),
         supabase.from('admin_users').select('*').order('created_at', { ascending: true }),
         supabase.from('config').select('*'),
         supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
+        supabase.from('phases').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       ])
       if (matRes.error) throw matRes.error
       if (leadRes.error) throw leadRes.error
@@ -88,6 +107,7 @@ export function useSupabase() {
       setLeads((leadRes.data || []).map(leadFromDb))
       setAdminUsers((adminRes.data || []).filter(u => u.role !== 'master').map(adminFromDb))
       setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
+      setPhases((phaseRes.data || []).map(phaseFromDb))
 
       const cfgObj = {}
       ;(cfgRes.data || []).forEach(r => { cfgObj[r.key] = r.value })
@@ -161,6 +181,7 @@ export function useSupabase() {
       temStudio: 'tem_studio', maiorDesafio: 'maior_desafio', tipoConteudo: 'tipo_conteudo',
       perguntaMentoria: 'pergunta_mentoria', maiorSonho: 'maior_sonho', profAdmira: 'prof_admira',
       phase1Complete: 'phase1_complete', phase2Complete: 'phase2_complete', phase3Complete: 'phase3_complete',
+      phaseResponses: 'phase_responses',
       credits: 'credits', creditsEarned: 'credits_earned',
     }
     Object.entries(updates).forEach(([k, v]) => {
@@ -247,6 +268,33 @@ export function useSupabase() {
     return true
   }
 
+  // ─── PHASES ───
+  const addPhase = async (phase) => {
+    const row = { title: phase.title, icon: phase.icon || '📋', prize: phase.prize || '', prize_url: phase.prizeUrl || '', credits: phase.credits ?? 2, sort_order: phase.sortOrder ?? 0, active: phase.active !== false, questions: phase.questions || [] }
+    const { data, error } = await supabase.from('phases').insert(row).select().single()
+    if (error) { console.error(error); return null }
+    const newPhase = phaseFromDb(data)
+    setPhases(p => [...p, newPhase].sort((a, b) => a.sortOrder - b.sortOrder))
+    return newPhase
+  }
+
+  const updatePhase = async (id, updates) => {
+    const dbUpdates = {}
+    const keyMap = { title: 'title', icon: 'icon', prize: 'prize', prizeUrl: 'prize_url', credits: 'credits', sortOrder: 'sort_order', active: 'active', questions: 'questions' }
+    Object.entries(updates).forEach(([k, v]) => { if (keyMap[k]) dbUpdates[keyMap[k]] = v })
+    const { error } = await supabase.from('phases').update(dbUpdates).eq('id', id)
+    if (error) { console.error(error); return false }
+    setPhases(p => p.map(ph => ph.id === id ? { ...ph, ...updates } : ph).sort((a, b) => a.sortOrder - b.sortOrder))
+    return true
+  }
+
+  const deletePhase = async (id) => {
+    const { error } = await supabase.from('phases').delete().eq('id', id)
+    if (error) { console.error(error); return false }
+    setPhases(p => p.filter(ph => ph.id !== id))
+    return true
+  }
+
   // ─── CONFIG ───
   const updateConfig = async (key, value) => {
     const { error } = await supabase.from('config').upsert({ key, value: String(value), updated_at: new Date().toISOString() })
@@ -284,9 +332,9 @@ export function useSupabase() {
 
   return {
     // State
-    materials, leads, adminUsers, config, reflections, loading, error,
+    materials, leads, adminUsers, config, reflections, phases, loading, error,
     // Setters (for local-only updates like optimistic UI)
-    setMaterials, setLeads,
+    setMaterials, setLeads, setPhases,
     // Materials
     addMaterial, updateMaterial, deleteMaterial,
     // Leads
@@ -295,6 +343,8 @@ export function useSupabase() {
     authenticateAdmin, addAdminUser, updateAdminUser, deleteAdminUser,
     // Reflections
     addReflection, updateReflection, deleteReflection, likeReflection,
+    // Phases
+    addPhase, updatePhase, deletePhase,
     // Storage
     uploadReflectionImage,
     // Config
