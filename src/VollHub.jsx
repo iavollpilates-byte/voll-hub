@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useSupabase } from "./useSupabase";
 import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, PERM_LABELS, THEMES } from "./constants";
-import { getUnlockLabel, timeAgo, fmtWA, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
+import { getUnlockLabel, timeAgo, fmtWA, normalizeWhatsApp, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
 import { REFLECTION_STYLES, drawReflectionCanvas, getPreviewDataUrl, wrapCanvasText } from "./canvasUtils";
 
 const AdminPanel = lazy(() => import("./components/AdminPanel"));
@@ -27,6 +27,7 @@ export default function VollHub() {
 
   const [userName, setUserName] = useState("");
   const [userWhatsApp, setUserWhatsApp] = useState("");
+  const [souDeForaDoBrasil, setSouDeForaDoBrasil] = useState(false);
   const [downloaded, setDownloaded] = useState([]);
   // Auto-login from localStorage (restore user data but stay on linktree)
   useEffect(() => {
@@ -354,16 +355,26 @@ export default function VollHub() {
 
   const formatCountdown = (target) => fmtCountdown(target, now);
   const isUrgent = (target) => checkUrgent(target, now);
-  const waDigitsCount = userWhatsApp.replace(/\D/g, "").length;
+  const waDigits = userWhatsApp.replace(/\D/g, "");
+  const waDigitsCount = waDigits.length;
+  const waValidBR = waDigits.length === 11 && waDigits[2] === "9" && parseInt(waDigits.slice(0, 2)) >= 11 && parseInt(waDigits.slice(0, 2)) <= 99;
+  const waNormalizedIntl = normalizeWhatsApp(userWhatsApp, true);
+  const waValidIntl = waNormalizedIntl.length >= 10 && waNormalizedIntl.length <= 15;
   const handleLogin = async () => {
     if (!userName.trim() || !userWhatsApp.trim()) return showT("Preencha todos os campos!");
-    const waDigits = userWhatsApp.replace(/\D/g, "");
-    if (waDigits.length !== 11) return showT("WhatsApp deve ter DDD (2 dígitos) + número (9 dígitos)");
-    if (waDigits[2] !== "9") return showT("Número de celular deve começar com 9 após o DDD");
-    const ddd = parseInt(waDigits.slice(0, 2));
-    if (ddd < 11 || ddd > 99) return showT("DDD inválido");
-    // Check if lead exists, update visits; else create
-    const existing = await db.findLeadByWhatsApp(userWhatsApp);
+    let whatsappToUse = userWhatsApp;
+    if (souDeForaDoBrasil) {
+      const norm = normalizeWhatsApp(userWhatsApp, true);
+      if (norm.length < 10 || norm.length > 15) return showT("Informe o número com código do país (ex.: +34 612 345 678)");
+      whatsappToUse = norm;
+    } else {
+      if (waDigits.length !== 11) return showT("WhatsApp deve ter DDD (2 dígitos) + número (9 dígitos)");
+      if (waDigits[2] !== "9") return showT("Número de celular deve começar com 9 após o DDD");
+      const ddd = parseInt(waDigits.slice(0, 2));
+      if (ddd < 11 || ddd > 99) return showT("DDD inválido");
+      whatsappToUse = normalizeWhatsApp(userWhatsApp, false) || ("55" + waDigits);
+    }
+    const existing = await db.findLeadByWhatsApp(whatsappToUse);
     const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
     if (existing) {
       const ok = await db.updateLead(existing.id, { visits: (existing.visits || 0) + 1, lastVisit: dateStr, name: userName });
@@ -374,7 +385,7 @@ export default function VollHub() {
       setReflectionsRead(existing.reflectionsRead || []);
       processGamification(existing);
     } else {
-      const created = await db.addLead({ name: userName, whatsapp: userWhatsApp, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {}, streakCount: 1, streakLastDate: todayStr, streakBest: 1, totalDays: 1, reflectionsRead: [], milestonesAchieved: [] });
+      const created = await db.addLead({ name: userName, whatsapp: whatsappToUse, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {}, streakCount: 1, streakLastDate: todayStr, streakBest: 1, totalDays: 1, reflectionsRead: [], milestonesAchieved: [] });
       if (!created) { showT("Erro ao criar cadastro. Verifique sua conexão e tente novamente."); return; }
       setUserCredits(parseInt(config.creditsInitial) || 3);
       setStreak({ count: 1, lastDate: todayStr, best: 1 });
@@ -389,7 +400,7 @@ export default function VollHub() {
     }
     const pr = existing?.phaseResponses || {};
     setPhaseResponses(pr);
-    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr, streak: existing ? { count: existing.streakCount, lastDate: existing.streakLastDate, best: existing.streakBest } : { count: 1, lastDate: todayStr, best: 1 }, totalDays: existing ? existing.totalDays : 1 }));
+    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: whatsappToUse, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr, streak: existing ? { count: existing.streakCount, lastDate: existing.streakLastDate, best: existing.streakBest } : { count: 1, lastDate: todayStr, best: 1 }, totalDays: existing ? existing.totalDays : 1 }));
   };
   // ─── CREDITS HELPERS ───
   // ─── REFLECTION SHARE (uses canvasUtils.js) ───
@@ -821,7 +832,7 @@ export default function VollHub() {
   // LINKTREE (Bio Page)
   // ═══════════════════════════════════════
   if (view === "linktree") {
-    const activeLinks = bioLinks.filter(l => l.active);
+    const activeLinks = bioLinks.filter(l => l.active && l.id !== "board" && l.id !== "calendario" && l.title !== "Board" && l.title !== "Calendário");
     const handleLinkClick = (link) => {
       // Track click
       const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
@@ -952,7 +963,8 @@ export default function VollHub() {
           )}
 
           <div style={{ width: "100%", marginBottom: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.nameLabel}</label><input style={inp} placeholder={config.namePlaceholder} value={userName} onChange={(e) => setUserName(e.target.value)} /></div>
-          <div style={{ width: "100%", marginBottom: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.whatsLabel}</label><input style={inp} type="tel" placeholder="(19) 99921-4116" value={userWhatsApp} onChange={(e) => setUserWhatsApp(fmtWA(e.target.value))} /><p style={{ fontSize: 10, color: waDigitsCount === 11 ? T.accent : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>{waDigitsCount === 11 ? "✅ Número válido" : `(DDD) 9XXXX-XXXX · ${waDigitsCount}/11 dígitos`}</p></div>
+          <div style={{ width: "100%", marginBottom: 8 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.whatsLabel}</label><input style={inp} type="tel" placeholder={souDeForaDoBrasil ? "+34 612 345 678" : "(19) 99921-4116"} value={userWhatsApp} onChange={(e) => setUserWhatsApp(fmtWA(e.target.value, souDeForaDoBrasil))} /><p style={{ fontSize: 10, color: (souDeForaDoBrasil ? waValidIntl : waValidBR) ? T.accent : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>{souDeForaDoBrasil ? (waValidIntl ? "✅ Número válido" : `Código do país + número (${waDigitsCount}/10-15 dígitos)`) : (waValidBR ? "✅ Número válido" : `(DDD) 9XXXX-XXXX · ${waDigitsCount}/11 dígitos`)}</p></div>
+          <button type="button" onClick={() => setSouDeForaDoBrasil((b) => !b)} style={{ background: "none", color: T.textFaint, fontSize: 11, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'", textDecoration: "underline", padding: 0 }}>{souDeForaDoBrasil ? "Usar número brasileiro" : "Sou de fora do Brasil"}</button>
           <button onClick={handleLogin} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 16, fontWeight: 700, marginTop: 6, boxShadow: "0 4px 20px #34998033" }}>{dlMat ? `Baixar "${dlMat.title}" →` : config.ctaText}</button>
           <p style={{ fontSize: 11, color: T.textFaint, marginTop: 14, fontFamily: "'Plus Jakarta Sans'" }}>{config.safeText}</p>
           <button onClick={() => setView("linktree")} style={{ background: "none", color: T.accent, fontSize: 13, marginTop: 12, fontFamily: "'Plus Jakarta Sans'", fontWeight: 600 }}>← Voltar</button>

@@ -97,7 +97,7 @@ export default function AdminPanel({
   }, [leads]);
 
   // ─── WHATSAPP HELPERS ───
-  const waNumber = (wa) => "55" + wa.replace(/\D/g, "");
+  const waNumber = (wa) => { const d = (wa || "").replace(/\D/g, ""); return d.length === 11 ? "55" + d : d; };
   const openWA = (l, msg) => { const text = (msg || bulkMsg).replace("{nome}", l.name.split(" ")[0]); window.open(`https://wa.me/${waNumber(l.whatsapp)}?text=${encodeURIComponent(text)}`, "_blank"); };
   const exportCSV = (leadsArr) => {
     const matCols = materials.filter((m) => m.active).map((m) => m.title);

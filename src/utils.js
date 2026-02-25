@@ -18,8 +18,27 @@ export function timeAgo(ts) {
   return "";
 }
 
-export function fmtWA(v) {
-  const n = v.replace(/\D/g, "").slice(0, 11);
+/** Normaliza para E.164: só dígitos. BR (10-11 dígitos) vira 55+número; internacional 10-15 dígitos. */
+export function normalizeWhatsApp(value, isInternational = false) {
+  const digits = (value || "").replace(/\D/g, "");
+  if (digits.length === 0) return "";
+  if (isInternational || digits.length > 11) {
+    const d = digits.slice(0, 15);
+    return d.length >= 10 && d.length <= 15 ? d : "";
+  }
+  if (digits.length === 10 || digits.length === 11) return "55" + digits;
+  return "";
+}
+
+export function fmtWA(v, isInternational = false) {
+  const raw = (v || "").replace(/\D/g, "");
+  if (isInternational) {
+    const n = raw.slice(0, 15);
+    if (n.length === 0) return "";
+    if (n.length <= 3) return "+" + n;
+    return "+" + n.match(/.{1,3}/g).join(" ").trim();
+  }
+  const n = raw.slice(0, 11);
   if (n.length <= 2) return n;
   if (n.length <= 7) return `(${n.slice(0, 2)}) ${n.slice(2)}`;
   return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`;

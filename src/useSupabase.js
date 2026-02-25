@@ -280,8 +280,20 @@ export function useSupabase() {
   }
 
   const findLeadByWhatsApp = async (wa) => {
-    const { data } = await supabase.from('leads').select('*').eq('whatsapp', wa).limit(1)
-    return data && data.length > 0 ? leadFromDb(data[0]) : null
+    const digits = String(wa).replace(/\D/g, '')
+    let { data } = await supabase.from('leads').select('*').eq('whatsapp', wa).limit(1)
+    if (data && data.length > 0) return leadFromDb(data[0])
+    if (digits.length === 13 && digits.startsWith('55')) {
+      const { data: data2 } = await supabase.from('leads').select('*').eq('whatsapp', digits.slice(2)).limit(1)
+      if (data2 && data2.length > 0) return leadFromDb(data2)
+      const { data: data3 } = await supabase.from('leads').select('*').eq('whatsapp', digits).limit(1)
+      if (data3 && data3.length > 0) return leadFromDb(data3[0])
+    }
+    if (digits.length === 11) {
+      const { data: data4 } = await supabase.from('leads').select('*').eq('whatsapp', '55' + digits).limit(1)
+      if (data4 && data4.length > 0) return leadFromDb(data4[0])
+    }
+    return null
   }
 
   // ─── REFLECTIONS ───
