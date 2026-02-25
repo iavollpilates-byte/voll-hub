@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useSupabase } from "./useSupabase";
 import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, PERM_LABELS, THEMES } from "./constants";
+
+const BOARD_CALENDAR_IDS = ["board", "calendario"];
 import { getUnlockLabel, timeAgo, fmtWA, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
 import { REFLECTION_STYLES, drawReflectionCanvas, getPreviewDataUrl, wrapCanvasText } from "./canvasUtils";
 
@@ -20,7 +22,20 @@ export default function VollHub() {
   const bioLinksLoaded = useRef(false);
   useEffect(() => {
     if (db.config.bioLinks && !bioLinksLoaded.current) {
-      try { setBioLinks(JSON.parse(db.config.bioLinks)); bioLinksLoaded.current = true; } catch(e) {}
+      try {
+        const parsed = JSON.parse(db.config.bioLinks);
+        const hasBoard = parsed.some((l) => l.id === "board");
+        const hasCal = parsed.some((l) => l.id === "calendario");
+        if (!hasBoard || !hasCal) {
+          const merged = parsed.filter((l) => l.id !== "board" && l.id !== "calendario");
+          DEFAULT_BIO_LINKS.forEach((d) => { if (d.id === "board" && !hasBoard) merged.push({ ...d }); if (d.id === "calendario" && !hasCal) merged.push({ ...d }); });
+          merged.sort((a, b) => (BOARD_CALENDAR_IDS.indexOf(a.id) >= 0 ? BOARD_CALENDAR_IDS.indexOf(a.id) : 99) - (BOARD_CALENDAR_IDS.indexOf(b.id) >= 0 ? BOARD_CALENDAR_IDS.indexOf(b.id) : 99));
+          setBioLinks(merged);
+        } else {
+          setBioLinks(parsed);
+        }
+        bioLinksLoaded.current = true;
+      } catch (e) {}
     }
   }, [db.config.bioLinks]);
   const saveBioLinks = useCallback((links) => { setBioLinks(links); db.updateConfig("bioLinks", JSON.stringify(links)); }, [db]);
@@ -821,7 +836,11 @@ export default function VollHub() {
   // LINKTREE (Bio Page)
   // ═══════════════════════════════════════
   if (view === "linktree") {
-    const activeLinks = bioLinks.filter(l => l.active);
+    const activeLinks = (() => {
+      const only = bioLinks.filter(l => l.active && BOARD_CALENDAR_IDS.includes(l.id));
+      const sorted = only.length >= 2 ? [...only].sort((a, b) => BOARD_CALENDAR_IDS.indexOf(a.id) - BOARD_CALENDAR_IDS.indexOf(b.id)) : null;
+      return sorted && sorted.length >= 2 ? sorted : DEFAULT_BIO_LINKS.filter(l => l.active);
+    })();
     const handleLinkClick = (link) => {
       // Track click
       const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
