@@ -56,10 +56,21 @@ export const DEFAULT_CONFIG = {
   bioStat2: "+85 mil", bioStat2Label: "Instrutores Formados",
 };
 
-// Apenas Board e Calendário; edite URLs no Admin (aba Bio/Linktree).
 export const DEFAULT_BIO_LINKS = [
-  { id: "board", title: "Board", subtitle: "Materiais e conteúdo", icon: "📋", imageUrl: "", url: "_hub", active: true, clicks: 0, highlight: true, badge: "APP", color: "linear-gradient(135deg, #1a3a30, #0d2920)" },
-  { id: "calendario", title: "Calendário", subtitle: "Eventos e datas", icon: "📅", imageUrl: "", url: "#", active: true, clicks: 0, highlight: false, color: "linear-gradient(135deg, #0d2920, #1a3a20)" },
+  { id: "1", title: "Pós Internacional", subtitle: "Formação internacional em Pilates", icon: "🌎", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/pos-internacional", active: true, clicks: 0, highlight: true, badge: "🔥 NOVO", color: "linear-gradient(135deg, #1a3a30, #0d2920)" },
+  { id: "2", title: "Encontro Pilates 2026", subtitle: "O maior evento de Pilates do Brasil", icon: "🎪", imageUrl: "", url: "https://encontropilates.com.br/", active: true, clicks: 0, highlight: true, badge: "⭐ IMPERDÍVEL", color: "linear-gradient(135deg, #2a1a3a, #1a0d29)" },
+  { id: "3", title: "Pós Patologias e Biomecânica", subtitle: "Pós-graduação especializada", icon: "🧬", imageUrl: "", url: "https://materiais.vollpilates.com.br/pos-graduacao-pilates-para-patologias-e-biomecanica-aplicada-captacao", active: true, clicks: 0 },
+  { id: "4", title: "Jornada Pilates 2026", subtitle: "Evento online e gratuito", icon: "🚀", imageUrl: "", url: "https://jornadapilates.com.br/2026", active: true, clicks: 0 },
+  { id: "5", title: "Studio Blindado", subtitle: "Imersão em gestão de studio", icon: "🛡️", imageUrl: "", url: "https://vollpilates.com.br/imersaostudioblindado/", active: true, clicks: 0 },
+  { id: "6", title: "Kit Documentos Jurídicos", subtitle: "Contratos e termos prontos", icon: "📋", imageUrl: "", url: "https://materiais.vollpilates.com.br/kit-juridico-pagina-de-venda", active: true, clicks: 0 },
+  { id: "7", title: "Pilates Connect", subtitle: "Comunidade exclusiva", icon: "🤝", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/pilatesconnect", active: true, clicks: 0 },
+  { id: "8", title: "Formação Clássica", subtitle: "Curso de Pilates Clássico", icon: "🏛️", imageUrl: "", url: "https://cursopilatesclassico.com.br/", active: true, clicks: 0 },
+  { id: "9", title: "MBA VOLL", subtitle: "MBA em gestão de Pilates", icon: "🎓", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/mbavoll", active: true, clicks: 0 },
+  { id: "10", title: "VOLL+", subtitle: "Plataforma de conteúdo", icon: "▶️", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/vollplus", active: true, clicks: 0 },
+  { id: "11", title: "Franquias", subtitle: "Abra seu studio VOLL", icon: "🏢", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/franquiadepilates", active: true, clicks: 0 },
+  { id: "12", title: "Dúvidas Cursos", subtitle: "Fale com nosso time", icon: "💬", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/duvidas-cursos", active: true, clicks: 0 },
+  { id: "13", title: "Grupos Exclusivos", subtitle: "WhatsApp e Telegram", icon: "👥", imageUrl: "", url: "https://vollpilates.com.br/rafael/grupos-exclusivos/", active: true, clicks: 0 },
+  { id: "hub", title: "Materiais Gratuitos", subtitle: "E-books, guias e vídeos exclusivos", icon: "🎁", imageUrl: "", url: "_hub", active: true, clicks: 0, highlight: true, badge: "GRÁTIS", color: "linear-gradient(135deg, #0d2920, #1a3a20)" },
 ];
 
 export const PERM_LABELS = {
