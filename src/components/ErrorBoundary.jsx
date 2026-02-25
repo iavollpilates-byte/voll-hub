@@ -5,7 +5,7 @@ import { Component } from "react";
  * e exibe uma UI de fallback em vez de tela branca.
  */
 export default class ErrorBoundary extends Component {
-  state = { hasError: false, error: null };
+  state = { hasError: false, error: null, errorInfo: null };
 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
@@ -13,6 +13,7 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary:", error, errorInfo);
+    this.setState((s) => (s.errorInfo ? null : { errorInfo }));
   }
 
   render() {
@@ -21,8 +22,9 @@ export default class ErrorBoundary extends Component {
       const bg = isDark ? "#060a09" : "#f4f7f6";
       const text = isDark ? "#f0f0f0" : "#1a2e28";
       const muted = isDark ? "#7a8d86" : "#5a7a6e";
-      const border = isDark ? "#1a2e28" : "#d4e5de";
       const accent = "#349980";
+      const showDebug = typeof window !== "undefined" && window.location.search.includes("debug=1");
+      const err = this.state.error;
 
       return (
         <div style={{
@@ -42,6 +44,12 @@ export default class ErrorBoundary extends Component {
           <p style={{ fontSize: 14, color: muted, marginBottom: 24, maxWidth: 320 }}>
             Ocorreu um erro inesperado. Tente recarregar a página.
           </p>
+          {showDebug && err && (
+            <pre style={{ fontSize: 11, color: muted, textAlign: "left", maxWidth: "100%", overflow: "auto", marginBottom: 16, padding: 12, background: "rgba(0,0,0,0.1)", borderRadius: 8 }}>
+              {err.message}
+              {this.state.errorInfo?.componentStack && "\n\n" + this.state.errorInfo.componentStack}
+            </pre>
+          )}
           <button
             onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
             style={{
