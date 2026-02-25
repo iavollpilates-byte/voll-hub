@@ -74,6 +74,13 @@ const leadToDb = (l) => ({
   total_days: l.totalDays || 0, reflections_read: l.reflectionsRead || [], milestones_achieved: l.milestonesAchieved || [],
 })
 
+// Payload sem email/credits/credits_earned para DB que ainda não rodou a migração
+const leadToDbMinimal = (l) => {
+  const full = leadToDb(l)
+  const { email, credits, credits_earned, ...rest } = full
+  return rest
+}
+
 const adminFromDb = (r) => ({
   id: r.id, name: r.name, pin: r.pin, role: r.role, permissions: r.permissions || {},
 })
@@ -262,9 +269,19 @@ export function useSupabase() {
 
   // ─── LEADS (user-facing — direct Supabase) ───
   const addLead = async (lead) => {
-    const { data, error } = await supabase.from('leads').insert(leadToDb(lead)).select().single()
-    if (error) { console.error(error); return null }
-    const newLead = leadFromDb(data)
+    let payload = leadToDb(lead)
+    let result = await supabase.from('leads').insert(payload).select().single()
+    if (result.error) {
+      const msg = (result.error.message || '').toLowerCase()
+      const code = result.error.code || ''
+      const missingColumn = msg.includes('column') || msg.includes('does not exist') || code === '42703'
+      if (missingColumn) {
+        payload = leadToDbMinimal(lead)
+        result = await supabase.from('leads').insert(payload).select().single()
+      }
+    }
+    if (result.error) { console.error('addLead error:', result.error); return null }
+    const newLead = leadFromDb(result.data)
     setLeads(p => [newLead, ...p])
     return newLead
   }

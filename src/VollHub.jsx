@@ -70,6 +70,8 @@ export default function VollHub() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [commentVerifying, setCommentVerifying] = useState(false);
+  const [instaCommentOpenClickedAt, setInstaCommentOpenClickedAt] = useState(0);
+  const [showInstaCommentButton, setShowInstaCommentButton] = useState(false);
   // Funnel system
   const [funnelStep, setFunnelStep] = useState("download"); // "questions" | "download" | "cta"
   const [funnelAnswers, setFunnelAnswers] = useState({});
@@ -146,6 +148,7 @@ export default function VollHub() {
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [emailPopupLeadId, setEmailPopupLeadId] = useState(null);
   const [emailPopupValue, setEmailPopupValue] = useState("");
+  const [emailPopupSaving, setEmailPopupSaving] = useState(false);
 
   const getStreakRules = useCallback(() => {
     const def = [{ every: 5, credits: 1, message: "dias seguidos! +1 credito" }, { at: 30, credits: 3, message: "1 mes de dedicacao! +3 creditos" }];
@@ -384,6 +387,18 @@ export default function VollHub() {
   }, [selectedMaterial, unlockTarget, showShareModal, currentSurvey, showCreditStore, showQuiz, gamificationPopup, showLeaderboard, phaseReward, showEmailPopup, showOnboarding]);
 
   const showT = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3000); }, []);
+
+  // Mostrar botão "Já comentei" só 10s depois de clicar em "Abrir Post e Comentar"
+  const firstPendingPostKey = pendingInstaComments[0] ? (pendingInstaComments[0].id ?? pendingInstaComments[0].url ?? "") : "";
+  useEffect(() => {
+    setInstaCommentOpenClickedAt(0);
+    setShowInstaCommentButton(false);
+  }, [firstPendingPostKey]);
+  useEffect(() => {
+    if (!instaCommentOpenClickedAt) return;
+    const id = setTimeout(() => setShowInstaCommentButton(true), 10000);
+    return () => clearTimeout(id);
+  }, [instaCommentOpenClickedAt]);
 
   // ─── COUNTDOWN TIMER ───
   const [now, setNow] = useState(Date.now());
@@ -1273,14 +1288,14 @@ export default function VollHub() {
               <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 22 }}>💬</span>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>Comente no post do Instagram e ganhe +{amt} crédito{amt > 1 ? "s" : ""}{more}</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>Faça um comentário no post abaixo e receba +1 crédito grátis!{more}</p>
                   <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                    <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "6px 12px", borderRadius: 8, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>Abrir post ↗</a>
-                    {!commentVerifying ? (
+                    <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); setInstaCommentOpenClickedAt(Date.now()); setShowInstaCommentButton(false); }} style={{ fontSize: 12, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "6px 12px", borderRadius: 8, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>Abrir Post e Comentar ↗</a>
+                    {showInstaCommentButton && (!commentVerifying ? (
                       <button onClick={(e) => { e.stopPropagation(); const postId = post.id ?? post.url ?? ""; setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, `comment_${postId}`); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 12, fontWeight: 600, color: T.gold, padding: "6px 12px", borderRadius: 8, background: T.gold + "15", border: `1px solid ${T.gold}33` }}>Já comentei ✓</button>
                     ) : (
                       <span style={{ fontSize: 12, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>
-                    )}
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1879,18 +1894,45 @@ export default function VollHub() {
             <h2 id="email-popup-title" style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'" }}>Informe agora o seu email e receba +2 créditos</h2>
             <input type="email" value={emailPopupValue} onChange={e => setEmailPopupValue(e.target.value)} placeholder="seu@email.com" required style={{ width: "100%", padding: "14px 16px", borderRadius: 14, border: `1px solid ${T.cardBorder}`, background: T.bg, color: T.text, fontSize: 15, marginBottom: 16, fontFamily: "'Plus Jakarta Sans'" }} />
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
-              <button onClick={async () => {
-                const email = emailPopupValue.trim();
-                if (!email || !email.includes("@")) { showT("Informe um e-mail válido."); return; }
-                if (!emailPopupLeadId) return;
-                const ok = await db.updateLead(emailPopupLeadId, { email });
-                if (!ok) { showT("Não foi possível salvar. Tente de novo."); return; }
-                await earnCredits(2, "email");
-                setShowEmailPopup(false);
-                setEmailPopupValue("");
-                showT("+2 créditos! E-mail salvo ✅");
-              }} style={{ flex: 1, padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>Receber créditos</button>
-              <button onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }} style={{ padding: "14px 18px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>Agora não</button>
+              <button
+                disabled={emailPopupSaving}
+                onClick={async () => {
+                  const email = emailPopupValue.trim();
+                  if (!email || !email.includes("@")) { showT("Informe um e-mail válido."); return; }
+                  if (!emailPopupLeadId) {
+                    showT("Erro ao carregar. Recarregue a página.");
+                    setShowEmailPopup(false);
+                    sessionStorage.setItem("vollhub_email_popup_dismissed", "1");
+                    return;
+                  }
+                  setEmailPopupSaving(true);
+                  try {
+                    const ok = await db.updateLead(emailPopupLeadId, { email });
+                    if (!ok) {
+                      showT("Não foi possível salvar. Tente de novo.");
+                      setShowEmailPopup(false);
+                      sessionStorage.setItem("vollhub_email_popup_dismissed", "1");
+                      return;
+                    }
+                    await earnCredits(2, "email");
+                    setShowEmailPopup(false);
+                    setEmailPopupValue("");
+                    setEmailPopupLeadId(null);
+                    showT("+2 créditos! E-mail salvo ✅");
+                  } catch (e) {
+                    console.error("Email popup error:", e);
+                    showT("Ocorreu um erro. Tente de novo.");
+                    setShowEmailPopup(false);
+                    sessionStorage.setItem("vollhub_email_popup_dismissed", "1");
+                  } finally {
+                    setEmailPopupSaving(false);
+                  }
+                }}
+                style={{ flex: 1, padding: "14px", borderRadius: 14, background: emailPopupSaving ? T.statBg : "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none", cursor: emailPopupSaving ? "wait" : "pointer" }}
+              >
+                {emailPopupSaving ? "Salvando..." : "Receber créditos"}
+              </button>
+              <button disabled={emailPopupSaving} onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }} style={{ padding: "14px 18px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>Agora não</button>
             </div>
           </div>
         </div>
