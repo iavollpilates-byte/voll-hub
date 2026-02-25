@@ -111,19 +111,26 @@ export function useSupabase() {
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
-      const [matRes, leadRes, cfgRes, refRes, phaseRes] = await Promise.all([
+      const PAGE = 1000
+      const [matRes, cfgRes, refRes, phaseRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
-        supabase.from('leads').select('*').order('created_at', { ascending: false }).limit(50000),
         supabase.from('config').select('*'),
         supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
         supabase.from('phases').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       ])
       if (matRes.error) throw matRes.error
-      if (leadRes.error) throw leadRes.error
       if (cfgRes.error) throw cfgRes.error
 
+      let allLeads = []
+      for (let offset = 0; offset < 50000; offset += PAGE) {
+        const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false }).range(offset, offset + PAGE - 1)
+        if (error) throw error
+        allLeads = allLeads.concat(data || [])
+        if (!data || data.length < PAGE) break
+      }
+
       setMaterials((matRes.data || []).map(matFromDb))
-      setLeads((leadRes.data || []).map(leadFromDb))
+      setLeads(allLeads.map(leadFromDb))
       setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
       setPhases((phaseRes.data || []).map(phaseFromDb))
 
