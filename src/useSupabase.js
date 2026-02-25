@@ -59,7 +59,7 @@ const phaseFromDb = (r) => ({
 })
 
 const leadToDb = (l) => ({
-  name: l.name, whatsapp: l.whatsapp, downloads: l.downloads || [],
+  name: l.name, whatsapp: l.whatsapp, email: l.email || '', downloads: l.downloads || [],
   visits: l.visits || 1, first_visit: l.firstVisit || '', last_visit: l.lastVisit || '',
   source: l.source || 'direct', city: l.city || '', role: l.role || '',
   studio_name: l.studioName || '', students_count: l.studentsCount || '',
@@ -135,7 +135,16 @@ export function useSupabase() {
       setPhases((phaseRes.data || []).map(phaseFromDb))
 
       const cfgObj = {}
-      ;(cfgRes.data || []).forEach(r => { cfgObj[r.key] = r.value })
+      ;(cfgRes.data || []).forEach(r => {
+        const keyName = 'key' in r ? 'key' : 'Key' in r ? 'Key' : null
+        const valName = 'value' in r ? 'value' : 'Value' in r ? 'Value' : null
+        const k = keyName != null ? r[keyName] : r.key
+        const v = valName != null ? r[valName] : r.value
+        if (k != null && k !== '') {
+          cfgObj[k] = v
+          cfgObj[String(k).toLowerCase()] = v
+        }
+      })
       setConfig(cfgObj)
       setError(null)
 
@@ -263,7 +272,7 @@ export function useSupabase() {
   const updateLead = async (id, updates) => {
     const dbUpdates = {}
     const keyMap = {
-      name: 'name', whatsapp: 'whatsapp', downloads: 'downloads', visits: 'visits',
+      name: 'name', whatsapp: 'whatsapp', email: 'email', downloads: 'downloads', visits: 'visits',
       firstVisit: 'first_visit', lastVisit: 'last_visit', source: 'source',
       city: 'city', role: 'role', studioName: 'studio_name', studentsCount: 'students_count',
       goals: 'goals', surveyResponses: 'survey_responses',

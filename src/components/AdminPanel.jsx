@@ -482,6 +482,7 @@ export default function AdminPanel({
                       {seg === "hot" && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: T.gold + "22", color: T.gold, fontWeight: 700 }}>🔥 QUENTE</span>}
                     </div>
                     <p style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{l.whatsapp}</p>
+                    {(l.email || "").trim() && <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 1 }}>✉️ {l.email}</p>}
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
                     {l.source === "referral" && <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: T.successBg, color: T.accent, fontFamily: "'Plus Jakarta Sans'" }}>🔗</span>}

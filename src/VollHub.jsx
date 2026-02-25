@@ -84,8 +84,21 @@ export default function VollHub() {
   const creditsEnabled = config.creditsEnabled === "true";
   const getQuizzes = useCallback(() => { try { return config.quizzes ? JSON.parse(config.quizzes) : []; } catch(e) { return []; } }, [config.quizzes]);
   const quizzes = useMemo(() => getQuizzes(), [getQuizzes]);
-  const getInstaPosts = useCallback(() => { try { return config.instaPosts ? JSON.parse(config.instaPosts) : []; } catch(e) { return []; } }, [config.instaPosts]);
+  const getInstaPosts = useCallback(() => {
+    try {
+      const raw = config.instaposts ?? config.instaPosts ?? (() => { const key = Object.keys(config).find((k) => String(k).toLowerCase() === "instaposts"); return key ? config[key] : ""; })() ?? "";
+      if (!raw || typeof raw !== "string") return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }, [config]);
   const instaPosts = useMemo(() => getInstaPosts(), [getInstaPosts]);
+  const activeInstaPosts = useMemo(() =>
+    instaPosts.filter(p => p && (p.active === undefined || p.active === true) && (p.url || "").trim().length > 0),
+    [instaPosts]);
+  const pendingInstaComments = useMemo(() =>
+    activeInstaPosts.filter(p => !userCreditsEarned[`comment_${p.id ?? p.url ?? ""}`]),
+    [activeInstaPosts, userCreditsEarned]);
   const [toast, setToast] = useState(null);
   const [animateIn, setAnimateIn] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -206,6 +219,21 @@ export default function VollHub() {
       if (lead) await db.updateLead(lead.id, { reflectionsRead: newReads });
     })();
   }, [todayReflection, view, userWhatsApp]);
+
+  // Email popup: only when hub, logged in, lead has no email, and not dismissed this session
+  useEffect(() => {
+    if (view !== "hub" || !userWhatsApp || dbLoading) return;
+    let cancelled = false;
+    (async () => {
+      const lead = await db.findLeadByWhatsApp(userWhatsApp);
+      if (cancelled) return;
+      if (lead && !(lead.email || "").trim() && !sessionStorage.getItem("vollhub_email_popup_dismissed")) {
+        setEmailPopupLeadId(lead.id);
+        setShowEmailPopup(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [view, userWhatsApp, dbLoading]);
   const [refName, setRefName] = useState("");
   const [refWA, setRefWA] = useState("");
   const [adminPin, setAdminPin] = useState("");
@@ -324,12 +352,13 @@ export default function VollHub() {
       else if (gamificationPopup) dismissPopup();
       else if (showLeaderboard) setShowLeaderboard(false);
       else if (phaseReward) setPhaseReward(null);
+      else if (showEmailPopup) { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }
       else if (showOnboarding) setShowOnboarding(false);
       else if (showInstallGuide) setShowInstallGuide(false);
     };
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
-  }, [selectedMaterial, unlockTarget, showShareModal, currentSurvey, showCreditStore, showQuiz, gamificationPopup, showLeaderboard, phaseReward, showOnboarding, showInstallGuide]);
+  }, [selectedMaterial, unlockTarget, showShareModal, currentSurvey, showCreditStore, showQuiz, gamificationPopup, showLeaderboard, phaseReward, showEmailPopup, showOnboarding, showInstallGuide]);
 
   const showT = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3000); }, []);
 
@@ -1200,6 +1229,7 @@ export default function VollHub() {
             <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
             {creditsEnabled && <div style={{ position: "relative" }}><button onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>
+              {pendingInstaComments.length > 0 && <div style={{ position: "absolute", top: -2, right: -2, minWidth: 16, height: 16, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}`, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", color: "#1a1a12" }}>{pendingInstaComments.length}</div>}
               {showCreditTooltip && <div style={{ position: "absolute", top: 44, right: 0, width: 260, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.3s ease" }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{(config.creditsTooltipTitle || "🎯 Seus créditos: {n}").replace("{n}", userCredits)}</p>
                 <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>{config.creditsTooltipDesc || "Use créditos para desbloquear materiais exclusivos."}</p>
@@ -1211,6 +1241,42 @@ export default function VollHub() {
             </div>}
           </div>
         </header>
+
+        {/* Instagram comment CTA banner — primeiro na home; mostra sempre que houver post ativo */}
+        {creditsEnabled && (activeInstaPosts.length > 0 ? (() => {
+          if (pendingInstaComments.length > 0) {
+            const post = pendingInstaComments[0];
+            const amt = post.credits || 1;
+            const more = pendingInstaComments.length > 1 ? ` (e mais ${pendingInstaComments.length - 1} post${pendingInstaComments.length > 2 ? "s" : ""})` : "";
+            return (
+              <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 22 }}>💬</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>Comente no post do Instagram e ganhe +{amt} crédito{amt > 1 ? "s" : ""}{more}</p>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "6px 12px", borderRadius: 8, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>Abrir post ↗</a>
+                    {!commentVerifying ? (
+                      <button onClick={(e) => { e.stopPropagation(); const postId = post.id ?? post.url ?? ""; setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, `comment_${postId}`); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 12, fontWeight: 600, color: T.gold, padding: "6px 12px", borderRadius: 8, background: T.gold + "15", border: `1px solid ${T.gold}33` }}>Já comentei ✓</button>
+                    ) : (
+                      <span style={{ fontSize: 12, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 22 }}>💬</span>
+              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold, margin: 0 }}>Você já ganhou crédito por comentar no post. Obrigado!</p>
+            </div>
+          );
+        })() : instaPosts.length === 0 ? null : (
+          <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>💬</span>
+            <p style={{ fontSize: 12, color: T.gold, margin: 0 }}>Comente no Instagram: ative o post e preencha a URL em Admin → Gamificação → Posts Instagram.</p>
+          </div>
+        ))}
 
         {/* NEW MATERIALS ALERT */}
         {newMats.length > 0 && (
@@ -1743,6 +1809,32 @@ export default function VollHub() {
               <a href={phaseReward.prizeUrl} target="_blank" rel="noreferrer" style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, textAlign: "center", textDecoration: "none", display: "block", marginBottom: 10 }}>📥 Acessar prêmio</a>
             )}
             <button onClick={() => setPhaseReward(null)} style={{ width: "100%", padding: "13px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.text, fontSize: 14, fontWeight: 600 }}>Continuar</button>
+          </div>
+        </div>
+      )}
+
+      {/* EMAIL POPUP: +2 créditos (só para lead sem email) */}
+      {showEmailPopup && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }}>
+          <div style={{ position: "absolute", inset: 0, background: "#000000bb", backdropFilter: "blur(6px)" }} />
+          <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="email-popup-title" style={{ position: "relative", width: "100%", maxWidth: 360, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "36px 24px 28px", display: "flex", flexDirection: "column", alignItems: "center", animation: "fadeInUp 0.4s ease", textAlign: "center" }}>
+            <div style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}22, ${T.gold}08)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 36 }}>✉️</span></div>
+            <h2 id="email-popup-title" style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'" }}>Informe agora o seu email e receba +2 créditos</h2>
+            <input type="email" value={emailPopupValue} onChange={e => setEmailPopupValue(e.target.value)} placeholder="seu@email.com" required style={{ width: "100%", padding: "14px 16px", borderRadius: 14, border: `1px solid ${T.cardBorder}`, background: T.bg, color: T.text, fontSize: 15, marginBottom: 16, fontFamily: "'Plus Jakarta Sans'" }} />
+            <div style={{ display: "flex", gap: 10, width: "100%" }}>
+              <button onClick={async () => {
+                const email = emailPopupValue.trim();
+                if (!email || !email.includes("@")) { showT("Informe um e-mail válido."); return; }
+                if (!emailPopupLeadId) return;
+                const ok = await db.updateLead(emailPopupLeadId, { email });
+                if (!ok) { showT("Não foi possível salvar. Tente de novo."); return; }
+                await earnCredits(2, "email");
+                setShowEmailPopup(false);
+                setEmailPopupValue("");
+                showT("+2 créditos! E-mail salvo ✅");
+              }} style={{ flex: 1, padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>Receber créditos</button>
+              <button onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }} style={{ padding: "14px 18px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>Agora não</button>
+            </div>
           </div>
         </div>
       )}
