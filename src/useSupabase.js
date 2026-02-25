@@ -113,7 +113,7 @@ export function useSupabase() {
       setLoading(true)
       const [matRes, leadRes, cfgRes, refRes, phaseRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
-        supabase.from('leads').select('*').order('created_at', { ascending: false }),
+        supabase.from('leads').select('*').order('created_at', { ascending: false }).limit(50000),
         supabase.from('config').select('*'),
         supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
         supabase.from('phases').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
