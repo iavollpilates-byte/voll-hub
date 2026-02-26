@@ -1,7 +1,9 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { ICON_LIBRARY, PERM_LABELS } from "../constants";
 import { getUnlockLabel, getCSS, formatCountdown as fmtCountdown } from "../utils";
 import { drawReflectionCanvas } from "../canvasUtils";
+import AdminMaterials from "./admin/AdminMaterials";
+import AdminLog from "./admin/AdminLog";
 
 export default function AdminPanel({
   db, config, T, theme, setTheme, setView,
@@ -44,6 +46,13 @@ export default function AdminPanel({
   const [adminRefGenLoading, setAdminRefGenLoading] = useState(false);
   const [refImagePreview, setRefImagePreview] = useState(null);
   const [savingReflection, setSavingReflection] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState({});
+  const [searchReflection, setSearchReflection] = useState("");
+  const [searchQuiz, setSearchQuiz] = useState("");
+  const toggleSection = (key) => setCollapsedSections(p => ({ ...p, [key]: !p[key] }));
+
+  useEffect(() => { if (adminTab === "support" && db.loadSupportRequests) db.loadSupportRequests(); }, [adminTab]);
 
   // ─── LOCAL FUNCTIONS ───
   const addLog = (action) => {
@@ -125,15 +134,16 @@ export default function AdminPanel({
     navigator.clipboard?.writeText(nums).then(() => showT(`${leadsArr.length} números copiados! 📋`)).catch(() => showT("Erro ao copiar"));
   };
 
-  // ─── STYLE OBJECTS ───
-  const inp = { width: "100%", padding: "12px 14px", borderRadius: 11, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "all 0.2s" };
-  const sInp = { ...inp, padding: "8px 10px", fontSize: 13 };
+  // ─── STYLE OBJECTS (compact dashboard) ───
+  const inp = { width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "all 0.2s", minHeight: 36, boxSizing: "border-box" };
+  const sInp = { ...inp, padding: "6px 10px", fontSize: 12, minHeight: 34 };
+  const sectionHeaderStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", padding: "10px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, marginBottom: 2, userSelect: "none" };
 
   // ─── ICON PICKER ───
   const IconPicker = useMemo(() => function ICP({ onSelect, onClose }) { return (
-    <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 16 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 12 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "24px 20px", maxWidth: 360, width: "100%", maxHeight: "75vh", overflowY: "auto", animation: "fadeInUp 0.3s ease" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h3 style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Escolha um ícone</h3><button onClick={onClose} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Escolha um ícone</h3><button onClick={onClose} style={{ background: "none", color: T.textFaint, fontSize: 16 }}>✕</button></div>
         {ICON_LIBRARY.map((g) => (<div key={g.group} style={{ marginBottom: 14 }}><p style={{ fontSize: 11, fontWeight: 600, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: "'Plus Jakarta Sans'" }}>{g.group}</p><div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>{g.icons.map((ic) => (<button key={ic} onClick={() => { onSelect(ic); onClose(); }} style={{ width: "100%", aspectRatio: "1", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>))}</div></div>))}
       </div>
     </div>
@@ -307,147 +317,151 @@ export default function AdminPanel({
   );}, [T, sInp]);
 
   // ─── CMS FIELD ───
-  const CmsField = ({ label, ck, multi }) => (<div style={{ marginBottom: 10 }}><label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{label}</label>{multi ? <textarea defaultValue={config[ck] || ""} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck] || "").slice(0,10)} style={{ ...inp, minHeight: 55, resize: "vertical" }} /> : <input defaultValue={config[ck] || ""} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck] || "").slice(0,10)} style={inp} />}</div>);
+  const CmsField = ({ label, ck, multi, hint }) => (
+    <div style={{ marginBottom: 10 }}>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{label}</label>
+      {multi
+        ? <textarea defaultValue={config[ck] || ""} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck] || "").slice(0,10)} style={{ ...inp, minHeight: 50, resize: "vertical", padding: "10px 12px", fontSize: 13 }} />
+        : <input defaultValue={config[ck] || ""} onBlur={(e) => updCfg(ck, e.target.value)} key={"cms-" + ck + "-" + String(config[ck] || "").slice(0,10)} style={{ ...inp, padding: "10px 12px", fontSize: 13 }} />
+      }
+      {hint && <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 3, lineHeight: 1.3 }}>{hint}</p>}
+    </div>
+  );
+
+  const CmsGroup = ({ label, children, cols = 2 }) => (
+    <div style={{ marginBottom: 14 }}>
+      {label && <p style={{ fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: "'Plus Jakarta Sans'" }}>{label}</p>}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "4px 12px" }}>{children}</div>
+    </div>
+  );
+
+  const CmsFullField = ({ label, ck, multi, hint }) => (
+    <div style={{ gridColumn: "1 / -1" }}><CmsField label={label} ck={ck} multi={multi} hint={hint} /></div>
+  );
+
+  // ─── Nav items (permission-based) ───
+  const navItems = [
+    can("materials_view") && ["materials", "📄", "Materiais"],
+    can("leads_view") && ["leads", "👥", "Leads"],
+    can("leads_view") && ["insights", "📊", "Insights"],
+    can("textos_edit") && ["bio", "🔗", "Linktree"],
+    can("textos_edit") && ["textos", "✏️", "Textos"],
+    can("textos_edit") && ["gamification", "🎮", "Gamificação"],
+    can("textos_edit") && ["quizzes", "🧠", "Quizzes"],
+    can("textos_edit") && ["reflections", "💭", "Reflexões"],
+    can("leads_view") && ["support", "💬", "Suporte"],
+    isMaster && ["users", "👑", "Usuários"],
+    isMaster && ["log", "📜", "Log"],
+  ].filter(Boolean);
 
   // ═══════════════════════════════════════
-  // RETURN
+  // RETURN — full-width layout: sidebar + main
   // ═══════════════════════════════════════
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
+    <div className="admin-layout-root" style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "220px 1fr", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
       <style>{getCSS(T)}</style>
-      <div style={{ width: "100%", maxWidth: 520, position: "relative", zIndex: 1 }}>
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0 12px", flexWrap: "wrap", gap: 8 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text }}>Painel Admin</h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
-              <span style={{ fontSize: 12, color: T.accent, fontFamily: "'Plus Jakarta Sans'" }}>{currentAdmin?.name}</span>
-              <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 5, background: isMaster ? T.gold + "22" : T.accent + "22", color: isMaster ? T.gold : T.accent, fontWeight: 700, fontFamily: "'Plus Jakarta Sans'", textTransform: "uppercase", letterSpacing: 0.5 }}>{isMaster ? "👑 MASTER" : "ADMIN"}</span>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => { db.reload(); showT("Dados atualizados! 🔄"); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>🔄</button>
-            <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
-            <button onClick={() => setView("hub")} style={{ padding: "8px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>👁 Preview</button>
-            <button onClick={() => { setView("linktree"); setCurrentAdmin(null); db.setAdminToken(null); }} style={{ padding: "8px 14px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 12, fontWeight: 600 }}>Sair</button>
-          </div>
-        </header>
+      <style>{`
+        .admin-layout-root { display: grid; grid-template-columns: 220px 1fr; }
+        .admin-sidebar-toggle { display: none; }
+        @media (max-width: 900px) {
+          .admin-layout-root { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr; }
+          .admin-sidebar { position: fixed !important; top: 0; left: 0; bottom: 0; width: 220px !important; z-index: 200; transform: translateX(-100%); transition: transform 0.3s ease; }
+          .admin-sidebar.open { transform: translateX(0); }
+          .admin-sidebar-toggle { display: flex !important; }
+          .admin-sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 199; }
+          .admin-stats { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important; }
+        }
+      `}</style>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-          {[{ l: "Acessos", sub: "Aberturas da página", v: parseInt(config.pageViews) || 0, i: "👁", c: T.accent }, { l: "Leads", v: leads.length, i: "👥", c: T.accent }, { l: "Downloads", v: totalDl, i: "📥", c: T.accentDark }, { l: "Materiais", v: activeMats.length, i: "📄", c: T.gold }, { l: "Indicações", v: segmentCounts.referral, i: "🔗", c: T.accent }].map((st, i) => (
-              <div key={i} title={st.sub} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: `all 0.4s ease ${i * 0.08}s` }}>
-                <span style={{ fontSize: 22 }}>{st.i}</span><span style={{ fontSize: 26, fontWeight: 800, color: st.c }}>{typeof st.v === "number" ? st.v.toLocaleString("pt-BR") : st.v}</span><span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{st.l}</span>{st.sub && <span style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{st.sub}</span>}
+      {/* SIDEBAR — compact */}
+      {sidebarOpen && <div className="admin-sidebar-overlay" style={{ display: "none" }} onClick={() => setSidebarOpen(false)} />}
+      <aside className={`admin-sidebar${sidebarOpen ? " open" : ""}`} style={{ width: 220, minHeight: "100vh", display: "flex", flexDirection: "column", background: T.cardBg, borderRight: `1px solid ${T.cardBorder}`, padding: "12px 10px", flexShrink: 0 }}>
+        <div style={{ marginBottom: 8 }}>
+          <h1 style={{ fontSize: 15, fontWeight: 800, color: T.text }}>Painel Admin</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+            <span style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentAdmin?.name}</span>
+            <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: isMaster ? T.gold + "22" : T.accent + "22", color: isMaster ? T.gold : T.accent, fontWeight: 700, fontFamily: "'Plus Jakarta Sans'", textTransform: "uppercase", letterSpacing: 0.5, flexShrink: 0 }}>{isMaster ? "👑" : "ADM"}</span>
+          </div>
+        </div>
+        <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+          {navItems.map(([t, icon, label]) => (
+            <button key={t} onClick={() => { setAdminTab(t); setSidebarOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 12, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent", textAlign: "left" }}>
+              <span style={{ fontSize: 18 }}>{icon}</span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, borderTop: `1px solid ${T.cardBorder}` }}>
+          <button onClick={() => { db.reload(); showT("Dados atualizados! 🔄"); }} style={{ width: "100%", padding: "6px 10px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}><span>🔄</span> Atualizar</button>
+          <button onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: "100%", padding: "6px 10px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</span> Tema</button>
+          <button onClick={() => setView("hub")} style={{ width: "100%", padding: "6px 10px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 14 }}>👁</span> Preview</button>
+          <button onClick={() => { setView("linktree"); setCurrentAdmin(null); db.setAdminToken(null); }} style={{ width: "100%", padding: "6px 10px", borderRadius: 8, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 14 }}>🚪</span> Sair</button>
+        </div>
+      </aside>
+
+      {/* MAIN */}
+      <main style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "auto" }}>
+        <div style={{ padding: "12px 16px 10px", borderBottom: `1px solid ${T.cardBorder}` }}>
+          <button className="admin-sidebar-toggle" type="button" onClick={() => setSidebarOpen(true)} style={{ display: "none", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.text, fontSize: 13, fontWeight: 600, marginBottom: 10, fontFamily: "'Plus Jakarta Sans'" }} aria-label="Abrir menu"><span style={{ fontSize: 16 }}>☰</span> Menu</button>
+          <div className="admin-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+            {[{ l: "Acessos", sub: "Aberturas da página", v: parseInt(config.pageViews) || 0, i: "👁", c: T.accent }, { l: "Leads", v: leads.length, i: "👥", c: T.accent }, { l: "Downloads", v: totalDl, i: "📥", c: T.accentDark }, { l: "Materiais", v: activeMats.length, i: "📄", c: T.gold }, { l: "Indicações", v: segmentCounts.referral, i: "🔗", c: T.accent }].map((st, i) => (
+              <div key={i} title={st.sub} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "10px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: `all 0.4s ease ${i * 0.08}s` }}>
+                <span style={{ fontSize: 16 }}>{st.i}</span><span style={{ fontSize: 20, fontWeight: 800, color: st.c }}>{typeof st.v === "number" ? st.v.toLocaleString("pt-BR") : st.v}</span><span style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{st.l}</span>{st.sub && <span style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{st.sub}</span>}
               </div>
             ))}
+          </div>
         </div>
 
-        {/* Permission-based tabs */}
-        <div style={{ display: "flex", gap: 3, marginBottom: 16, background: T.tabBg, borderRadius: 12, padding: 4, border: `1px solid ${T.tabBorder}`, flexWrap: "wrap" }}>
-          {[
-            can("materials_view") && ["materials", "📄"],
-            can("leads_view") && ["leads", "👥"],
-            can("leads_view") && ["insights", "📊"],
-            can("textos_edit") && ["bio", "🔗"],
-            can("textos_edit") && ["textos", "✏️"],
-            can("textos_edit") && ["gamification", "🎮"],
-            can("textos_edit") && ["quizzes", "🧠"],
-            can("textos_edit") && ["reflections", "💭"],
-            isMaster && ["users", "👑"],
-            isMaster && ["log", "📜"],
-          ].filter(Boolean).map(([t, lbl]) => (<button key={t} onClick={() => setAdminTab(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 9, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 14, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent", minWidth: 40 }}>{lbl}</button>))}
-        </div>
+        {/* Tab content — full width, compact padding */}
+        <div style={{ flex: 1, padding: "12px 16px 24px", overflow: "auto", width: "100%", maxWidth: "100%" }}>
 
         {/* MATERIALS */}
         {adminTab === "materials" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {can("materials_edit") && (!showNewForm ? <button onClick={() => setShowNewForm(true)} style={{ width: "100%", padding: "14px", borderRadius: 14, background: T.accent + "15", border: `2px dashed ${T.accent}44`, color: T.accent, fontSize: 14, fontWeight: 700 }}>＋ Novo Material</button> : (
-              <div style={{ background: T.statBg, border: `2px solid ${T.accent}44`, borderRadius: 14, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><h3 style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>＋ Novo Material</h3><button onClick={() => setShowNewForm(false)} style={{ background: "none", color: T.textFaint, fontSize: 16 }}>✕</button></div>
-                <div style={{ display: "flex", gap: 8 }}><button onClick={() => setShowIconPicker("new")} style={{ width: 48, height: 48, borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{newMat.icon}</button><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Título</label><input value={newMat.title} onChange={(e) => setNewMat((p) => ({ ...p, title: e.target.value }))} style={sInp} placeholder="Nome" /></div></div>
-                <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Descrição</label><textarea value={newMat.description} onChange={(e) => setNewMat((p) => ({ ...p, description: e.target.value }))} style={{ ...sInp, minHeight: 45, resize: "vertical" }} placeholder="Breve descrição" /></div>
-                <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔗 Link do material (Canva, Drive, PDF, etc)</label><input value={newMat.downloadUrl || ""} onChange={(e) => setNewMat((p) => ({ ...p, downloadUrl: e.target.value }))} style={sInp} placeholder="https://www.canva.com/..." /></div>
-                <div style={{ display: "flex", gap: 8 }}><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Categoria</label><input value={newMat.category} onChange={(e) => setNewMat((p) => ({ ...p, category: e.target.value }))} style={sInp} placeholder="Ex: Marketing" /></div><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Data</label><input value={newMat.date} onChange={(e) => setNewMat((p) => ({ ...p, date: e.target.value }))} style={sInp} placeholder="Auto" /></div></div>
-                <UnlockEditor mat={newMat} onChange={(k, v) => setNewMat((p) => ({ ...p, [k]: v }))} />
-                <button onClick={addMat} style={{ width: "100%", padding: "13px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, marginTop: 4 }}>✅ Criar material</button>
-              </div>
-            ))}
-
-            {materials.map((m, i) => {
-              const ul = getUnlockLabel(m);
-              return (
-                <div key={m.id} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10, borderLeft: `3px solid ${m.active ? T.accent : T.textFaint}`, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.3s ease ${i * 0.05}s` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 22 }}>{m.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{m.title}</h3><p style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{m.category} · <span style={{ color: ul.color }}>{ul.icon} {ul.label}</span></p></div>
-                    {can("materials_edit") && <button onClick={() => setEditId(editId === m.id ? null : m.id)} style={{ padding: "5px 10px", borderRadius: 7, background: T.tabBg, border: `1px solid ${T.tabBorder}`, color: T.textMuted, fontSize: 11, fontWeight: 600 }}>{editId === m.id ? "Fechar" : "✏️"}</button>}
-                  </div>
-
-                  {/* LINK COPIER */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.inputBg, borderRadius: 9, padding: "6px 10px", border: `1px solid ${T.inputBorder}` }}>
-                    <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{config.baseUrl}/?m={m.id}</span>
-                    <button onClick={() => copyLink(m.id)} style={{ padding: "4px 10px", borderRadius: 6, background: linkCopied === m.id ? T.successBg : T.tabBg, border: `1px solid ${linkCopied === m.id ? T.accent + "44" : T.tabBorder}`, color: linkCopied === m.id ? T.accent : T.textMuted, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", transition: "all 0.2s" }}>{linkCopied === m.id ? "✅ Copiado!" : "📋 Copiar link"}</button>
-                  </div>
-
-                  {can("materials_edit") && editId === m.id && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 10, borderTop: `1px solid ${T.cardBorder}` }}>
-                      <div style={{ display: "flex", gap: 8 }}><button onClick={() => setShowIconPicker(m.id)} style={{ width: 48, height: 48, borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.icon}</button><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Título</label><input defaultValue={m.title} onBlur={(e) => updMat(m.id, "title", e.target.value)} key={"mt-" + m.id} style={sInp} /></div></div>
-                      <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Descrição</label><textarea defaultValue={m.description} onBlur={(e) => updMat(m.id, "description", e.target.value)} key={"md-" + m.id} style={{ ...sInp, minHeight: 45, resize: "vertical" }} /></div>
-                      <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔗 Link do material (Canva, Drive, PDF, etc)</label><input defaultValue={m.downloadUrl || ""} onBlur={(e) => updMat(m.id, "downloadUrl", e.target.value)} key={"mdu-" + m.id} style={sInp} placeholder="https://www.canva.com/..." /></div>
-                      <div style={{ background: T.inputBg, borderRadius: 8, padding: 8, border: `1px solid ${T.inputBorder}` }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: T.gold, marginBottom: 6 }}>📸 Instagram do post</p>
-                        <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Link do post</label><input defaultValue={m.instaPostUrl || ""} onBlur={(e) => updMat(m.id, "instaPostUrl", e.target.value)} key={"mip-" + m.id} style={sInp} placeholder="https://instagram.com/p/..." /></div>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>👁 Views</label><input type="number" defaultValue={m.instaViews || 0} onBlur={(e) => updMat(m.id, "instaViews", parseInt(e.target.value) || 0)} key={"miv-" + m.id} style={sInp} /></div>
-                          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>❤️ Curtidas</label><input type="number" defaultValue={m.instaLikes || 0} onBlur={(e) => updMat(m.id, "instaLikes", parseInt(e.target.value) || 0)} key={"mil-" + m.id} style={sInp} /></div>
-                          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>💬 Coments</label><input type="number" defaultValue={m.instaComments || 0} onBlur={(e) => updMat(m.id, "instaComments", parseInt(e.target.value) || 0)} key={"mic-" + m.id} style={sInp} /></div>
-                          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔖 Salvam.</label><input type="number" defaultValue={m.instaSaves || 0} onBlur={(e) => updMat(m.id, "instaSaves", parseInt(e.target.value) || 0)} key={"mis-" + m.id} style={sInp} /></div>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Categoria</label><input defaultValue={m.category} onBlur={(e) => updMat(m.id, "category", e.target.value)} key={"mc-" + m.id} style={sInp} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Data</label><input defaultValue={m.date} onBlur={(e) => updMat(m.id, "date", e.target.value)} key={"mda-" + m.id} style={sInp} /></div></div>
-                      <UnlockEditor mat={m} onChange={(k, v) => updMat(m.id, k, v)} />
-                      {confirmDeleteId === m.id ? (
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}` }}>
-                          <span style={{ fontSize: 13, color: T.dangerTxt, flex: 1, fontFamily: "'Plus Jakarta Sans'" }}>Excluir?</span>
-                          <button onClick={() => deleteMat(m.id)} style={{ padding: "6px 14px", borderRadius: 8, background: "#e84444", color: "#fff", fontSize: 12, fontWeight: 700 }}>Sim</button>
-                          <button onClick={() => setConfirmDeleteId(null)} style={{ padding: "6px 14px", borderRadius: 8, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600 }}>Não</button>
-                        </div>
-                      ) : (<button onClick={() => setConfirmDeleteId(m.id)} style={{ width: "100%", padding: "10px", borderRadius: 10, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 13, fontWeight: 600 }}>🗑️ Excluir</button>)}
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {can("materials_edit") && <button onClick={() => updMat(m.id, "active", !m.active)} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: m.active ? T.successBg : T.dangerBg, color: m.active ? T.accent : T.gold, border: `1px solid ${m.active ? T.accent + "33" : T.gold + "33"}` }}>{m.active ? "✓ Ativo" : "Inativo"}</button>}
-                    <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginLeft: "auto" }}>📥 {dlCountByMat[m.id] || 0}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <AdminMaterials
+            materials={materials}
+            config={config}
+            T={T}
+            can={can}
+            showT={showT}
+            animateIn={animateIn}
+            editId={editId}
+            setEditId={setEditId}
+            showNewForm={showNewForm}
+            setShowNewForm={setShowNewForm}
+            newMat={newMat}
+            setNewMat={setNewMat}
+            addMat={addMat}
+            updMat={updMat}
+            deleteMat={deleteMat}
+            copyLink={copyLink}
+            linkCopied={linkCopied}
+            confirmDeleteId={confirmDeleteId}
+            setConfirmDeleteId={setConfirmDeleteId}
+            dlCountByMat={dlCountByMat}
+            UnlockEditor={UnlockEditor}
+            setShowIconPicker={setShowIconPicker}
+            sInp={sInp}
+          />
         )}
 
         {/* LEADS */}
         {adminTab === "leads" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {/* Search + Bulk Actions Bar */}
-            <input style={{ ...inp, marginBottom: 2 }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} key="lead-search" />
-
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {can("leads_export") && <button onClick={() => exportCSV(segmentedLeads)} style={{ padding: "8px 14px", borderRadius: 9, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📊 Exportar CSV</button>}
-              {can("leads_export") && <button onClick={() => copyAllNumbers(segmentedLeads)} style={{ padding: "8px 14px", borderRadius: 9, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📋 Copiar números</button>}
-              {can("leads_whatsapp") && <button onClick={() => setShowBulkWA(true)} style={{ padding: "8px 14px", borderRadius: 9, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 12, fontWeight: 600, flex: 1 }}>💬 Enviar em massa</button>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <input style={{ ...inp }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} key="lead-search" />
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {can("leads_export") && <button onClick={() => exportCSV(segmentedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📊 Exportar CSV</button>}
+              {can("leads_export") && <button onClick={() => copyAllNumbers(segmentedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📋 Copiar números</button>}
+              {can("leads_whatsapp") && <button onClick={() => setShowBulkWA(true)} style={{ padding: "6px 12px", borderRadius: 8, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 12, fontWeight: 600, flex: 1 }}>💬 Enviar em massa</button>}
             </div>
-
-            {/* Segment Filters */}
-            <div style={{ display: "flex", gap: 4, padding: 4, background: T.tabBg, borderRadius: 10, border: `1px solid ${T.tabBorder}` }}>
+            <div style={{ display: "flex", gap: 2, padding: 2, background: T.tabBg, borderRadius: 8, border: `1px solid ${T.tabBorder}` }}>
               {[["all", "Todos", T.text], ["hot", "🔥 Quentes", T.gold], ["warm", "Engajados", T.accent], ["cold", "❄️ Frios", T.textFaint], ["referral", "🔗 Indicados", T.accent]].map(([k, lbl, clr]) => (
-                <button key={k} onClick={() => setLeadFilter(k)} style={{ flex: 1, padding: "7px 2px", borderRadius: 7, fontSize: 10, fontWeight: 600, background: leadFilter === k ? T.tabActiveBg : "transparent", color: leadFilter === k ? clr : T.textFaint, border: leadFilter === k ? `1px solid ${T.statBorder}` : "1px solid transparent", transition: "all 0.2s", position: "relative" }}>
+                <button key={k} onClick={() => setLeadFilter(k)} style={{ flex: 1, padding: "5px 2px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: leadFilter === k ? T.tabActiveBg : "transparent", color: leadFilter === k ? clr : T.textFaint, border: leadFilter === k ? `1px solid ${T.statBorder}` : "1px solid transparent", transition: "all 0.2s", position: "relative" }}>
                   {lbl}
-                  <span style={{ display: "block", fontSize: 9, fontWeight: 400, color: T.textFaint, marginTop: 1 }}>{segmentCounts[k]}</span>
+                  <span style={{ display: "block", fontSize: 9, fontWeight: 400, color: T.textFaint, marginTop: 0 }}>{segmentCounts[k]}</span>
                 </button>
               ))}
             </div>
-
-            {/* Segment Legend */}
-            <div style={{ display: "flex", gap: 12, padding: "6px 10px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, padding: "4px 8px", flexWrap: "wrap" }}>
               {[["🔥 Quentes", "3+ downloads", T.gold], ["Engajados", "1-2 downloads", T.accent], ["❄️ Frios", "0 downloads", T.textFaint]].map(([l, d, c]) => (
                 <span key={l} style={{ fontSize: 10, color: c, fontFamily: "'Plus Jakarta Sans'" }}>{l}: <span style={{ color: T.textFaint }}>{d}</span></span>
               ))}
@@ -468,56 +482,60 @@ export default function AdminPanel({
               </div>
             )}
 
-            {/* Lead Cards */}
-            {segmentedLeads.map((l, i) => {
-              const seg = getLeadSegment(l);
-              const segColor = seg === "hot" ? T.gold : seg === "warm" ? T.accent : T.textFaint;
-              return (
-              <div key={l.id} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10, borderLeft: `3px solid ${segColor}`, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.3s ease ${i * 0.05}s` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: `linear-gradient(135deg, ${segColor}, ${segColor}88)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#060a09", fontSize: 16, fontWeight: 800, flexShrink: 0 }}>{l.name.charAt(0)}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{l.name}</h3>
-                      {seg === "hot" && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: T.gold + "22", color: T.gold, fontWeight: 700 }}>🔥 QUENTE</span>}
-                    </div>
-                    <p style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{l.whatsapp}</p>
-                    {(l.email || "").trim() && <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 1 }}>✉️ {l.email}</p>}
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {l.source === "referral" && <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: T.successBg, color: T.accent, fontFamily: "'Plus Jakarta Sans'" }}>🔗</span>}
-                    {can("leads_whatsapp") && <button onClick={(e) => { e.stopPropagation(); openWA(l); }} style={{ width: 34, height: 34, borderRadius: 8, background: "#25D36622", border: "1px solid #25D36644", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }} title="Enviar WhatsApp">💬</button>}
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, background: T.inputBg, borderRadius: 10, padding: "10px 8px" }}>
-                  {[[l.downloads.length, "downloads"], [l.visits, "visitas"], [l.firstVisit, "1ª visita"], [l.lastVisit, "última"]].map(([v, lb], j) => (<div key={j} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}><span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{v}</span><span style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{lb}</span></div>))}
-                </div>
-                {l.downloads.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{l.downloads.map((d) => { const mt = materials.find((mm) => mm.id === d); return mt ? <span key={d} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: T.successBg, border: `1px solid ${T.cardBorder}`, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{mt.icon} {mt.title}</span> : null; })}</div>}
-                {(l.grau || l.formacao || l.atuaPilates || l.temStudio || l.maiorDesafio || l.tipoConteudo || l.perguntaMentoria || l.maiorSonho || l.profAdmira) && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {[["🎓", l.grau], ["📚", l.formacao], ["🧘", l.atuaPilates], ["🏢", l.temStudio], ["🎯", l.maiorDesafio], ["📦", l.tipoConteudo], ["❓", l.perguntaMentoria], ["💭", l.maiorSonho], ["⭐", l.profAdmira]].filter(([, v]) => v).map(([ic, v], j) => (
-                      <span key={j} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{ic} {v}</span>
+            <div style={{ overflowX: "auto", borderRadius: 10, border: `1px solid ${T.statBorder}`, background: T.statBg }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "'Plus Jakarta Sans'" }}>
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${T.cardBorder}` }}>
+                    {["Nome", "WhatsApp", "Seg.", "Downloads", "Visitas", "Última", ""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: T.textMuted, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                     ))}
-                  </div>
-                )}
-                {l.surveyResponses && Object.keys(l.surveyResponses).length > 0 && (
-                  <div style={{ marginTop: 2 }}>
-                    {Object.entries(l.surveyResponses).map(([matId, answers]) => {
-                      const mat = materials.find((mm) => mm.id === parseInt(matId));
-                      return mat ? (
-                        <div key={matId} style={{ background: T.gold + "08", border: `1px solid ${T.gold}22`, borderRadius: 8, padding: "8px 10px", marginTop: 4 }}>
-                          <p style={{ fontSize: 10, fontWeight: 700, color: T.gold, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>🔍 Pesquisa: {mat.title}</p>
-                          {(mat.surveyQuestions || []).map((q) => answers[q.id] ? (
-                            <p key={q.id} style={{ fontSize: 10, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginBottom: 2 }}><span style={{ color: T.textFaint }}>{q.question}</span> → <strong style={{ color: T.text }}>{answers[q.id]}</strong></p>
-                          ) : null)}
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                )}
-              </div>
-            );})}
-            <p style={{ color: T.textFaint, fontSize: 12, textAlign: "center", marginTop: 12, fontFamily: "'Plus Jakarta Sans'" }}>{segmentedLeads.length} de {leads.length} lead{leads.length !== 1 && "s"}</p>
+                  </tr>
+                </thead>
+                <tbody>
+                  {segmentedLeads.map((l) => {
+                    const seg = getLeadSegment(l);
+                    const segColor = seg === "hot" ? T.gold : seg === "warm" ? T.accent : T.textFaint;
+                    return (
+                      <tr key={l.id} style={{ borderBottom: `1px solid ${T.cardBorder}`, borderLeft: `3px solid ${segColor}` }}>
+                        <td style={{ padding: "8px 10px", color: T.text, fontWeight: 600, whiteSpace: "nowrap", fontSize: 13 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 26, height: 26, borderRadius: "50%", background: `linear-gradient(135deg, ${segColor}, ${segColor}88)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#060a09", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{l.name.charAt(0)}</div>
+                            <div>
+                              <span>{l.name}</span>
+                              {(l.email || "").trim() && <p style={{ fontSize: 10, color: T.textFaint, margin: 0 }}>✉️ {l.email}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "8px 10px", color: T.textMuted, fontSize: 12 }}>{l.whatsapp}</td>
+                        <td style={{ padding: "8px 10px" }}>
+                          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, background: segColor + "22", color: segColor, fontWeight: 700 }}>
+                            {seg === "hot" ? "🔥" : seg === "warm" ? "⚡" : "❄️"} {seg.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 10px", color: T.text, fontWeight: 700 }}>
+                          {l.downloads.length}
+                          {l.downloads.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 2, marginTop: 2 }}>
+                              {l.downloads.slice(0, 3).map((d) => { const mt = materials.find((mm) => mm.id === d); return mt ? <span key={d} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 4, background: T.successBg, color: T.textMuted }}>{mt.icon} {mt.title.slice(0,12)}</span> : null; })}
+                              {l.downloads.length > 3 && <span style={{ fontSize: 9, color: T.textFaint }}>+{l.downloads.length - 3}</span>}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px 10px", color: T.textMuted, textAlign: "center" }}>{l.visits}</td>
+                        <td style={{ padding: "8px 10px", color: T.textFaint, fontSize: 11 }}>{l.lastVisit}</td>
+                        <td style={{ padding: "8px 10px" }}>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {l.source === "referral" && <span style={{ fontSize: 10, padding: "2px 5px", borderRadius: 5, background: T.successBg, color: T.accent }}>🔗</span>}
+                            {can("leads_whatsapp") && <button onClick={(e) => { e.stopPropagation(); openWA(l); }} style={{ width: 28, height: 28, borderRadius: 6, background: "#25D36622", border: "1px solid #25D36644", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }} title="Enviar WhatsApp">💬</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p style={{ color: T.textFaint, fontSize: 11, textAlign: "center", marginTop: 6, fontFamily: "'Plus Jakarta Sans'" }}>{segmentedLeads.length} de {leads.length} lead{leads.length !== 1 && "s"}</p>
           </div>
         )}
 
@@ -533,29 +551,29 @@ export default function AdminPanel({
           const goNext = () => { if (bulkWAIndex < total - 1) setBulkWAIndex(p => p + 1); else { setBulkWAIndex(-1); showT(`✅ ${sentCount} mensagens enviadas!`); } };
           const closeBulk = () => { setShowBulkWA(false); setBulkWAIndex(-1); setBulkWASent([]); };
           return (
-            <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 16 }} onClick={closeBulk}>
-              <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "28px 22px", maxWidth: 420, width: "100%", display: "flex", flexDirection: "column", gap: 14, animation: "fadeInUp 0.3s ease", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 12 }} onClick={closeBulk}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: "14px 16px", maxWidth: 420, width: "100%", display: "flex", flexDirection: "column", gap: 10, animation: "fadeInUp 0.3s ease", maxHeight: "85vh", overflowY: "auto" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text }}>💬 Envio Sequencial</h3>
-                  <button onClick={closeBulk} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text }}>💬 Envio Sequencial</h3>
+                  <button onClick={closeBulk} style={{ background: "none", color: T.textFaint, fontSize: 16 }}>✕</button>
                 </div>
                 {!sending ? (<>
-                  <div style={{ padding: "12px 14px", borderRadius: 12, background: T.inputBg, border: `1px solid ${T.inputBorder}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Destinatários</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{total} leads</span>
+                  <div style={{ padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>Destinatários</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>{total} leads</span>
                     </div>
                     <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Filtro: <span style={{ color: T.accent, fontWeight: 600 }}>{leadFilter === "all" ? "Todos" : leadFilter === "hot" ? "🔥 Quentes" : leadFilter === "warm" ? "Engajados" : leadFilter === "cold" ? "❄️ Frios" : "🔗 Indicados"}</span></p>
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>Mensagem <span style={{ fontWeight: 400, color: T.textFaint }}>( use {"\"{nome}\""} )</span></label>
-                    <textarea defaultValue={bulkMsg} onBlur={(e) => setBulkMsg(e.target.value)} key="bulk-msg" style={{ ...inp, minHeight: 80, resize: "vertical" }} />
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Mensagem <span style={{ fontWeight: 400, color: T.textFaint }}>( use {"\"{nome}\""} )</span></label>
+                    <textarea defaultValue={bulkMsg} onBlur={(e) => setBulkMsg(e.target.value)} key="bulk-msg" style={{ ...inp, minHeight: 72, resize: "vertical" }} />
                   </div>
-                  <div style={{ padding: "10px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}` }}>
+                  <div style={{ padding: "8px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}` }}>
                     <p style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Preview:</p>
                     <p style={{ fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{bulkMsg.replace("{nome}", segmentedLeads[0]?.name.split(" ")[0] || "Nome")}</p>
                   </div>
-                  <button onClick={startSending} style={{ padding: "14px", borderRadius: 12, background: "#25D366", color: "#fff", fontSize: 14, fontWeight: 700 }}>💬 Iniciar envio ({total} leads)</button>
+                  <button onClick={startSending} style={{ padding: "10px 12px", borderRadius: 10, background: "#25D366", color: "#fff", fontSize: 13, fontWeight: 700 }}>💬 Iniciar envio ({total} leads)</button>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => { copyAllNumbers(segmentedLeads); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📋 Copiar números</button>
                     <button onClick={() => { exportCSV(segmentedLeads); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📊 Exportar CSV</button>
@@ -569,7 +587,7 @@ export default function AdminPanel({
                     <div style={{ height: 8, borderRadius: 4, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #25D366, #7DE2C7)", width: `${progress}%`, transition: "width 0.4s" }} /></div>
                   </div>
                   {currentLead && (
-                    <div style={{ padding: "16px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, textAlign: "center" }}>
+                    <div style={{ padding: "12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, textAlign: "center" }}>
                       <div style={{ width: 50, height: 50, borderRadius: "50%", background: `linear-gradient(135deg, ${T.accent}, ${T.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: "#060a09", margin: "0 auto 10px" }}>{currentLead.name.charAt(0).toUpperCase()}</div>
                       <h4 style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{currentLead.name}</h4>
                       <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>{currentLead.whatsapp}</p>
@@ -581,9 +599,9 @@ export default function AdminPanel({
                     <p style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{bulkMsg.replace("{nome}", currentLead?.name.split(" ")[0] || "")}</p>
                   </div>
                   {!bulkWASent.includes(currentLead?.id) ? (
-                    <button onClick={sendCurrent} style={{ padding: "14px", borderRadius: 12, background: "#25D366", color: "#fff", fontSize: 14, fontWeight: 700 }}>💬 Abrir WhatsApp de {currentLead?.name.split(" ")[0]}</button>
+                    <button onClick={sendCurrent} style={{ padding: "10px 12px", borderRadius: 10, background: "#25D366", color: "#fff", fontSize: 13, fontWeight: 700 }}>💬 Abrir WhatsApp de {currentLead?.name.split(" ")[0]}</button>
                   ) : (
-                    <div style={{ padding: "10px 14px", borderRadius: 10, background: T.dlBg, border: `1px solid ${T.accent}44`, textAlign: "center" }}>
+                    <div style={{ padding: "8px 12px", borderRadius: 8, background: T.dlBg, border: `1px solid ${T.accent}44`, textAlign: "center" }}>
                       <span style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>✅ Aberto! Envie e clique Próximo</span>
                     </div>
                   )}
@@ -636,10 +654,10 @@ export default function AdminPanel({
           const dlRate = registeredLeads > 0 ? ((leadsWithDl / registeredLeads) * 100).toFixed(1) : "—";
 
           return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Funnel */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>🔄 Funil de Conversão</h3>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>🔄 Funil de Conversão</h3>
                 {[[pageViews, "Acessaram a página", "100%", T.textFaint],
                   [registeredLeads, "Se cadastraram", regRate + "%", T.accent],
                   [leadsWithDl, "Baixaram algo", dlRate + "%", T.gold],
@@ -665,9 +683,9 @@ export default function AdminPanel({
                 const topClicks = linksWithClicks[0]?.clicks || 1;
                 if (totalClicks === 0) return null;
                 return (
-                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
                     <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>🔗 Cliques nos Links</h3>
-                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 12 }}>Total: {totalClicks} cliques</p>
+                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 8 }}>Total: {totalClicks} cliques</p>
                     {linksWithClicks.map((link, i) => {
                       const pct = totalClicks > 0 ? ((link.clicks / totalClicks) * 100).toFixed(0) : 0;
                       const barW = (link.clicks / topClicks) * 100;
@@ -701,8 +719,8 @@ export default function AdminPanel({
               </div>
 
               {/* Ranking de materiais */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>🏆 Ranking de Downloads</h3>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>🏆 Ranking de Downloads</h3>
                 {matDlCounts.map((m, i) => {
                   const pct = totalDl > 0 ? ((m.dlCount / totalDl) * 100).toFixed(0) : 0;
                   const barW = topMat && topMat.dlCount > 0 ? (m.dlCount / topMat.dlCount) * 100 : 0;
@@ -725,8 +743,8 @@ export default function AdminPanel({
 
               {/* Categorias */}
               {catStats.length > 0 && (
-                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📂 Performance por Categoria</h3>
+                <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>📂 Performance por Categoria</h3>
                   {catStats.map((c, i) => (
                     <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < catStats.length - 1 ? `1px solid ${T.inputBorder}` : "none" }}>
                       <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
@@ -741,10 +759,10 @@ export default function AdminPanel({
               {/* Instagram stats */}
               {(() => {
                 const instaMatsSorted = activeMats.filter(m => m.instaPostUrl).sort((a, b) => (b.instaViews || 0) - (a.instaViews || 0));
-                if (instaMatsSorted.length === 0) return <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, textAlign: "center" }}><p style={{ fontSize: 13, color: T.textFaint }}>📸 Nenhum post do Instagram cadastrado ainda.</p><p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>Adicione o link do post e as métricas em cada material.</p></div>;
+                if (instaMatsSorted.length === 0) return <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 12, textAlign: "center" }}><p style={{ fontSize: 13, color: T.textFaint }}>📸 Nenhum post do Instagram cadastrado ainda.</p><p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>Adicione o link do post e as métricas em cada material.</p></div>;
                 return (
-                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📸 Instagram vs Downloads</h3>
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>📸 Instagram vs Downloads</h3>
                     {instaMatsSorted.map((m) => {
                       const dlCount = matDlCounts.find(x => x.id === m.id)?.dlCount || 0;
                       const convRate = m.instaViews > 0 ? ((dlCount / m.instaViews) * 100).toFixed(1) : "—";
@@ -773,8 +791,8 @@ export default function AdminPanel({
               })()}
 
               {/* Gamification Overview */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>🎮 Gamificacao</h3>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>🎮 Gamificacao</h3>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   {[
                     ["🔥", leads.filter(l => (l.streakCount || 0) > 0).length, "streaks ativos"],
@@ -796,7 +814,7 @@ export default function AdminPanel({
                 const breakdown = getProfileBreakdown(m.id);
                 if (breakdown.length === 0) return null;
                 return (
-                  <div key={m.id} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+                  <div key={m.id} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
                     <h3 style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>🔍 Quem baixou: {m.icon} {m.title}</h3>
                     {breakdown.map(f => (
                       <div key={f.key} style={{ marginBottom: 10 }}>
@@ -829,8 +847,8 @@ export default function AdminPanel({
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {/* Bio */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>👤 Meu Perfil</h3>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>👤 Meu Perfil</h3>
                 <CmsField label="URL da foto" ck="bioPhotoUrl" />
                 <CmsField label="Nome" ck="bioName" />
                 <CmsField label="Linha 1" ck="bioLine1" />
@@ -844,7 +862,7 @@ export default function AdminPanel({
               </div>
 
               {/* Links */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🔗 Meus Links</h3>
                   <button onClick={() => { const nl = [...bioLinks, { id: String(Date.now()), title: "Novo Link", imageUrl: "", icon: "🔗", url: "", active: true, clicks: 0 }]; saveBioLinks(nl); }} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>＋ Novo link</button>
@@ -888,174 +906,232 @@ export default function AdminPanel({
 
         {/* TEXTOS */}
         {adminTab === "textos" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {[
-              ["🏠 Tela Inicial", [["Nome da marca", "brandName"], ["Subtítulo", "brandTag"], ["Texto principal", "landingSubtitle", true], ["Stat 1 label", "landingStat1Label"], ["Stat 2 valor", "landingStat2"], ["Stat 2 label", "landingStat2Label"], ["Stat 3 valor", "landingStat3"], ["Stat 3 label", "landingStat3Label"], ["Label nome", "nameLabel"], ["Placeholder nome", "namePlaceholder"], ["Label WhatsApp", "whatsLabel"], ["Placeholder WA", "whatsPlaceholder"], ["Botão CTA", "ctaText"], ["Texto segurança", "safeText"]]],
-              ["📱 Hub", [["Saudação", "hubGreetPrefix"], ["Emoji", "hubGreetEmoji"], ["Subtítulo", "hubSubtitle"], ["Progresso", "progressSuffix"], ["Dica", "progressHint"], ["Título seção", "sectionTitle"], ["Texto perfil (hub)", "profilePromptText"], ["Título perfil (tela)", "profileSectionTitle"]]],
-              ["🔓 Modais", [["Título indicação", "shareModalTitle"], ["Desc indicação", "shareModalDesc", true], ["Título comentário", "commentModalTitle"], ["Desc comentário", "commentModalDesc", true], ["Título pesquisa", "surveyModalTitle"]]],
-              ["🔗 Links", [["URL Instagram", "instagramUrl"], ["Handle", "instagramHandle"], ["URL base do app", "baseUrl"], ["URL da logo (imagem)", "logoUrl"]]],
-            ].map(([title, fields]) => (<div key={title} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>{title}</h3>{fields.map(([l, k, m]) => <CmsField key={k} label={l} ck={k} multi={m} />)}</div>))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 
-            {/* PROFILE / PHASE BUILDER */}
-            <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>📋 Fases do Perfil ({(dbPhases || []).length})</h3>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => updCfg("profileEnabled", config.profileEnabled === "false" ? "true" : "false")} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: config.profileEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.profileEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.profileEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.profileEnabled !== "false" ? "✅ Ativo" : "🚫 Oculto"}</button>
-                  <button onClick={async () => { const p = await db.addPhase({ title: `Fase ${(dbPhases || []).length + 1}`, icon: "📋", credits: 2, sortOrder: (dbPhases || []).length, questions: [{ id: "q1", label: "Pergunta 1", type: "text", required: true, options: [] }] }); if (p) showT("Fase criada!"); else showT("Erro ao criar fase. Tente novamente."); }} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 11, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Nova fase</button>
-                </div>
+            {/* ─── TELA INICIAL ─── */}
+            <div>
+              <div onClick={() => toggleSection("telaInicial")} style={sectionHeaderStyle}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>🏠 Tela Inicial</h3>
+                <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.telaInicial ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
               </div>
-              {(dbPhases || []).map((phase, pi) => (
-                <div key={phase.id} style={{ background: T.inputBg, border: `1px solid ${phase.active ? T.accent + "33" : T.inputBorder}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>{phase.icon} {phase.title}</p>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {pi > 0 && <button onClick={() => { const prev = dbPhases[pi - 1]; db.updatePhase(phase.id, { sortOrder: prev.sortOrder }); db.updatePhase(prev.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↑</button>}
-                      {pi < dbPhases.length - 1 && <button onClick={() => { const next = dbPhases[pi + 1]; db.updatePhase(phase.id, { sortOrder: next.sortOrder }); db.updatePhase(next.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↓</button>}
-                      <button onClick={() => db.updatePhase(phase.id, { active: !phase.active })} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: phase.active ? T.accent + "22" : T.dangerBg, color: phase.active ? T.accent : T.dangerTxt, border: `1px solid ${phase.active ? T.accent + "44" : T.dangerBrd}` }}>{phase.active ? "✅" : "👁"}</button>
-                      <button onClick={async () => { if (confirm("Excluir esta fase?")) { const ok = await db.deletePhase(phase.id); if (ok) showT("Fase removida!"); else showT("Erro ao excluir fase. Tente novamente."); } }} style={{ padding: "4px 8px", borderRadius: 6, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
-                    <div><label style={{ fontSize: 10, color: T.textFaint }}>Título</label><input defaultValue={phase.title} onBlur={(e) => db.updatePhase(phase.id, { title: e.target.value })} key={"pt-" + phase.id} style={inp} /></div>
-                    <div><label style={{ fontSize: 10, color: T.textFaint }}>Ícone</label><input defaultValue={phase.icon} onBlur={(e) => db.updatePhase(phase.id, { icon: e.target.value })} key={"pi-" + phase.id} style={inp} /></div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
-                    <div><label style={{ fontSize: 10, color: T.textFaint }}>Prêmio</label><input defaultValue={phase.prize} onBlur={(e) => db.updatePhase(phase.id, { prize: e.target.value })} key={"pp-" + phase.id} style={inp} /></div>
-                    <div><label style={{ fontSize: 10, color: T.textFaint }}>Créditos</label><input type="number" defaultValue={phase.credits} onBlur={(e) => db.updatePhase(phase.id, { credits: parseInt(e.target.value) || 2 })} key={"pc-" + phase.id} style={inp} /></div>
-                  </div>
-                  <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: T.textFaint }}>Link do prêmio</label><input defaultValue={phase.prizeUrl} onBlur={(e) => db.updatePhase(phase.id, { prizeUrl: e.target.value })} key={"pu-" + phase.id} style={inp} placeholder="https://..." /></div>
-                  <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: T.textFaint }}>Texto do botão (CTA)</label><input defaultValue={phase.ctaText || ""} onBlur={(e) => db.updatePhase(phase.id, { ctaText: e.target.value })} key={"pct-" + phase.id} style={inp} placeholder="🎁 Desbloquear prêmio!" /></div>
-
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 6 }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: T.textMuted }}>Perguntas ({phase.questions.length})</p>
-                    <button onClick={() => { const qs = [...phase.questions, { id: `q${Date.now()}`, label: "", type: "text", required: true, options: [] }]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44`, fontWeight: 600 }}>＋</button>
-                  </div>
-                  {phase.questions.map((q, qi) => (
-                    <div key={q.id} style={{ background: T.statBg, borderRadius: 8, padding: 8, marginBottom: 6, border: `1px solid ${T.statBorder}` }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <p style={{ fontSize: 9, fontWeight: 700, color: T.textFaint }}>Pergunta {qi + 1}</p>
-                        <div style={{ display: "flex", gap: 3 }}>
-                          {qi > 0 && <button onClick={() => { const qs = [...phase.questions]; [qs[qi], qs[qi-1]] = [qs[qi-1], qs[qi]]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, background: T.inputBg, color: T.textFaint, border: `1px solid ${T.inputBorder}` }}>↑</button>}
-                          {qi < phase.questions.length - 1 && <button onClick={() => { const qs = [...phase.questions]; [qs[qi], qs[qi+1]] = [qs[qi+1], qs[qi]]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, background: T.inputBg, color: T.textFaint, border: `1px solid ${T.inputBorder}` }}>↓</button>}
-                          <button onClick={() => { const qs = phase.questions.filter((_, i) => i !== qi); db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
-                        </div>
-                      </div>
-                      <div style={{ marginBottom: 4 }}><label style={{ fontSize: 9, color: T.textFaint }}>Texto da pergunta</label><input defaultValue={q.label} onBlur={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], label: e.target.value }; db.updatePhase(phase.id, { questions: qs }); }} key={"ql-" + q.id} style={{ ...inp, fontSize: 12 }} /></div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 4 }}>
-                        <div><label style={{ fontSize: 9, color: T.textFaint }}>Tipo</label>
-                          <select defaultValue={q.type} onChange={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], type: e.target.value }; db.updatePhase(phase.id, { questions: qs }); }} key={"qt-" + q.id} style={{ ...inp, fontSize: 11 }}>
-                            <option value="text">Texto curto</option>
-                            <option value="textarea">Texto longo</option>
-                            <option value="select">Seleção única</option>
-                            <option value="multiselect">Múltipla escolha</option>
-                            <option value="scale">Escala 1-5</option>
-                          </select>
-                        </div>
-                        <div><label style={{ fontSize: 9, color: T.textFaint }}>Obrigatória</label>
-                          <select defaultValue={q.required !== false ? "true" : "false"} onChange={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], required: e.target.value === "true" }; db.updatePhase(phase.id, { questions: qs }); }} style={{ ...inp, fontSize: 11 }}>
-                            <option value="true">Sim</option>
-                            <option value="false">Não</option>
-                          </select>
-                        </div>
-                      </div>
-                      {(q.type === "select" || q.type === "multiselect") && (
-                        <div><label style={{ fontSize: 9, color: T.textFaint }}>Opções (separar com |)</label><input defaultValue={(q.options || []).join(" | ")} onBlur={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], options: e.target.value.split("|").map(s => s.trim()).filter(Boolean) }; db.updatePhase(phase.id, { questions: qs }); }} key={"qo-" + q.id} style={{ ...inp, fontSize: 11 }} placeholder="Opção 1 | Opção 2 | Opção 3" /></div>
-                      )}
-                    </div>
-                  ))}
+              {!collapsedSections.telaInicial && (
+                <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
+                  <CmsGroup label="Marca">
+                    <CmsField label="Nome da marca" ck="brandName" />
+                    <CmsField label="Subtítulo" ck="brandTag" />
+                  </CmsGroup>
+                  <CmsGroup label="Texto principal" cols={1}>
+                    <CmsField label="Texto principal" ck="landingSubtitle" multi hint="Texto abaixo da marca na tela de cadastro" />
+                  </CmsGroup>
+                  <CmsGroup label="Estatísticas">
+                    <CmsField label="Stat 1 — Label" ck="landingStat1Label" hint="Ex: Materiais" />
+                    <CmsField label="Stat 2 — Valor" ck="landingStat2" hint="Ex: Grátis" />
+                    <CmsField label="Stat 2 — Label" ck="landingStat2Label" hint="Ex: Para começar" />
+                    <CmsField label="Stat 3 — Valor" ck="landingStat3" hint="Ex: 100%" />
+                    <CmsField label="Stat 3 — Label" ck="landingStat3Label" hint="Ex: Prático" />
+                  </CmsGroup>
+                  <CmsGroup label="Formulário de cadastro">
+                    <CmsField label="Label nome" ck="nameLabel" />
+                    <CmsField label="Placeholder nome" ck="namePlaceholder" />
+                    <CmsField label="Label WhatsApp" ck="whatsLabel" />
+                    <CmsField label="Placeholder WhatsApp" ck="whatsPlaceholder" />
+                  </CmsGroup>
+                  <CmsGroup label="Ação">
+                    <CmsField label="Botão CTA" ck="ctaText" hint="Ex: Acessar materiais →" />
+                    <CmsField label="Texto de segurança" ck="safeText" hint="Ex: 🔒 Seus dados estão seguros." />
+                  </CmsGroup>
                 </div>
-              ))}
-            </div>
-
-            {/* SOCIAL PROOF CMS */}
-            <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>👥 Prova Social</h3>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'" }}>Modo de exibição</label>
-                <div style={{ display: "flex", gap: 4 }}>
-                  {[["downloads", "📥 Downloads"], ["recent", "👤 Atividade"], ["both", "📥+👤 Ambos"], ["off", "🚫 Desligado"]].map(([k, l]) => (
-                    <button key={k} onClick={() => updCfg("socialProofMode", k)} style={{ flex: 1, padding: "8px 4px", borderRadius: 9, fontSize: 11, fontWeight: 600, background: config.socialProofMode === k ? T.accent + "22" : T.inputBg, color: config.socialProofMode === k ? T.accent : T.textFaint, border: `1px solid ${config.socialProofMode === k ? T.accent + "44" : T.inputBorder}`, transition: "all 0.2s" }}>{l}</button>
-                  ))}
-                </div>
-              </div>
-
-              {config.socialProofMode !== "off" && (
-                <>
-                  {(config.socialProofMode === "downloads" || config.socialProofMode === "both") && (
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Boost de downloads <span style={{ fontWeight: 400, color: T.textFaint }}>(somado ao real)</span></label>
-                      <input type="number" defaultValue={config.socialProofBoost} onBlur={(e) => updCfg("socialProofBoost", parseInt(e.target.value) || 0)} key={"spb-" + config.socialProofBoost} style={inp} placeholder="150" />
-                      <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Número base somado aos downloads reais de cada material. Ex: 150 → "167 downloads"</p>
-                    </div>
-                  )}
-
-                  {(config.socialProofMode === "recent" || config.socialProofMode === "both") && (
-                    <>
-                      <div style={{ marginBottom: 10 }}>
-                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Nomes simulados <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
-                        <textarea defaultValue={Array.isArray(config.socialProofNames) ? config.socialProofNames.join(", ") : (config.socialProofNames || "")} onBlur={(e) => updCfg("socialProofNames", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} key={"spn"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="Maria, João, Ana, Pedro..." />
-                      </div>
-                      <div style={{ marginBottom: 10 }}>
-                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Tempos (minutos) <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
-                        <textarea defaultValue={Array.isArray(config.socialProofMinutes) ? config.socialProofMinutes.join(", ") : (config.socialProofMinutes || "")} onBlur={(e) => updCfg("socialProofMinutes", e.target.value.split(",").map((s) => parseInt(s.trim())).filter(Boolean))} key={"spm"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="3, 12, 25, 47, 68..." />
-                        <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Cada material usa um par nome+tempo. Ex: "Maria baixou há 12min"</p>
-                      </div>
-                    </>
-                  )}
-
-                  <div style={{ padding: "10px 14px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, marginTop: 4 }}>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'" }}>Preview:</p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {(config.socialProofMode === "downloads" || config.socialProofMode === "both") && <span style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>📥 {getMatDownloads(1)} downloads</span>}
-                      {config.socialProofMode === "both" && <span style={{ color: T.progressTrack }}>·</span>}
-                      {(config.socialProofMode === "recent" || config.socialProofMode === "both") && <span style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'", fontStyle: "italic" }}>{getRecentPerson(1)}</span>}
-                    </div>
-                  </div>
-                </>
               )}
             </div>
 
-            {/* DYNAMIC BANNER CMS */}
-            <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, marginBottom: 4 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>🎯 Banner Dinâmico</h3>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                  <button onClick={() => updCfg("bannerPersonalized", true)} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: config.bannerPersonalized ? T.accent + "22" : T.inputBg, color: config.bannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${config.bannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>🎯 Personalizado</button>
-                  <button onClick={() => updCfg("bannerPersonalized", false)} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: !config.bannerPersonalized ? T.accent + "22" : T.inputBg, color: !config.bannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${!config.bannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>✏️ Fixo (manual)</button>
-                </div>
-
-                {config.bannerPersonalized ? (
-                  <>
-                    <div style={{ padding: "12px 14px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, marginBottom: 10 }}>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: T.accent, marginBottom: 8, fontFamily: "'Plus Jakarta Sans'" }}>Regras automáticas:</p>
-                      {[
-                        ["🚀", "0 downloads", "\"Comece sua jornada! X materiais esperando...\""],
-                        ["💪", "1-2 downloads", "\"X de Y baixados! Continue explorando...\""],
-                        ["🔓", "2+ downloads + materiais travados", "\"Já aproveitou X materiais. Desbloqueie os Y restantes por R$Z\""],
-                        ["🏆", "Todos baixados", "\"Você é fera! Fique ligado...\""],
-                      ].map(([ico, cond, txt], i) => (
-                        <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
-                          <span style={{ fontSize: 14, flexShrink: 0 }}>{ico}</span>
-                          <div>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>{cond}</span>
-                            <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 1 }}>{txt}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ padding: "10px 12px", borderRadius: 8, background: T.accent + "11", border: `1px solid ${T.accent}22` }}>
-                      <p style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'" }}>💡 O banner adapta automaticamente a mensagem incentivando o lead a completar perfil ou responder pesquisas para desbloquear conteúdos.</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <CmsField label="Banner título" ck="ctaBannerTitle" />
-                    <CmsField label="Banner descrição" ck="ctaBannerDesc" />
-                    <CmsField label="Banner botão" ck="ctaBannerBtn" />
-                  </>
-                )}
+            {/* ─── HUB ─── */}
+            <div>
+              <div onClick={() => toggleSection("hub")} style={sectionHeaderStyle}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>📱 Hub</h3>
+                <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.hub ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
               </div>
+              {!collapsedSections.hub && (
+                <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
+                  <CmsGroup label="Saudação" cols={3}>
+                    <CmsField label="Prefixo" ck="hubGreetPrefix" hint="Ex: Olá," />
+                    <CmsField label="Emoji" ck="hubGreetEmoji" hint="Ex: 👋" />
+                    <CmsField label="Subtítulo" ck="hubSubtitle" hint="Ex: VOLL Pilates Hub" />
+                  </CmsGroup>
+                  <CmsGroup label="Seção de materiais">
+                    <CmsField label="Título da seção" ck="sectionTitle" hint="Ex: Materiais disponíveis" />
+                    <CmsField label="Sufixo progresso" ck="progressSuffix" hint="Ex: materiais baixados" />
+                    <CmsFullField label="Dica de progresso" ck="progressHint" hint="Texto embaixo da barra de progresso" />
+                  </CmsGroup>
+                  <CmsGroup label="Perfil">
+                    <CmsField label="Texto perfil (hub)" ck="profilePromptText" hint="Ex: Ganhe créditos!" />
+                    <CmsField label="Título perfil (tela)" ck="profileSectionTitle" hint="Ex: Ganhe créditos" />
+                  </CmsGroup>
+                </div>
+              )}
+            </div>
+
+            {/* ─── MODAIS ─── */}
+            <div>
+              <div onClick={() => toggleSection("modais")} style={sectionHeaderStyle}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>🔓 Modais</h3>
+                <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.modais ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
+              </div>
+              {!collapsedSections.modais && (
+                <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
+                  <CmsGroup label="Indicação (share)">
+                    <CmsField label="Título" ck="shareModalTitle" />
+                    <CmsFullField label="Descrição" ck="shareModalDesc" multi />
+                  </CmsGroup>
+                  <CmsGroup label="Comentário Instagram">
+                    <CmsField label="Título" ck="commentModalTitle" />
+                    <CmsFullField label="Descrição" ck="commentModalDesc" multi />
+                  </CmsGroup>
+                  <CmsGroup label="Pesquisa" cols={1}>
+                    <CmsField label="Título pesquisa" ck="surveyModalTitle" />
+                  </CmsGroup>
+                </div>
+              )}
+            </div>
+
+            {/* ─── LINKS ─── */}
+            <div>
+              <div onClick={() => toggleSection("links")} style={sectionHeaderStyle}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>🔗 Links</h3>
+                <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.links ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
+              </div>
+              {!collapsedSections.links && (
+                <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
+                  <CmsGroup cols={2}>
+                    <CmsField label="URL Instagram" ck="instagramUrl" hint="Ex: https://instagram.com/seu.perfil" />
+                    <CmsField label="Handle" ck="instagramHandle" hint="Ex: @rafael.voll" />
+                    <CmsField label="URL base do app" ck="baseUrl" hint="URL usada nos links de compartilhamento" />
+                    <CmsField label="URL da logo (imagem)" ck="logoUrl" hint="Deixe vazio para usar o logo padrão" />
+                  </CmsGroup>
+                </div>
+              )}
+            </div>
+
+            {/* ─── MENSAGENS E AVISOS ─── */}
+            <div>
+              <div onClick={() => toggleSection("mensagens")} style={sectionHeaderStyle}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>📢 Mensagens e avisos</h3>
+                <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.mensagens ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
+              </div>
+              {!collapsedSections.mensagens && (
+                <div style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", margin: 0 }}>Popups, modais e banners exibidos ao usuário. Cada bloco mostra a regra de quando aparece.</p>
+
+                  {/* Popup e-mail */}
+                  <div style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: T.accent, margin: 0 }}>✉️ Popup e-mail (+2 créditos)</h4>
+                      <button onClick={() => updCfg("messagesEmailPopupEnabled", config.messagesEmailPopupEnabled === "false" ? "true" : "false")} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: config.messagesEmailPopupEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.messagesEmailPopupEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.messagesEmailPopupEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.messagesEmailPopupEnabled !== "false" ? "Ativo" : "Desativado"}</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10, lineHeight: 1.4 }}>No hub, lead sem e-mail, não dispensou nesta sessão.</p>
+                    <CmsGroup cols={1}>
+                      <CmsField label="Título do popup" ck="emailPopupTitle" />
+                    </CmsGroup>
+                    <CmsGroup cols={2}>
+                      <CmsField label="Botão principal" ck="emailPopupBtnSubmit" />
+                      <CmsField label="Botão dispensar" ck="emailPopupBtnDismiss" />
+                    </CmsGroup>
+                  </div>
+
+                  {/* Modal Como funciona? */}
+                  <div style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: T.accent, margin: 0 }}>💡 Modal &quot;Como funciona?&quot;</h4>
+                      <button onClick={() => updCfg("messagesHowWorksAutoShow", config.messagesHowWorksAutoShow === "false" ? "true" : "false")} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: config.messagesHowWorksAutoShow !== "false" ? T.accent + "22" : T.dangerBg, color: config.messagesHowWorksAutoShow !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.messagesHowWorksAutoShow !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.messagesHowWorksAutoShow !== "false" ? "Auto 1ª vez" : "Só manual"}</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10, lineHeight: 1.4 }}>Abre na 1ª vez no hub e sempre pelo link no footer. Use {"{n}"} para créditos iniciais.</p>
+                    <CmsGroup cols={2}>
+                      <CmsField label="Link no footer" ck="howWorksFooterLink" />
+                      <CmsField label="Título do modal" ck="howWorksTitle" />
+                    </CmsGroup>
+                    <CmsGroup label="Passo 1">
+                      <CmsField label="Título" ck="howWorksStep1Title" />
+                      <CmsFullField label="Descrição" ck="howWorksStep1Desc" multi />
+                    </CmsGroup>
+                    <CmsGroup label="Passo 2">
+                      <CmsField label="Título" ck="howWorksStep2Title" />
+                      <CmsFullField label="Descrição" ck="howWorksStep2Desc" multi hint="Use {n} para créditos iniciais" />
+                    </CmsGroup>
+                    <CmsGroup label="Passo 3">
+                      <CmsField label="Título" ck="howWorksStep3Title" />
+                      <CmsFullField label="Descrição" ck="howWorksStep3Desc" multi />
+                    </CmsGroup>
+                  </div>
+
+                  {/* Onboarding */}
+                  <div style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: T.accent, margin: 0 }}>👋 Onboarding (3 telas)</h4>
+                      <button onClick={() => updCfg("messagesOnboardingEnabled", config.messagesOnboardingEnabled === "false" ? "true" : "false")} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: config.messagesOnboardingEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.messagesOnboardingEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.messagesOnboardingEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.messagesOnboardingEnabled !== "false" ? "Ativo" : "Desativado"}</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10, lineHeight: 1.4 }}>Só para usuário novo, uma vez. Use {"{name}"} no título e {"{n}"} para créditos.</p>
+                    <CmsGroup label="Tela 1 — Boas-vindas">
+                      <CmsField label="Título" ck="onboardingWelcomeTitle" hint="Use {name} para o nome" />
+                      <CmsFullField label="Descrição" ck="onboardingWelcomeDesc" multi />
+                    </CmsGroup>
+                    <CmsGroup label="Tela 2 — Créditos">
+                      <CmsField label="Título" ck="onboardingCreditsTitle" />
+                      <CmsFullField label="Descrição" ck="onboardingCreditsDesc" multi hint="Use {n} para créditos iniciais" />
+                    </CmsGroup>
+                    <CmsGroup label="Tela 3 — Ganhe mais">
+                      <CmsField label="Título" ck="onboardingGanheTitle" />
+                      <CmsFullField label="Descrição" ck="onboardingGanheDesc" multi />
+                    </CmsGroup>
+                    <CmsGroup label="Botões" cols={3}>
+                      <CmsField label="Próximo" ck="onboardingNextBtn" />
+                      <CmsField label="Começar" ck="onboardingStartBtn" />
+                      <CmsField label="Pular" ck="onboardingSkipBtn" />
+                    </CmsGroup>
+                  </div>
+
+                  {/* Banner instalar app */}
+                  <div style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: T.accent, margin: 0 }}>📱 Banner &quot;Instale na tela inicial&quot;</h4>
+                      <button onClick={() => updCfg("messagesInstallBannerEnabled", config.messagesInstallBannerEnabled === "false" ? "true" : "false")} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: config.messagesInstallBannerEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.messagesInstallBannerEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.messagesInstallBannerEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.messagesInstallBannerEnabled !== "false" ? "Ativo" : "Desativado"}</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10, lineHeight: 1.4 }}>Só em mobile, se não PWA. Máx 2 alertas no hub (instalar → Instagram → perfil).</p>
+                    <CmsGroup cols={1}>
+                      <CmsField label="Título do banner" ck="installBannerTitle" />
+                    </CmsGroup>
+                    <CmsGroup label="Passos iOS (Safari)" cols={3}>
+                      <CmsField label="Passo 1" ck="installBannerStepsIos1" />
+                      <CmsField label="Passo 2" ck="installBannerStepsIos2" />
+                      <CmsField label="Passo 3" ck="installBannerStepsIos3" />
+                    </CmsGroup>
+                    <CmsGroup label="Passos Android (Chrome)" cols={3}>
+                      <CmsField label="Passo 1" ck="installBannerStepsAndroid1" />
+                      <CmsField label="Passo 2" ck="installBannerStepsAndroid2" />
+                      <CmsField label="Passo 3" ck="installBannerStepsAndroid3" />
+                    </CmsGroup>
+                    <CmsGroup label="Botões" cols={3}>
+                      <CmsField label="Instalar" ck="installBannerBtnInstall" />
+                      <CmsField label="Já instalei" ck="installBannerBtnDone" />
+                      <CmsField label="Agora não" ck="installBannerBtnLater" />
+                    </CmsGroup>
+                  </div>
+
+                  {/* Banner foto ranking */}
+                  <div style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, padding: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: T.accent, margin: 0 }}>📷 Banner &quot;Foto no ranking&quot;</h4>
+                      <button onClick={() => updCfg("messagesPhotoAnnounceEnabled", config.messagesPhotoAnnounceEnabled === "false" ? "true" : "false")} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: config.messagesPhotoAnnounceEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.messagesPhotoAnnounceEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.messagesPhotoAnnounceEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.messagesPhotoAnnounceEnabled !== "false" ? "Ativo" : "Desativado"}</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10, lineHeight: 1.4 }}>Perfil ativo, sem foto, não dispensou. Some ao clicar Ver ou Fechar.</p>
+                    <CmsGroup cols={1}>
+                      <CmsField label="Texto do aviso" ck="photoAnnounceText" multi />
+                    </CmsGroup>
+                    <CmsGroup cols={2}>
+                      <CmsField label="Botão Ver" ck="photoAnnounceBtnVer" />
+                      <CmsField label="Botão Fechar" ck="photoAnnounceBtnFechar" />
+                    </CmsGroup>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1066,12 +1142,188 @@ export default function AdminPanel({
           const milestones = getMilestones();
           const saveStreakRules = (rules) => db.updateConfig("streakRules", JSON.stringify(rules));
           const saveMilestones = (ms) => db.updateConfig("milestones", JSON.stringify(ms));
-          const inp = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", width: "100%" };
+          const gInp = { padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", width: "100%" };
           return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+              {/* ─── PROFILE / PHASE BUILDER (moved from Textos) ─── */}
+              <div>
+                <div onClick={() => toggleSection("phases")} style={sectionHeaderStyle}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>📋 Fases do Perfil ({(dbPhases || []).length})</h3>
+                  <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.phases ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
+                </div>
+                {!collapsedSections.phases && (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                      <button onClick={() => updCfg("profileEnabled", config.profileEnabled === "false" ? "true" : "false")} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: config.profileEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.profileEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.profileEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.profileEnabled !== "false" ? "✅ Ativo" : "🚫 Oculto"}</button>
+                      <button onClick={async () => { const p = await db.addPhase({ title: `Fase ${(dbPhases || []).length + 1}`, icon: "📋", credits: 2, sortOrder: (dbPhases || []).length, questions: [{ id: "q1", label: "Pergunta 1", type: "text", required: true, options: [] }] }); if (p) showT("Fase criada!"); else showT("Erro ao criar fase. Tente novamente."); }} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Nova fase</button>
+                    </div>
+                    {(dbPhases || []).map((phase, pi) => (
+                      <div key={phase.id} style={{ background: T.inputBg, border: `1px solid ${phase.active ? T.accent + "33" : T.inputBorder}`, borderRadius: 10, padding: 14, marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{phase.icon} {phase.title}</p>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {pi > 0 && <button onClick={() => { const prev = dbPhases[pi - 1]; db.updatePhase(phase.id, { sortOrder: prev.sortOrder }); db.updatePhase(prev.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "5px 9px", borderRadius: 6, fontSize: 11, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↑</button>}
+                            {pi < dbPhases.length - 1 && <button onClick={() => { const next = dbPhases[pi + 1]; db.updatePhase(phase.id, { sortOrder: next.sortOrder }); db.updatePhase(next.id, { sortOrder: phase.sortOrder }); }} style={{ padding: "5px 9px", borderRadius: 6, fontSize: 11, background: T.statBg, color: T.textFaint, border: `1px solid ${T.statBorder}` }}>↓</button>}
+                            <button onClick={() => db.updatePhase(phase.id, { active: !phase.active })} style={{ padding: "5px 11px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: phase.active ? T.accent + "22" : T.dangerBg, color: phase.active ? T.accent : T.dangerTxt, border: `1px solid ${phase.active ? T.accent + "44" : T.dangerBrd}` }}>{phase.active ? "✅" : "👁"}</button>
+                            <button onClick={async () => { if (confirm("Excluir esta fase?")) { const ok = await db.deletePhase(phase.id); if (ok) showT("Fase removida!"); else showT("Erro ao excluir fase. Tente novamente."); } }} style={{ padding: "5px 9px", borderRadius: 6, fontSize: 11, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>🗑</button>
+                          </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
+                          <div><label style={{ fontSize: 12, color: T.textFaint }}>Título</label><input defaultValue={phase.title} onBlur={(e) => db.updatePhase(phase.id, { title: e.target.value })} key={"pt-" + phase.id} style={inp} /></div>
+                          <div><label style={{ fontSize: 12, color: T.textFaint }}>Ícone</label><input defaultValue={phase.icon} onBlur={(e) => db.updatePhase(phase.id, { icon: e.target.value })} key={"pi-" + phase.id} style={inp} /></div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
+                          <div><label style={{ fontSize: 12, color: T.textFaint }}>Prêmio</label><input defaultValue={phase.prize} onBlur={(e) => db.updatePhase(phase.id, { prize: e.target.value })} key={"pp-" + phase.id} style={inp} /></div>
+                          <div><label style={{ fontSize: 12, color: T.textFaint }}>Créditos</label><input type="number" defaultValue={phase.credits} onBlur={(e) => db.updatePhase(phase.id, { credits: parseInt(e.target.value) || 2 })} key={"pc-" + phase.id} style={inp} /></div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}><label style={{ fontSize: 12, color: T.textFaint }}>Link do prêmio</label><input defaultValue={phase.prizeUrl} onBlur={(e) => db.updatePhase(phase.id, { prizeUrl: e.target.value })} key={"pu-" + phase.id} style={inp} placeholder="https://..." /></div>
+                        <div style={{ marginBottom: 8 }}><label style={{ fontSize: 12, color: T.textFaint }}>Texto do botão (CTA)</label><input defaultValue={phase.ctaText || ""} onBlur={(e) => db.updatePhase(phase.id, { ctaText: e.target.value })} key={"pct-" + phase.id} style={inp} placeholder="🎁 Desbloquear prêmio!" /></div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>Perguntas ({phase.questions.length})</p>
+                          <button onClick={() => { const qs = [...phase.questions, { id: `q${Date.now()}`, label: "", type: "text", required: true, options: [] }]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44`, fontWeight: 600 }}>＋</button>
+                        </div>
+                        {phase.questions.map((q, qi) => (
+                          <div key={q.id} style={{ background: T.statBg, borderRadius: 8, padding: 10, marginBottom: 6, border: `1px solid ${T.statBorder}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                              <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint }}>Pergunta {qi + 1}</p>
+                              <div style={{ display: "flex", gap: 3 }}>
+                                {qi > 0 && <button onClick={() => { const qs = [...phase.questions]; [qs[qi], qs[qi-1]] = [qs[qi-1], qs[qi]]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "3px 7px", borderRadius: 4, fontSize: 10, background: T.inputBg, color: T.textFaint, border: `1px solid ${T.inputBorder}` }}>↑</button>}
+                                {qi < phase.questions.length - 1 && <button onClick={() => { const qs = [...phase.questions]; [qs[qi], qs[qi+1]] = [qs[qi+1], qs[qi]]; db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "3px 7px", borderRadius: 4, fontSize: 10, background: T.inputBg, color: T.textFaint, border: `1px solid ${T.inputBorder}` }}>↓</button>}
+                                <button onClick={() => { const qs = phase.questions.filter((_, i) => i !== qi); db.updatePhase(phase.id, { questions: qs }); }} style={{ padding: "3px 7px", borderRadius: 4, fontSize: 10, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>✕</button>
+                              </div>
+                            </div>
+                            <div style={{ marginBottom: 6 }}><label style={{ fontSize: 11, color: T.textFaint }}>Texto da pergunta</label><input defaultValue={q.label} onBlur={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], label: e.target.value }; db.updatePhase(phase.id, { questions: qs }); }} key={"ql-" + q.id} style={{ ...inp, fontSize: 13 }} /></div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
+                              <div><label style={{ fontSize: 11, color: T.textFaint }}>Tipo</label>
+                                <select defaultValue={q.type} onChange={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], type: e.target.value }; db.updatePhase(phase.id, { questions: qs }); }} key={"qt-" + q.id} style={{ ...inp, fontSize: 12 }}>
+                                  <option value="text">Texto curto</option>
+                                  <option value="textarea">Texto longo</option>
+                                  <option value="select">Seleção única</option>
+                                  <option value="multiselect">Múltipla escolha</option>
+                                  <option value="scale">Escala 1-5</option>
+                                </select>
+                              </div>
+                              <div><label style={{ fontSize: 11, color: T.textFaint }}>Obrigatória</label>
+                                <select defaultValue={q.required !== false ? "true" : "false"} onChange={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], required: e.target.value === "true" }; db.updatePhase(phase.id, { questions: qs }); }} style={{ ...inp, fontSize: 12 }}>
+                                  <option value="true">Sim</option>
+                                  <option value="false">Não</option>
+                                </select>
+                              </div>
+                            </div>
+                            {(q.type === "select" || q.type === "multiselect") && (
+                              <div><label style={{ fontSize: 11, color: T.textFaint }}>Opções (separar com |)</label><input defaultValue={(q.options || []).join(" | ")} onBlur={(e) => { const qs = [...phase.questions]; qs[qi] = { ...qs[qi], options: e.target.value.split("|").map(s => s.trim()).filter(Boolean) }; db.updatePhase(phase.id, { questions: qs }); }} key={"qo-" + q.id} style={{ ...inp, fontSize: 12 }} placeholder="Opção 1 | Opção 2 | Opção 3" /></div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ─── SOCIAL PROOF (moved from Textos) ─── */}
+              <div>
+                <div onClick={() => toggleSection("socialProof")} style={sectionHeaderStyle}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>👥 Prova Social</h3>
+                  <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.socialProof ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
+                </div>
+                {!collapsedSections.socialProof && (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
+                    <div style={{ marginBottom: 8 }}>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'" }}>Modo de exibição</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {[["downloads", "📥 Downloads"], ["recent", "👤 Atividade"], ["both", "📥+👤 Ambos"], ["off", "🚫 Desligado"]].map(([k, l]) => (
+                          <button key={k} onClick={() => updCfg("socialProofMode", k)} style={{ flex: 1, padding: "8px 4px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: config.socialProofMode === k ? T.accent + "22" : T.inputBg, color: config.socialProofMode === k ? T.accent : T.textFaint, border: `1px solid ${config.socialProofMode === k ? T.accent + "44" : T.inputBorder}`, transition: "all 0.2s" }}>{l}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {config.socialProofMode !== "off" && (
+                      <>
+                        {(config.socialProofMode === "downloads" || config.socialProofMode === "both") && (
+                          <div style={{ marginBottom: 10 }}>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Boost de downloads <span style={{ fontWeight: 400, color: T.textFaint }}>(somado ao real)</span></label>
+                            <input type="number" defaultValue={config.socialProofBoost} onBlur={(e) => updCfg("socialProofBoost", parseInt(e.target.value) || 0)} key={"spb-" + config.socialProofBoost} style={inp} placeholder="150" />
+                            <p style={{ fontSize: 11, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Número base somado aos downloads reais de cada material.</p>
+                          </div>
+                        )}
+                        {(config.socialProofMode === "recent" || config.socialProofMode === "both") && (
+                          <>
+                            <div style={{ marginBottom: 10 }}>
+                              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Nomes simulados <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
+                              <textarea defaultValue={Array.isArray(config.socialProofNames) ? config.socialProofNames.join(", ") : (config.socialProofNames || "")} onBlur={(e) => updCfg("socialProofNames", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} key={"spn"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="Maria, João, Ana, Pedro..." />
+                            </div>
+                            <div style={{ marginBottom: 10 }}>
+                              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Tempos (minutos) <span style={{ fontWeight: 400, color: T.textFaint }}>(separados por vírgula)</span></label>
+                              <textarea defaultValue={Array.isArray(config.socialProofMinutes) ? config.socialProofMinutes.join(", ") : (config.socialProofMinutes || "")} onBlur={(e) => updCfg("socialProofMinutes", e.target.value.split(",").map((s) => parseInt(s.trim())).filter(Boolean))} key={"spm"} style={{ ...inp, minHeight: 45, resize: "vertical" }} placeholder="3, 12, 25, 47, 68..." />
+                              <p style={{ fontSize: 11, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>Cada material usa um par nome+tempo.</p>
+                            </div>
+                          </>
+                        )}
+                        <div style={{ padding: "10px 14px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, marginTop: 4 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'" }}>Preview:</p>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {(config.socialProofMode === "downloads" || config.socialProofMode === "both") && <span style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>📥 {getMatDownloads(1)} downloads</span>}
+                            {config.socialProofMode === "both" && <span style={{ color: T.progressTrack }}>·</span>}
+                            {(config.socialProofMode === "recent" || config.socialProofMode === "both") && <span style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'", fontStyle: "italic" }}>{getRecentPerson(1)}</span>}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ─── DYNAMIC BANNER (moved from Textos) ─── */}
+              <div>
+                <div onClick={() => toggleSection("banner")} style={sectionHeaderStyle}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>🎯 Banner Dinâmico</h3>
+                  <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.banner ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
+                </div>
+                {!collapsedSections.banner && (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                      <button onClick={() => updCfg("bannerPersonalized", true)} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: config.bannerPersonalized ? T.accent + "22" : T.inputBg, color: config.bannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${config.bannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>🎯 Personalizado</button>
+                      <button onClick={() => updCfg("bannerPersonalized", false)} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: !config.bannerPersonalized ? T.accent + "22" : T.inputBg, color: !config.bannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${!config.bannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>✏️ Fixo (manual)</button>
+                    </div>
+                    {config.bannerPersonalized ? (
+                      <>
+                        <div style={{ padding: "12px 14px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, marginBottom: 10 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: T.accent, marginBottom: 8, fontFamily: "'Plus Jakarta Sans'" }}>Regras automáticas:</p>
+                          {[
+                            ["🚀", "0 downloads", "\"Comece sua jornada! X materiais esperando...\""],
+                            ["💪", "1-2 downloads", "\"X de Y baixados! Continue explorando...\""],
+                            ["🔓", "2+ downloads + materiais travados", "\"Já aproveitou X materiais. Desbloqueie os Y restantes por R$Z\""],
+                            ["🏆", "Todos baixados", "\"Você é fera! Fique ligado...\""],
+                          ].map(([ico, cond, txt], i) => (
+                            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
+                              <span style={{ fontSize: 14, flexShrink: 0 }}>{ico}</span>
+                              <div>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>{cond}</span>
+                                <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 1 }}>{txt}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ padding: "10px 12px", borderRadius: 8, background: T.accent + "11", border: `1px solid ${T.accent}22` }}>
+                          <p style={{ fontSize: 12, color: T.accent, fontFamily: "'Plus Jakarta Sans'" }}>💡 O banner adapta automaticamente a mensagem.</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <CmsField label="Banner título" ck="ctaBannerTitle" />
+                        <CmsField label="Banner descrição" ck="ctaBannerDesc" />
+                        <CmsField label="Banner botão" ck="ctaBannerBtn" />
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Streak Rewards */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🔥 Regras de Streak</h3>
                   <button onClick={() => saveStreakRules([...streakRules, { every: 5, credits: 1, message: "dias seguidos!" }])} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>+ Regra</button>
                 </div>
@@ -1095,8 +1347,8 @@ export default function AdminPanel({
               </div>
 
               {/* Milestones */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🏆 Marcos de Dias</h3>
                   <button onClick={() => saveMilestones([...milestones, { days: 10, title: "Novo marco!", message: "Parabens!", credits: 0 }])} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>+ Marco</button>
                 </div>
@@ -1119,8 +1371,8 @@ export default function AdminPanel({
               </div>
 
               {/* Ranking config */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📊 Ranking</h3>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>📊 Ranking</h3>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span style={{ fontSize: 12, color: T.textMuted }}>Visivel para usuarios:</span>
                   <button onClick={() => db.updateConfig("rankingEnabled", config.rankingEnabled === "false" ? "true" : "false")} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: config.rankingEnabled !== "false" ? T.accent + "22" : T.dangerBg, color: config.rankingEnabled !== "false" ? T.accent : T.dangerTxt, border: `1px solid ${config.rankingEnabled !== "false" ? T.accent + "44" : T.dangerBrd}` }}>{config.rankingEnabled !== "false" ? "Ativo" : "Desativado"}</button>
@@ -1128,9 +1380,9 @@ export default function AdminPanel({
               </div>
 
               {/* Gamification stats */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>📈 Estatisticas de Gamificacao</h3>
-                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>📈 Estatisticas de Gamificacao</h3>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   {[
                     ["🔥", leads.filter(l => l.streakCount > 0).length, "com streak ativo"],
                     ["📖", leads.filter(l => (l.reflectionsRead || []).length > 0).length, "leram reflexoes"],
@@ -1188,9 +1440,9 @@ export default function AdminPanel({
           const linkInp = { width: "100%", padding: "8px 10px", borderRadius: 8, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 12, fontFamily: "'Plus Jakarta Sans'" };
 
           return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Credits Config */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>🎯 Sistema de Créditos</h3>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <span style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>Ativar sistema:</span>
@@ -1221,7 +1473,7 @@ export default function AdminPanel({
               </div>
 
               {/* Instagram Posts */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>💬 Posts Instagram ({allInstaPosts.length})</h3>
                   <button onClick={() => { const ps = [...allInstaPosts, { id: String(Date.now()), title: "Comentar no post", description: "", url: "", credits: 1, active: true }]; saveInstaPosts(ps); showT("Post adicionado!"); }} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Novo post</button>
@@ -1250,13 +1502,16 @@ export default function AdminPanel({
               </div>
 
               {/* Quiz List */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🧠 Quizzes ({allQuizzes.length})</h3>
-                <button onClick={addQuiz} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${T.accent}44` }}>＋ Novo quiz</button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input style={{ ...inp, maxWidth: 200, padding: "8px 12px" }} placeholder="🔍 Buscar quiz..." value={searchQuiz} onChange={(e) => setSearchQuiz(e.target.value)} />
+                  <button onClick={addQuiz} style={{ padding: "6px 14px", borderRadius: 8, background: T.accent + "22", color: T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${T.accent}44`, whiteSpace: "nowrap" }}>＋ Novo quiz</button>
+                </div>
               </div>
 
-              {allQuizzes.map(q => (
-                <div key={q.id} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 14 }}>
+              {allQuizzes.filter(q => !searchQuiz.trim() || q.title.toLowerCase().includes(searchQuiz.toLowerCase())).map(q => (
+                <div key={q.id} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                     <input value={q.title} onChange={(e) => updateQuiz(q.id, "title", e.target.value)} style={{ ...linkInp, fontWeight: 700, fontSize: 14, flex: 1 }} placeholder="Título do quiz" />
                     <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
@@ -1296,12 +1551,13 @@ export default function AdminPanel({
 
         {/* REFLECTIONS CMS */}
         {adminTab === "reflections" && (() => {
-          const sortedRefs = [...(dbReflections || [])].sort((a, b) => b.publishDate.localeCompare(a.publishDate));
+          const allRefs = [...(dbReflections || [])].sort((a, b) => b.publishDate.localeCompare(a.publishDate));
+          const sortedRefs = searchReflection.trim() ? allRefs.filter(r => (r.title + " " + r.body + " " + (r.quote || "")).toLowerCase().includes(searchReflection.toLowerCase())) : allRefs;
           const emptyRef = { title: "", body: "", actionText: "", quote: "", inspiration: "", publishDate: new Date(Date.now() + 86400000).toISOString().split("T")[0], active: true };
           return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* AI GENERATOR */}
-              <div style={{ background: theme === "dark" ? "#1a1a10" : "#fffdf5", border: `1px solid ${T.gold}33`, borderRadius: 14, padding: 16 }}>
+              <div style={{ background: theme === "dark" ? "#1a1a10" : "#fffdf5", border: `1px solid ${T.gold}33`, borderRadius: 10, padding: 12 }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: T.gold, marginBottom: 10 }}>🤖 Gerador de Reflexões</p>
                 <textarea value={adminRefGenPrompt} onChange={e => setAdminRefGenPrompt(e.target.value)} placeholder="Tema ou palavras-chave... Ex: 'importância de cobrar o preço justo', 'como lidar com aluna que reclama do preço'" rows={2} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical" }} />
                 <button disabled={adminRefGenLoading || !adminRefGenPrompt.trim()} onClick={async () => {
@@ -1329,7 +1585,7 @@ export default function AdminPanel({
               </div>
 
               {/* ADD/EDIT FORM */}
-              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>{adminRefEdit?.id ? "✏️ Editar" : "➕ Nova"} Reflexão</p>
                 <input value={adminRefEdit?.title || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), title: e.target.value }))} placeholder="Título" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }} />
                 <textarea value={adminRefEdit?.body || ""} onChange={e => setAdminRefEdit(p => ({ ...(p || emptyRef), body: e.target.value }))} placeholder="Texto da reflexão..." rows={4} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBrd}`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", resize: "vertical", marginBottom: 8 }} />
@@ -1365,13 +1621,16 @@ export default function AdminPanel({
               </div>
 
               {/* LIST */}
-              <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginTop: 4 }}>📋 Reflexões programadas ({sortedRefs.length})</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, gap: 10 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>📋 Reflexões ({sortedRefs.length}{searchReflection ? ` de ${allRefs.length}` : ""})</p>
+                <input style={{ ...inp, maxWidth: 280 }} placeholder="🔍 Buscar reflexão..." value={searchReflection} onChange={(e) => setSearchReflection(e.target.value)} />
+              </div>
               {sortedRefs.map(r => {
                 const isToday = r.publishDate === todayStr;
                 const isPast = r.publishDate < todayStr;
                 const isFuture = r.publishDate > todayStr;
                 return (
-                  <div key={r.id} style={{ background: T.cardBg, border: `1px solid ${isToday ? T.gold + "44" : T.cardBorder}`, borderRadius: 14, padding: "12px 14px", opacity: isPast && !isToday ? 0.6 : 1 }}>
+                  <div key={r.id} style={{ background: T.cardBg, border: `1px solid ${isToday ? T.gold + "44" : T.cardBorder}`, borderRadius: 10, padding: "10px 12px", opacity: isPast && !isToday ? 0.6 : 1 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
@@ -1405,7 +1664,7 @@ export default function AdminPanel({
 
               {/* IMAGE PREVIEW MODAL */}
               {refImagePreview && (
-                <div onClick={() => setRefImagePreview(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                <div onClick={() => setRefImagePreview(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
                   <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: 16, padding: 20, maxWidth: 600, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                       <p style={{ fontSize: 15, fontWeight: 700, color: T.text }}>📸 Imagens geradas (4 estilos)</p>
@@ -1433,9 +1692,9 @@ export default function AdminPanel({
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {/* Add new user */}
             {!showNewUser ? (
-              <button onClick={() => setShowNewUser(true)} style={{ width: "100%", padding: "14px", borderRadius: 14, background: T.gold + "15", border: `2px dashed ${T.gold}44`, color: T.gold, fontSize: 14, fontWeight: 700 }}>＋ Criar novo Admin</button>
+              <button onClick={() => setShowNewUser(true)} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: T.gold + "15", border: `2px dashed ${T.gold}44`, color: T.gold, fontSize: 13, fontWeight: 700 }}>＋ Criar novo Admin</button>
             ) : (
-              <div style={{ background: T.statBg, border: `2px solid ${T.gold}44`, borderRadius: 14, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ background: T.statBg, border: `2px solid ${T.gold}44`, borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: T.gold }}>＋ Novo Admin</h3>
                   <button onClick={() => setShowNewUser(false)} style={{ background: "none", color: T.textFaint, fontSize: 16 }}>✕</button>
@@ -1469,7 +1728,7 @@ export default function AdminPanel({
             )}
 
             {/* MASTER card */}
-            <div style={{ background: T.statBg, border: `1px solid ${T.gold}33`, borderRadius: 14, padding: 16, borderLeft: `3px solid ${T.gold}` }}>
+            <div style={{ background: T.statBg, border: `1px solid ${T.gold}33`, borderRadius: 10, padding: 12, borderLeft: `3px solid ${T.gold}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <div style={{ width: 40, height: 40, borderRadius: "50%", background: `linear-gradient(135deg, #c49500, #FFD863)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>👑</div>
                 <div style={{ flex: 1 }}>
@@ -1487,7 +1746,7 @@ export default function AdminPanel({
             {adminUsers.map((u, i) => {
               const isEditing = editUserId === u.id;
               return (
-                <div key={u.id} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 14, padding: 16, borderLeft: `3px solid ${T.accent}`, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.3s ease ${i * 0.05}s` }}>
+                <div key={u.id} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 12, borderLeft: `3px solid ${T.accent}`, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.3s ease ${i * 0.05}s` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: isEditing ? 12 : 0 }}>
                     <div style={{ width: 40, height: 40, borderRadius: "50%", background: T.avBg, border: `2px solid ${T.avBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: T.accent }}>{u.name.charAt(0).toUpperCase()}</div>
                     <div style={{ flex: 1 }}>
@@ -1531,27 +1790,39 @@ export default function AdminPanel({
           </div>
         )}
 
-        {/* LOG */}
-        {adminTab === "log" && isMaster && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>📜 Atividades desta sessão</h3>
-              <button onClick={() => setActivityLog([])} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.dangerBg, color: T.dangerTxt, border: `1px solid ${T.dangerBrd}` }}>Limpar</button>
+        {/* SUPORTE */}
+        {adminTab === "support" && (
+          <div style={{ padding: 0, maxWidth: "100%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Suporte</h2>
+              <button type="button" onClick={() => db.loadSupportRequests && db.loadSupportRequests()} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>Atualizar</button>
             </div>
-            {activityLog.length === 0 && <p style={{ textAlign: "center", fontSize: 13, color: T.textFaint, padding: 30, fontFamily: "'Plus Jakarta Sans'" }}>Nenhuma atividade registrada ainda.</p>}
-            {activityLog.map((log, i) => (
-              <div key={i} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", background: T.avBg, border: `1px solid ${T.avBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.accent, flexShrink: 0 }}>{log.who.charAt(0)}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{log.who}</p>
-                  <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.action}</p>
-                </div>
-                <span style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", whiteSpace: "nowrap" }}>{log.time}</span>
+            <p style={{ fontSize: 12, color: T.textMuted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans'" }}>Reportes de erro e sugestões enviados pelos usuários pelo app.</p>
+            {(db.supportRequests || []).length === 0 ? (
+              <div style={{ padding: 16, textAlign: "center", background: T.cardBg, borderRadius: 10, border: `1px solid ${T.cardBorder}` }}>
+                <p style={{ fontSize: 13, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Nenhuma mensagem de suporte ainda.</p>
               </div>
-            ))}
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(db.supportRequests || []).map((sr) => (
+                  <div key={sr.id} style={{ background: T.cardBg, border: `1px solid ${sr.type === "error" ? T.dangerBrd + "44" : T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: sr.type === "error" ? T.dangerBrd + "22" : T.accent + "22", color: sr.type === "error" ? T.dangerBrd : T.accent, fontWeight: 700 }}>{sr.type === "error" ? "Reporte de erro" : "Sugestão"}</span>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{sr.created_at ? new Date(sr.created_at).toLocaleString("pt-BR") : "—"}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: T.text, lineHeight: 1.45, fontFamily: "'Plus Jakarta Sans'", whiteSpace: "pre-wrap", marginBottom: 6 }}>{sr.message}</p>
+                    <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{sr.user_name || "—"} · {sr.user_whatsapp || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
-      </div>
+
+        {/* LOG */}
+        {adminTab === "log" && isMaster && <AdminLog T={T} activityLog={activityLog} setActivityLog={setActivityLog} />}
+        </div>
+      </main>
       {showIconPicker && <IconPicker onSelect={(ic) => { if (showIconPicker === "new") setNewMat((p) => ({ ...p, icon: ic })); else updMat(showIconPicker, "icon", ic); }} onClose={() => setShowIconPicker(null)} />}
       <Toast />
     </div>

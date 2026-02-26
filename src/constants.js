@@ -54,6 +54,50 @@ export const DEFAULT_CONFIG = {
   bioLine2: "🎯 Marketing, Gestão e Vendas no Pilates",
   bioStat1: "+230", bioStat1Label: "Studios VOLL",
   bioStat2: "+85 mil", bioStat2Label: "Instrutores Formados",
+
+  // ─── Mensagens e avisos (popups, banners, modais) ───
+  messagesEmailPopupEnabled: "true",
+  emailPopupTitle: "Informe agora o seu email e receba +2 créditos",
+  emailPopupBtnSubmit: "Receber créditos",
+  emailPopupBtnDismiss: "Agora não",
+
+  messagesHowWorksAutoShow: "true",
+  howWorksFooterLink: "Como funciona?",
+  howWorksTitle: "💡 Como funciona?",
+  howWorksStep1Title: "Materiais gratuitos",
+  howWorksStep1Desc: "Baixe e-books, guias e templates feitos pra você crescer no Pilates.",
+  howWorksStep2Title: "Créditos",
+  howWorksStep2Desc: "Alguns materiais pedem créditos. Você já ganhou {n} ao se cadastrar!",
+  howWorksStep3Title: "Ganhe mais",
+  howWorksStep3Desc: "Complete seu perfil ou indique amigas para ganhar créditos extras.",
+
+  messagesOnboardingEnabled: "true",
+  onboardingWelcomeTitle: "Bem-vinda, {name}!",
+  onboardingWelcomeDesc: "Aqui você encontra materiais gratuitos pra turbinar sua carreira no Pilates: e-books, guias, templates e mais.",
+  onboardingCreditsTitle: "Créditos",
+  onboardingCreditsDesc: "Alguns materiais especiais precisam de créditos pra desbloquear. Você já ganhou {n} créditos ao se cadastrar!",
+  onboardingGanheTitle: "Ganhe mais créditos",
+  onboardingGanheDesc: "Complete as fases do seu perfil ou indique amigas para ganhar créditos extras e desbloquear tudo!",
+  onboardingNextBtn: "Próximo →",
+  onboardingStartBtn: "Começar! 🚀",
+  onboardingSkipBtn: "Pular",
+
+  messagesInstallBannerEnabled: "true",
+  installBannerTitle: "Instale o VOLL Hub na tela inicial — como um app",
+  installBannerStepsIos1: "Toque em Compartilhar no Safari",
+  installBannerStepsIos2: "Toque em \"Adicionar à Tela de Início\"",
+  installBannerStepsIos3: "Confirme em \"Adicionar\"",
+  installBannerStepsAndroid1: "Menu (⋮) no Chrome",
+  installBannerStepsAndroid2: "\"Adicionar à tela inicial\" ou \"Instalar app\"",
+  installBannerStepsAndroid3: "Confirme e pronto",
+  installBannerBtnInstall: "Instalar agora",
+  installBannerBtnDone: "Já instalei",
+  installBannerBtnLater: "Agora não",
+
+  messagesPhotoAnnounceEnabled: "true",
+  photoAnnounceText: "Novidade: adicione sua foto no Perfil e apareça no ranking.",
+  photoAnnounceBtnVer: "Ver",
+  photoAnnounceBtnFechar: "Fechar",
 };
 
 export const DEFAULT_BIO_LINKS = [

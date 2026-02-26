@@ -49,6 +49,7 @@ const leadFromDb = (r) => {
     credits: r.credits ?? 3, creditsEarned: r.credits_earned || {},
     streakCount: r.streak_count || 0, streakLastDate: r.streak_last_date || '', streakBest: r.streak_best || 0,
     totalDays: r.total_days || 0, reflectionsRead: r.reflections_read || [], milestonesAchieved: r.milestones_achieved || [],
+    avatarUrl: r.avatar_url || '',
   }
 }
 
@@ -93,6 +94,7 @@ export function useSupabase() {
   const [config, setConfig] = useState({})
   const [reflections, setReflections] = useState([])
   const [phases, setPhases] = useState([])
+  const [supportRequests, setSupportRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -177,6 +179,13 @@ export function useSupabase() {
       const result = await adminFetch({ action: 'list_admins' })
       if (result.data) setAdminUsers(result.data.map(adminFromDb))
     } catch (e) { console.error('Failed to load admin users:', e) }
+  }
+
+  const loadSupportRequests = async () => {
+    try {
+      const result = await adminFetch({ action: 'list_support' })
+      setSupportRequests(result.data || [])
+    } catch (e) { console.error('Failed to load support requests:', e) }
   }
 
   const checkPinUnique = async (pin) => {
@@ -301,6 +310,7 @@ export function useSupabase() {
       credits: 'credits', creditsEarned: 'credits_earned',
       streakCount: 'streak_count', streakLastDate: 'streak_last_date', streakBest: 'streak_best',
       totalDays: 'total_days', reflectionsRead: 'reflections_read', milestonesAchieved: 'milestones_achieved',
+      avatarUrl: 'avatar_url',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v
@@ -478,16 +488,29 @@ export function useSupabase() {
     if (error) console.error('OG image upload error:', error)
   }
 
+  // Profile photo: bucket "profile-photos" must exist and be public (Supabase Dashboard > Storage)
+  const uploadProfilePhoto = async (leadId, file) => {
+    const ext = (file.name || '').split('.').pop()?.toLowerCase() || 'jpg'
+    const contentType = file.type || (ext === 'png' ? 'image/png' : 'image/jpeg')
+    const path = `${leadId}/avatar.${ext}`
+    const { error } = await supabase.storage
+      .from('profile-photos')
+      .upload(path, file, { contentType, upsert: true })
+    if (error) { console.error('Profile photo upload error:', error); return null }
+    const { data: urlData } = supabase.storage.from('profile-photos').getPublicUrl(path)
+    return urlData?.publicUrl || null
+  }
+
   return {
-    materials, leads, adminUsers, config, reflections, phases, loading, error,
+    materials, leads, adminUsers, config, reflections, phases, supportRequests, loading, error,
     setMaterials, setLeads, setPhases,
     addMaterial, updateMaterial, deleteMaterial,
     addLead, updateLead, findLeadByWhatsApp,
     addAdminUser, updateAdminUser, deleteAdminUser,
-    loadAdminUsers, checkPinUnique,
+    loadAdminUsers, loadSupportRequests, checkPinUnique,
     addReflection, updateReflection, deleteReflection, likeReflection,
     addPhase, updatePhase, deletePhase,
-    uploadReflectionImage, uploadOgImage,
+    uploadReflectionImage, uploadOgImage, uploadProfilePhoto,
     updateConfig, updateConfigBatch,
     setAdminToken,
     incrementPageView: async () => {

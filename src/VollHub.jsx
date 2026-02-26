@@ -27,6 +27,7 @@ export default function VollHub() {
 
   const [userName, setUserName] = useState("");
   const [userWhatsApp, setUserWhatsApp] = useState("");
+  const [userAvatarUrl, setUserAvatarUrl] = useState("");
   const [souDeForaDoBrasil, setSouDeForaDoBrasil] = useState(false);
   const [downloaded, setDownloaded] = useState([]);
   // Auto-login from localStorage (restore user data but stay on linktree)
@@ -45,6 +46,7 @@ export default function VollHub() {
           if (u.creditsEarned) setUserCreditsEarned(u.creditsEarned);
           if (u.streak) setStreak(u.streak);
           if (u.totalDays) setTotalDays(u.totalDays);
+          if (u.avatarUrl) setUserAvatarUrl(u.avatarUrl);
           // Don't auto-navigate to hub - stay on linktree
         }
       }
@@ -149,6 +151,17 @@ export default function VollHub() {
   const [emailPopupLeadId, setEmailPopupLeadId] = useState(null);
   const [emailPopupValue, setEmailPopupValue] = useState("");
   const [emailPopupSaving, setEmailPopupSaving] = useState(false);
+  const [referralVerifying, setReferralVerifying] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportType, setSupportType] = useState("error"); // "error" | "suggestion"
+  const [supportMessage, setSupportMessage] = useState("");
+  const [supportSending, setSupportSending] = useState(false);
+  const [showHowWorksModal, setShowHowWorksModal] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState(false);
+  const [headerNarrow, setHeaderNarrow] = useState(typeof window !== "undefined" && window.innerWidth < 380);
+  const [photoAnnounceDismissed, setPhotoAnnounceDismissed] = useState(() => !!localStorage.getItem("vollhub_photo_announce_seen"));
 
   const getStreakRules = useCallback(() => {
     const def = [{ every: 5, credits: 1, message: "dias seguidos! +1 credito" }, { at: 30, credits: 3, message: "1 mes de dedicacao! +3 creditos" }];
@@ -254,13 +267,13 @@ export default function VollHub() {
     (async () => {
       const lead = await db.findLeadByWhatsApp(userWhatsApp);
       if (cancelled) return;
-      if (lead && !(lead.email || "").trim() && !sessionStorage.getItem("vollhub_email_popup_dismissed")) {
+      if (config.messagesEmailPopupEnabled !== "false" && lead && !(lead.email || "").trim() && !sessionStorage.getItem("vollhub_email_popup_dismissed")) {
         setEmailPopupLeadId(lead.id);
         setShowEmailPopup(true);
       }
     })();
     return () => { cancelled = true; };
-  }, [view, userWhatsApp, dbLoading]);
+  }, [view, userWhatsApp, dbLoading, config.messagesEmailPopupEnabled]);
   const [refName, setRefName] = useState("");
   const [refWA, setRefWA] = useState("");
   const [adminPin, setAdminPin] = useState("");
@@ -288,6 +301,8 @@ export default function VollHub() {
   const [activePhase, setActivePhase] = useState(null);
   const [phaseStartTime, setPhaseStartTime] = useState(null);
   const [phaseTimer, setPhaseTimer] = useState(0);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const profilePhotoInputRef = useRef(null);
   const openPhase = (id) => { setActivePhase(id); setPhaseStartTime(Date.now()); setPhaseTimer(0); };
   const PHASES = useMemo(() => (dbPhases || []).filter(p => p.active), [dbPhases]);
   const getPhaseAnswer = useCallback((phaseId, qId) => (phaseResponses[String(phaseId)] || {})[qId] || "", [phaseResponses]);
@@ -315,6 +330,31 @@ export default function VollHub() {
   useEffect(() => {
     if (view === "hub" || view === "admin" || view === "profile" || view === "linktree") { setAnimateIn(false); setTimeout(() => setAnimateIn(true), 100); }
   }, [view]);
+
+  // Restore profile draft when entering profile view
+  useEffect(() => {
+    if (view !== "profile") return;
+    try {
+      const raw = localStorage.getItem("vollhub_profile_draft");
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && typeof draft === "object" && Object.keys(draft).length > 0) setPhaseResponses(prev => ({ ...prev, ...draft }));
+      }
+    } catch (e) {}
+  }, [view]);
+
+  // Narrow header: move Voltar into menu
+  useEffect(() => {
+    const check = () => setHeaderNarrow(window.innerWidth < 380);
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  useEffect(() => {
+    if (view === "hub" && config.messagesHowWorksAutoShow !== "false" && !localStorage.getItem("vollhub_seen_hub_once")) {
+      localStorage.setItem("vollhub_seen_hub_once", "1");
+      setShowHowWorksModal(true);
+    }
+  }, [view, config.messagesHowWorksAutoShow]);
   useEffect(() => { if (logoTaps >= 5) { setLogoTaps(0); setView("admin-login"); } }, [logoTaps]);
 
   // Auto-refresh data every 30s when in admin
@@ -349,7 +389,7 @@ export default function VollHub() {
     } else if (vParam === "hub" || vParam === "materiais") {
       try {
         const saved = localStorage.getItem("vollhub_user");
-        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); setView("hub"); } else { setView("landing"); } }
+        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); if (u.avatarUrl) setUserAvatarUrl(u.avatarUrl); setView("hub"); } else { setView("landing"); } }
         else { setView("landing"); }
       } catch(e) { setView("landing"); }
     } else if (vParam === "landing" || vParam === "cadastro") {
@@ -373,6 +413,7 @@ export default function VollHub() {
       if (selectedMaterial) setSelectedMaterial(null);
       else if (unlockTarget) { setUnlockTarget(null); setRefName(""); setRefWA(""); }
       else if (showShareModal) setShowShareModal(false);
+      else if (showHowWorksModal) setShowHowWorksModal(false);
       else if (currentSurvey) setCurrentSurvey(null);
       else if (showCreditStore) setShowCreditStore(false);
       else if (showQuiz) setShowQuiz(false);
@@ -384,7 +425,7 @@ export default function VollHub() {
     };
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
-  }, [selectedMaterial, unlockTarget, showShareModal, currentSurvey, showCreditStore, showQuiz, gamificationPopup, showLeaderboard, phaseReward, showEmailPopup, showOnboarding]);
+  }, [selectedMaterial, unlockTarget, showShareModal, showHowWorksModal, currentSurvey, showCreditStore, showQuiz, gamificationPopup, showLeaderboard, phaseReward, showEmailPopup, showOnboarding]);
 
   const showT = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3000); }, []);
 
@@ -428,6 +469,7 @@ export default function VollHub() {
   const waNormalizedIntl = normalizeWhatsApp(userWhatsApp, true);
   const waValidIntl = waNormalizedIntl.length >= 10 && waNormalizedIntl.length <= 15;
   const handleLogin = async () => {
+    setLoginError(false);
     if (!userName.trim() || !userWhatsApp.trim()) return showT("Preencha todos os campos!");
     let whatsappToUse = userWhatsApp;
     if (souDeForaDoBrasil) {
@@ -441,31 +483,35 @@ export default function VollHub() {
       if (ddd < 11 || ddd > 99) return showT("DDD inválido");
       whatsappToUse = normalizeWhatsApp(userWhatsApp, false) || ("55" + waDigits);
     }
-    const existing = await db.findLeadByWhatsApp(whatsappToUse);
-    const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
-    if (existing) {
-      const ok = await db.updateLead(existing.id, { visits: (existing.visits || 0) + 1, lastVisit: dateStr, name: userName });
-      if (!ok) { showT("Erro ao atualizar. Tente novamente."); return; }
-      setDownloaded(existing.downloads || []);
-      setUserCredits(existing.credits ?? 3);
-      setUserCreditsEarned(existing.creditsEarned || {});
-      setReflectionsRead(existing.reflectionsRead || []);
-      processGamification(existing);
-    } else {
-      const created = await db.addLead({ name: userName, whatsapp: whatsappToUse, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {}, streakCount: 1, streakLastDate: todayStr, streakBest: 1, totalDays: 1, reflectionsRead: [], milestonesAchieved: [] });
-      if (!created) { showT("Erro ao criar cadastro. Verifique sua conexão e tente novamente."); return; }
-      setUserCredits(parseInt(config.creditsInitial) || 3);
-      setStreak({ count: 1, lastDate: todayStr, best: 1 });
-      setTotalDays(1);
+    setLoginLoading(true);
+    try {
+      const existing = await db.findLeadByWhatsApp(whatsappToUse);
+      const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
+      if (existing) {
+        const ok = await db.updateLead(existing.id, { visits: (existing.visits || 0) + 1, lastVisit: dateStr, name: userName });
+        if (!ok) { setLoginError(true); showT("Erro ao atualizar. Tente novamente."); return; }
+        setDownloaded(existing.downloads || []);
+        setUserCredits(existing.credits ?? 3);
+        setUserCreditsEarned(existing.creditsEarned || {});
+        setReflectionsRead(existing.reflectionsRead || []);
+        setUserAvatarUrl(existing.avatarUrl || "");
+        processGamification(existing);
+      } else {
+        const created = await db.addLead({ name: userName, whatsapp: whatsappToUse, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {}, streakCount: 1, streakLastDate: todayStr, streakBest: 1, totalDays: 1, reflectionsRead: [], milestonesAchieved: [] });
+        if (!created) { setLoginError(true); showT("Erro ao criar cadastro. Verifique sua conexão e tente novamente."); return; }
+        setUserCredits(parseInt(config.creditsInitial) || 3);
+        setStreak({ count: 1, lastDate: todayStr, best: 1 });
+        setTotalDays(1);
+      }
+      const pr = existing?.phaseResponses || {};
+      setPhaseResponses(pr);
+      setView("hub");
+      if (config.messagesOnboardingEnabled !== "false" && !existing && !localStorage.getItem("vollhub_onboarding_done")) { setShowOnboarding(true); setOnboardingStep(0); }
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+      localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: whatsappToUse, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr, streak: existing ? { count: existing.streakCount, lastDate: existing.streakLastDate, best: existing.streakBest } : { count: 1, lastDate: todayStr, best: 1 }, totalDays: existing ? existing.totalDays : 1, avatarUrl: existing?.avatarUrl || "" }));
+    } finally {
+      setLoginLoading(false);
     }
-    setView("hub");
-    if (!existing && !localStorage.getItem("vollhub_onboarding_done")) { setShowOnboarding(true); setOnboardingStep(0); }
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-    const visits = existing ? (existing.visits || 0) + 1 : 1;
-    // Install prompt is shown as inline banner in hub, not popup
-    const pr = existing?.phaseResponses || {};
-    setPhaseResponses(pr);
-    localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: whatsappToUse, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr, streak: existing ? { count: existing.streakCount, lastDate: existing.streakLastDate, best: existing.streakBest } : { count: 1, lastDate: todayStr, best: 1 }, totalDays: existing ? existing.totalDays : 1 }));
   };
   // ─── CREDITS HELPERS ───
   // ─── REFLECTION SHARE (uses canvasUtils.js) ───
@@ -722,6 +768,17 @@ export default function VollHub() {
   const spotlightMat = useMemo(() => deepLinkMatId ? activeMats.find((m) => m.id === deepLinkMatId) : null, [deepLinkMatId, activeMats]);
   const otherMats = useMemo(() => spotlightMat ? activeMats.filter((m) => m.id !== spotlightMat.id) : activeMats, [spotlightMat, activeMats]);
 
+  // Máx. 2 CTAs visíveis (Instalar > Instagram > Perfil) para reduzir poluição
+  const visibleAlerts = useMemo(() => {
+    const list = [];
+    const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const isStandalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || !!window.navigator.standalone);
+    if (isMobile && !isStandalone && !installBannerDismissed && !installBannerHiddenThisSession) list.push("install");
+    if (creditsEnabled && (activeInstaPosts.length > 0 || instaPosts.length > 0)) list.push("instagram");
+    if (!userProfile.completed) list.push("profile");
+    return list.slice(0, 2);
+  }, [installBannerDismissed, installBannerHiddenThisSession, creditsEnabled, activeInstaPosts.length, instaPosts.length, userProfile.completed]);
+
   const inp = { width: "100%", padding: "12px 14px", borderRadius: 11, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "all 0.2s" };
   const sInp = { ...inp, padding: "8px 10px", fontSize: 13 };
 
@@ -907,7 +964,7 @@ export default function VollHub() {
         // Check if user is logged in
         try {
           const saved = localStorage.getItem("vollhub_user");
-          if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); setView("hub"); return; } }
+          if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); if (u.avatarUrl) setUserAvatarUrl(u.avatarUrl); setView("hub"); return; } }
         } catch(e) {}
         setView("landing");
       } else {
@@ -918,8 +975,11 @@ export default function VollHub() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 16px 40px", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
         <style>{getCSS(T)}</style>
+        {isOffline && (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "10px 16px", background: T.gold + "22", borderBottom: `1px solid ${T.gold}44`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", zIndex: 50 }} role="status">Você está offline</div>
+        )}
         <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
-        <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1 }}>
+        <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1, paddingTop: isOffline ? 44 : 0 }}>
           {/* Bio Header */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "30px 0 20px", opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
             <div onClick={() => setLogoTaps(t => t + 1)} style={{ cursor: "pointer" }}>
@@ -998,8 +1058,11 @@ export default function VollHub() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
         <style>{getCSS(T)}</style>
+        {isOffline && (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "10px 16px", background: T.gold + "22", borderBottom: `1px solid ${T.gold}44`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", zIndex: 50 }} role="status">Sem conexão. Conecte-se para continuar.</div>
+        )}
         <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
-        <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "36px 24px 28px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 1, animation: "fadeInUp 0.6s ease", boxShadow: T.shadow }}>
+        <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "36px 24px 28px", maxWidth: 400, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 1, animation: "fadeInUp 0.6s ease", boxShadow: T.shadow, marginTop: isOffline ? 44 : 0 }}>
           <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ position: "absolute", top: 14, right: 14, width: 44, height: 26, borderRadius: 13, background: T.tabBg, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", padding: "0 3px", zIndex: 5 }}><div style={{ width: 20, height: 20, borderRadius: "50%", background: T.accent, transform: theme === "dark" ? "translateX(0)" : "translateX(17px)", transition: "all 0.3s", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{theme === "dark" ? "🌙" : "☀️"}</div></button>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 8, cursor: "pointer", userSelect: "none" }} onClick={() => setLogoTaps((t) => t + 1)}>
             <div style={{ marginBottom: 12 }}><InfLogo /></div>
@@ -1030,7 +1093,7 @@ export default function VollHub() {
           <div style={{ width: "100%", marginBottom: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.nameLabel}</label><input style={inp} placeholder={config.namePlaceholder} value={userName} onChange={(e) => setUserName(e.target.value)} /></div>
           <div style={{ width: "100%", marginBottom: 8 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 5, fontFamily: "'Plus Jakarta Sans'" }}>{config.whatsLabel}</label><input style={inp} type="tel" placeholder={souDeForaDoBrasil ? "+34 612 345 678" : "(19) 99921-4116"} value={userWhatsApp} onChange={(e) => setUserWhatsApp(fmtWA(e.target.value, souDeForaDoBrasil))} /><p style={{ fontSize: 10, color: (souDeForaDoBrasil ? waValidIntl : waValidBR) ? T.accent : T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 4 }}>{souDeForaDoBrasil ? (waValidIntl ? "✅ Número válido" : `Código do país + número (${waDigitsCount}/10-15 dígitos)`) : (waValidBR ? "✅ Número válido" : `(DDD) 9XXXX-XXXX · ${waDigitsCount}/11 dígitos`)}</p></div>
           <button type="button" onClick={() => setSouDeForaDoBrasil((b) => !b)} style={{ background: "none", color: T.textFaint, fontSize: 11, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'", textDecoration: "underline", padding: 0 }}>{souDeForaDoBrasil ? "Usar número brasileiro" : "Sou de fora do Brasil"}</button>
-          <button onClick={handleLogin} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 16, fontWeight: 700, marginTop: 6, boxShadow: "0 4px 20px #34998033" }}>{dlMat ? `Baixar "${dlMat.title}" →` : config.ctaText}</button>
+          <button type="button" onClick={handleLogin} disabled={loginLoading || isOffline} aria-busy={loginLoading} style={{ width: "100%", padding: "15px", borderRadius: 14, background: (loginLoading || isOffline) ? T.inputBg : "linear-gradient(135deg, #349980, #7DE2C7)", color: (loginLoading || isOffline) ? T.textFaint : "#060a09", fontSize: 16, fontWeight: 700, marginTop: 6, boxShadow: (loginLoading || isOffline) ? "none" : "0 4px 20px #34998033", cursor: (loginLoading || isOffline) ? "not-allowed" : "pointer" }}>{loginLoading ? "Entrando..." : isOffline ? "Sem conexão" : loginError ? "Tentar novamente" : (dlMat ? `Baixar "${dlMat.title}" →` : config.ctaText)}</button>
           <p style={{ fontSize: 11, color: T.textFaint, marginTop: 14, fontFamily: "'Plus Jakarta Sans'" }}>{config.safeText}</p>
           <button onClick={() => setView("linktree")} style={{ background: "none", color: T.accent, fontSize: 13, marginTop: 12, fontFamily: "'Plus Jakarta Sans'", fontWeight: 600 }}>← Voltar</button>
         </div>
@@ -1126,6 +1189,7 @@ export default function VollHub() {
         const creditsPerPhase = phase?.credits || 2;
         await earnCredits(creditsPerPhase, `phase${phaseId}`);
       }
+      try { localStorage.removeItem("vollhub_profile_draft"); } catch (e) {}
       setActivePhase(null);
       const phase = PHASES.find(p2 => p2.id === phaseId);
       setPhaseReward({ title: phase?.title || "Fase", credits: phase?.credits || 2, prize: phase?.prize || "", prizeUrl: phase?.prizeUrl || "", icon: phase?.icon || "🎉" });
@@ -1134,16 +1198,19 @@ export default function VollHub() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 16px 40px", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
         <style>{getCSS(T)}</style>
+        {isOffline && (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "10px 16px", background: T.gold + "22", borderBottom: `1px solid ${T.gold}44`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", zIndex: 50 }} role="status">Você está offline</div>
+        )}
         <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
-        <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1 }}>
+        <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1, paddingTop: isOffline ? 44 : 0 }}>
           <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0" }}>
-            <button onClick={() => { setView("hub"); setActivePhase(null); }} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", color: T.accent, fontSize: 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar ao Hub</button>
+            <button onClick={() => { try { localStorage.setItem("vollhub_profile_draft", JSON.stringify(phaseResponses)); } catch (e) {} setView("hub"); setActivePhase(null); }} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", color: T.accent, fontSize: 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar ao Hub</button>
             <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
           </header>
 
           {/* Profile Header */}
           <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "24px 20px", marginBottom: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${T.accent}, ${T.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: "#060a09", fontWeight: 800 }}>{userName.charAt(0).toUpperCase()}</div>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: userAvatarUrl ? "transparent" : `linear-gradient(135deg, ${T.accent}, ${T.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: "#060a09", fontWeight: 800, overflow: "hidden" }}>{userAvatarUrl ? <img src={userAvatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : userName.charAt(0).toUpperCase()}</div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text }}>{userName}</h2>
             <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{userWhatsApp}</p>
             {/* Phase progress dots */}
@@ -1156,6 +1223,21 @@ export default function VollHub() {
               ))}
             </div>
             <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{completedPhases}/{PHASES.length} fases completas</p>
+          </div>
+
+          {/* Sua foto — upload para aparecer no ranking */}
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: "16px 18px", marginBottom: 16, opacity: animateIn ? 1 : 0, transition: "all 0.4s ease" }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>📷 Sua foto</h3>
+            <p style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginBottom: 12 }}>Apareça no ranking com sua foto de rosto.</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: userAvatarUrl ? "transparent" : T.statBg, border: `2px solid ${T.cardBorder}`, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, color: T.textFaint }}>{userAvatarUrl ? <img src={userAvatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : userName.charAt(0).toUpperCase()}</div>
+              <div style={{ flex: 1 }}>
+                <input ref={profilePhotoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                  const file = e.target?.files?.[0]; if (!file || !db.uploadProfilePhoto) return; const lead = await db.findLeadByWhatsApp(userWhatsApp); if (!lead) { showT("Faça login novamente."); return; } setAvatarUploading(true); try { const url = await db.uploadProfilePhoto(lead.id, file); if (url) { await db.updateLead(lead.id, { avatarUrl: url }); setUserAvatarUrl(url); try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.avatarUrl = url; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch (err) {} showT("Foto atualizada!"); } else showT("Erro ao enviar. Tente de novo."); } catch (err) { showT("Erro ao enviar. Tente de novo."); } finally { setAvatarUploading(false); e.target.value = ""; }
+                }} />
+                <button type="button" disabled={avatarUploading} onClick={() => profilePhotoInputRef.current?.click()} style={{ padding: "8px 14px", borderRadius: 10, background: avatarUploading ? T.statBg : T.accent + "22", color: avatarUploading ? T.textFaint : T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${avatarUploading ? T.statBorder : T.accent + "44"}`, fontFamily: "'Plus Jakarta Sans'" }}>{avatarUploading ? "Enviando..." : (userAvatarUrl ? "Trocar foto" : "Escolher foto")}</button>
+              </div>
+            </div>
           </div>
 
           {/* Active Phase Form */}
@@ -1247,133 +1329,79 @@ export default function VollHub() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 16px 40px", fontFamily: "'Outfit'", background: T.bg, position: "relative", overflow: "hidden" }}>
       <style>{getCSS(T)}</style>
+      {isOffline && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "10px 16px", background: T.gold + "22", borderBottom: `1px solid ${T.gold}44`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", zIndex: 50 }} role="status">Você está offline</div>
+      )}
       <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
-      <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1 }}>
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div onClick={() => setLogoTaps((t) => t + 1)} style={{ width: 42, height: 42, borderRadius: "50%", background: T.avBg, border: `2px solid ${T.avBrd}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><InfLogo size={24} /></div>
-            <div><p style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{config.hubGreetPrefix} {userName.split(" ")[0]}! {config.hubGreetEmoji}</p><p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 1 }}>{config.hubSubtitle}</p></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={() => setView("linktree")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Voltar">←</button>
-            {config.rankingEnabled !== "false" && <button onClick={() => setShowLeaderboard(true)} style={{ width: 34, height: 34, borderRadius: "50%", background: T.gold + "15", border: `1px solid ${T.gold}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Ranking">🏆</button>}
-            {profileEnabled && <button onClick={() => setView("profile")} style={{ width: 34, height: 34, borderRadius: "50%", background: profileComplete ? T.accent + "22" : T.statBg, border: `1px solid ${profileComplete ? T.accent + "44" : T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, position: "relative" }}>
-              👤
-              {!profileComplete && <div style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}` }} />}
-            </button>}
-            <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
-            <button onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: 34, height: 34, borderRadius: "50%", background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} title="Sair">🚪</button>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.statBg, border: `1px solid ${T.statBorder}` }}><span style={{ fontSize: 13 }}>📥</span><span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{downloaded.length}</span></div>
-            {creditsEnabled && <div style={{ position: "relative" }}><button onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 18, background: T.gold + "15", border: `1px solid ${T.gold}44` }}><span style={{ fontSize: 13 }}>🎯</span><span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{userCredits}</span></button>
-              {pendingInstaComments.length > 0 && <div style={{ position: "absolute", top: -2, right: -2, minWidth: 16, height: 16, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}`, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", color: "#1a1a12" }}>{pendingInstaComments.length}</div>}
-              {showCreditTooltip && <div style={{ position: "absolute", top: 44, right: 0, width: 260, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.3s ease" }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{(config.creditsTooltipTitle || "🎯 Seus créditos: {n}").replace("{n}", userCredits)}</p>
-                <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>{config.creditsTooltipDesc || "Use créditos para desbloquear materiais exclusivos."}</p>
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <button onClick={() => { setShowCreditTooltip(false); setShowCreditStore(true); }} style={{ flex: 1, padding: "8px", borderRadius: 10, background: `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 12, fontWeight: 700, border: "none" }}>{config.creditsTooltipBtn || "Ganhar créditos"}</button>
-                  <button type="button" aria-label="Fechar" onClick={() => setShowCreditTooltip(false)} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600 }}>✕</button>
-                </div>
-              </div>}
-            </div>}
-          </div>
-        </header>
-
-        {/* Instagram comment CTA banner — primeiro na home; mostra sempre que houver post ativo */}
-        {creditsEnabled && (activeInstaPosts.length > 0 ? (() => {
-          if (pendingInstaComments.length > 0) {
-            const post = pendingInstaComments[0];
-            const amt = post.credits || 1;
-            const more = pendingInstaComments.length > 1 ? ` (e mais ${pendingInstaComments.length - 1} post${pendingInstaComments.length > 2 ? "s" : ""})` : "";
-            return (
-              <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 22 }}>💬</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>Faça um comentário no post abaixo e receba +1 crédito grátis!{more}</p>
-                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                    <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); setInstaCommentOpenClickedAt(Date.now()); setShowInstaCommentButton(false); }} style={{ fontSize: 12, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "6px 12px", borderRadius: 8, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>Abrir Post e Comentar ↗</a>
-                    {showInstaCommentButton && (!commentVerifying ? (
-                      <button onClick={(e) => { e.stopPropagation(); const postId = post.id ?? post.url ?? ""; setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, `comment_${postId}`); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 12, fontWeight: 600, color: T.gold, padding: "6px 12px", borderRadius: 8, background: T.gold + "15", border: `1px solid ${T.gold}33` }}>Já comentei ✓</button>
-                    ) : (
-                      <span style={{ fontSize: 12, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 22 }}>💬</span>
-              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold, margin: 0 }}>Você já ganhou crédito por comentar no post. Obrigado!</p>
+      <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1, paddingTop: isOffline ? 44 : 0 }}>
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0", gap: 10, flexWrap: "nowrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: "1 1 auto" }}>
+            <div onClick={() => setLogoTaps((t) => t + 1)} style={{ width: 42, height: 42, borderRadius: "50%", background: T.avBg, border: `2px solid ${T.avBrd}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><InfLogo size={24} /></div>
+            <div style={{ width: 38, height: 38, borderRadius: "50%", background: userAvatarUrl ? "transparent" : T.statBg, border: `1px solid ${T.cardBorder}`, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: T.textFaint }}>{userAvatarUrl ? <img src={userAvatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : userName.charAt(0).toUpperCase()}</div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 16, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{config.hubGreetPrefix} {userName.split(" ")[0]}! {config.hubGreetEmoji}</p>
+              <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{config.hubSubtitle}</p>
             </div>
-          );
-        })() : instaPosts.length === 0 ? null : (
-          <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 22 }}>💬</span>
-            <p style={{ fontSize: 12, color: T.gold, margin: 0 }}>Comente no Instagram: ative o post e preencha a URL em Admin → Gamificação → Posts Instagram.</p>
           </div>
-        ))}
-
-        {/* Instale o app — banner fixo na tela (como o do Instagram), sem popup */}
-        {(() => {
-          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-          const isStandalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || !!window.navigator.standalone);
-          if (!isMobile || isStandalone || installBannerDismissed || installBannerHiddenThisSession) return null;
-          const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-          const isAndroid = /Android/i.test(navigator.userAgent);
-          const dismiss = (permanent) => { if (permanent) { setInstallBannerDismissed(true); localStorage.setItem("vollhub_install_dismissed", "1"); } else setInstallBannerHiddenThisSession(true); };
-          const triggerInstall = async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); const { outcome } = await deferredInstallPrompt.userChoice; if (outcome === "accepted") dismiss(true); setDeferredInstallPrompt(null); } };
-          const steps = isIOS ? ["Toque em Compartilhar no Safari", "Toque em \"Adicionar à Tela de Início\"", "Confirme em \"Adicionar\""] : ["Menu (⋮) no Chrome", "\"Adicionar à tela inicial\" ou \"Instalar app\"", "Confirme e pronto"];
-          return (
-            <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #0d1a16, #0a1210)" : "linear-gradient(135deg, #e8f8f2, #d0f0e8)", border: `1px solid ${T.accent}33`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 22 }}>📱</span>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>Instale o VOLL Hub na tela inicial — como um app</p>
-                {deferredInstallPrompt && isAndroid ? (
-                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                    <button onClick={triggerInstall} style={{ fontSize: 12, fontWeight: 600, color: "#060a09", padding: "6px 12px", borderRadius: 8, background: `linear-gradient(135deg, ${T.accent}, #7DE2C7)`, border: "none" }}>Instalar agora</button>
-                    <button onClick={() => dismiss(true)} style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}` }}>Já instalei</button>
-                    <button onClick={() => dismiss(false)} style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, padding: "6px 12px", borderRadius: 8, background: "transparent", border: "none" }}>Agora não</button>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: 8 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: T.accent, marginBottom: 4 }}>{isIOS ? "Safari" : "Chrome"} — 3 passos:</p>
-                    <ol style={{ fontSize: 11, color: T.textMuted, margin: 0, paddingLeft: 16, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6 }}>{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button onClick={() => dismiss(true)} style={{ fontSize: 12, fontWeight: 600, color: T.accent, padding: "6px 12px", borderRadius: 8, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>Já instalei</button>
-                      <button onClick={() => dismiss(false)} style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}` }}>Agora não</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {creditsEnabled && (
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <button type="button" onClick={() => setShowCreditTooltip(t => !t)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 14, background: T.gold + "15", border: `1px solid ${T.gold}44`, flexShrink: 0 }} aria-label={`Você tem ${userCredits} créditos`}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>Você tem {userCredits} crédito{userCredits !== 1 ? "s" : ""}</span>
+                </button>
+                {pendingInstaComments.length > 0 && <div style={{ position: "absolute", top: -2, right: -2, minWidth: 16, height: 16, borderRadius: "50%", background: T.gold, border: `2px solid ${T.bg}`, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", color: "#1a1a12" }}>{pendingInstaComments.length}</div>}
+                {showCreditTooltip && (
+                  <div style={{ position: "absolute", top: 44, right: 0, width: 260, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.3s ease" }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{(config.creditsTooltipTitle || "Você tem {n} créditos").replace("{n}", userCredits)}</p>
+                    <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>{config.creditsTooltipDesc || "Use créditos para desbloquear materiais exclusivos."}</p>
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <button onClick={() => { setShowCreditTooltip(false); setShowCreditStore(true); }} style={{ flex: 1, padding: "8px", borderRadius: 10, background: `linear-gradient(135deg, ${T.gold}, #FFD863)`, color: "#1a1a12", fontSize: 12, fontWeight: 700, border: "none" }}>{config.creditsTooltipBtn || "Ganhar créditos"}</button>
+                      <button type="button" aria-label="Fechar" onClick={() => setShowCreditTooltip(false)} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600 }}>✕</button>
                     </div>
                   </div>
                 )}
               </div>
+            )}
+            {!headerNarrow && (
+              <button type="button" onClick={() => setView("linktree")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }} title="Voltar" aria-label="Voltar">←</button>
+            )}
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <button type="button" onClick={() => setShowHeaderMenu(t => !t)} style={{ height: 34, padding: headerNarrow ? 0 : "0 12px", width: headerNarrow ? 34 : "auto", borderRadius: 17, background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: headerNarrow ? 18 : 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }} aria-label="Menu" aria-expanded={showHeaderMenu}><span style={{ lineHeight: 1 }}>☰</span>{!headerNarrow && <span>Menu</span>}</button>
+              {showHeaderMenu && (
+                <>
+                  <div role="presentation" style={{ position: "fixed", inset: 0, zIndex: 98 }} onClick={() => setShowHeaderMenu(false)} />
+                  <div role="dialog" aria-label="Menu" style={{ position: "absolute", top: 42, right: 0, minWidth: 200, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "8px 0", zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.2s ease" }}>
+                    {headerNarrow && (
+                      <button type="button" onClick={() => { setShowHeaderMenu(false); setView("linktree"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>← Voltar</button>
+                    )}
+                    {config.rankingEnabled !== "false" && (
+                      <button type="button" onClick={() => { setShowHeaderMenu(false); setShowLeaderboard(true); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>🏆 Ranking</button>
+                    )}
+                    {profileEnabled && (
+                      <button type="button" onClick={() => { setShowHeaderMenu(false); setView("profile"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", position: "relative" }}>
+                        👤 Meu perfil
+                        {!profileComplete && <span style={{ position: "absolute", top: 10, right: 16, width: 8, height: 8, borderRadius: "50%", background: T.gold }} />}
+                      </button>
+                    )}
+                    <button type="button" onClick={() => { setShowHeaderMenu(false); setTheme((t) => t === "dark" ? "light" : "dark"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>{theme === "dark" ? "☀️" : "🌙"} Tema: {theme === "dark" ? "escuro" : "claro"}</button>
+                    <button type="button" onClick={() => { setShowHeaderMenu(false); setShowSupportModal(true); setSupportMessage(""); setSupportType("error"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>💬 Suporte</button>
+                    <div style={{ padding: "12px 16px", fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", borderTop: `1px solid ${T.cardBorder}` }}>📥 {downloaded.length} download{downloaded.length !== 1 ? "s" : ""}</div>
+                    <button type="button" onClick={() => { setShowHeaderMenu(false); setView("linktree"); setUserName(""); setUserWhatsApp(""); setUserAvatarUrl(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.dangerBrd, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderTop: `1px solid ${T.cardBorder}` }}>🚪 Sair</button>
+                  </div>
+                </>
+              )}
             </div>
-          );
-        })()}
-
-        {/* NEW MATERIALS ALERT */}
-        {newMats.length > 0 && (
-          <div style={{ background: T.newBg, border: `1px solid ${T.newBorder}`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, animation: "fadeInUp 0.5s ease", opacity: animateIn ? 1 : 0, transition: "opacity 0.5s ease" }}>
-            <span style={{ fontSize: 22 }}>🔥</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: T.newText }}>{newMats.length} {newMats.length === 1 ? "novo material" : "novos materiais"}!</p>
-              <p style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>Adicionado{newMats.length > 1 ? "s" : ""} desde sua última visita</p>
-            </div>
-            <button onClick={() => setSeenNewIds((p) => [...p, ...newMats.map((m) => m.id)])} style={{ padding: "6px 12px", borderRadius: 8, background: T.newText + "22", color: T.newText, fontSize: 12, fontWeight: 600, border: `1px solid ${T.newText}33` }}>Visto ✓</button>
           </div>
-        )}
+        </header>
 
-        {/* Profile completion prompt */}
-        {!userProfile.completed && (
-          <div onClick={() => setView("profile")} style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", opacity: animateIn ? 1 : 0, transition: "opacity 0.5s ease" }}>
-            <span style={{ fontSize: 22 }}>🎁</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{completedPhases === PHASES.length ? "Todas as fases completas! 🏆" : `${config.profilePromptText || 'Ganhe créditos!'} ${completedPhases}/${PHASES.length} fases`}</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-                <div style={{ flex: 1, height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: `linear-gradient(90deg, ${T.gold}, #FFD863)`, width: `${(completedPhases / (PHASES.length || 1)) * 100}%`, transition: "width 0.5s" }} /></div>
-                <span style={{ fontSize: 11, fontWeight: 600, color: T.gold }}>{completedPhases}/{PHASES.length}</span>
-              </div>
+        {/* Aviso novidade: foto no ranking (uma vez, só para quem não tem foto) */}
+        {config.messagesPhotoAnnounceEnabled !== "false" && profileEnabled && !userAvatarUrl && !photoAnnounceDismissed && (
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "12px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <p style={{ flex: "1 1 200px", fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", margin: 0 }}>{config.photoAnnounceText || "Novidade: adicione sua foto no Perfil e apareça no ranking."}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button type="button" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); setView("profile"); }} style={{ padding: "8px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 12, fontWeight: 700, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnVer || "Ver"}</button>
+              <button type="button" aria-label="Fechar aviso de novidade" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnFechar || "Fechar"}</button>
             </div>
-            <span style={{ fontSize: 12, color: T.gold, fontWeight: 600 }}>→</span>
           </div>
         )}
 
@@ -1422,42 +1450,45 @@ export default function VollHub() {
           </div>
         )}
 
-        {/* Progress bar */}
-        <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: "18px 18px 14px", marginBottom: 24, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}><span style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{downloaded.length} de {activeMats.length} {config.progressSuffix}</span><span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{Math.round((downloaded.length / Math.max(activeMats.length, 1)) * 100)}%</span></div>
-          <div style={{ width: "100%", height: 5, borderRadius: 3, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: "linear-gradient(90deg, #349980, #7DE2C7)", width: `${(downloaded.length / Math.max(activeMats.length, 1)) * 100}%`, transition: "width 0.8s ease" }} /></div>
-          <p style={{ fontSize: 11, color: T.textFaint, marginTop: 9, fontFamily: "'Plus Jakarta Sans'" }}>{config.progressHint}</p>
-        </div>
-
-        {/* SPOTLIGHT MATERIAL (deep link) */}
-        {spotlightMat && (
-          <div style={{ marginBottom: 20 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: T.accent, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>📌 Seu material</h2>
-            <MaterialCard m={spotlightMat} index={0} isSpotlight isNew={newMats.some((nm) => nm.id === spotlightMat.id)} />
-          </div>
-        )}
-
-        {/* HOW IT WORKS — only shows if user hasn't dismissed */}
-        {!localStorage.getItem("vollhub_howworks_dismissed") && (
-          <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #0d1a18, #0d1210)" : "linear-gradient(135deg, #f0faf6, #e8f5f0)", border: `1px solid ${T.accent}22`, borderRadius: 16, padding: "16px 18px", marginBottom: 18, position: "relative", opacity: animateIn ? 1 : 0, transition: "opacity 0.5s ease" }}>
-            <button type="button" aria-label="Fechar" onClick={() => { localStorage.setItem("vollhub_howworks_dismissed", "1"); setAnimateIn(a => !a); setTimeout(() => setAnimateIn(a => !a), 50); }} style={{ position: "absolute", top: 10, right: 12, background: "none", color: T.textFaint, fontSize: 16, border: "none" }}>✕</button>
-            <p style={{ fontSize: 14, fontWeight: 700, color: T.accent, marginBottom: 10 }}>💡 Como funciona?</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>📚</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>Materiais gratuitos</b> — Baixe e-books, guias e templates feitos pra você crescer no Pilates.</p></div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>🎯</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>Créditos</b> — Alguns materiais pedem créditos. Você já ganhou {parseInt(config.creditsInitial) || 3} ao se cadastrar!</p></div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>⭐</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>Ganhe mais</b> — Complete seu perfil ou indique amigas para ganhar créditos extras.</p></div>
+        {/* SEÇÃO DE MATERIAIS — título + progresso + filtros + spotlight + lista (ou estado vazio) */}
+        <div style={{ marginBottom: 24, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: T.textMuted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'" }}>Pilates é vida!</p>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, marginBottom: 12 }}>{spotlightMat ? "Explore mais materiais" : config.sectionTitle}</h2>
+          {activeMats.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px 20px", background: T.cardBg, borderRadius: 16, border: `1px solid ${T.cardBorder}` }}>
+              <p style={{ fontSize: 32, marginBottom: 12 }}>📚</p>
+              <p style={{ fontSize: 15, color: T.text, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6 }}>Nenhum material disponível no momento</p>
+              <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>Em breve teremos novidades. Acompanhe nosso Instagram!</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20, alignItems: "center" }}>
+                <a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ padding: "10px 20px", borderRadius: 12, background: T.accent + "22", color: T.accent, fontSize: 13, fontWeight: 600, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a>
+                <button type="button" onClick={() => setView("linktree")} style={{ background: "none", color: T.textFaint, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", fontWeight: 600 }}>Voltar ao início</button>
+              </div>
             </div>
+          ) : (
+            <>
+          {/* Barra de progresso — dentro da seção de materiais */}
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{downloaded.length} de {activeMats.length} {config.progressSuffix}</span><span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{Math.round((downloaded.length / Math.max(activeMats.length, 1)) * 100)}%</span></div>
+            <div style={{ width: "100%", height: 5, borderRadius: 3, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: "linear-gradient(90deg, #349980, #7DE2C7)", width: `${(downloaded.length / Math.max(activeMats.length, 1)) * 100}%`, transition: "width 0.8s ease" }} /></div>
+            <p style={{ fontSize: 11, color: T.textFaint, marginTop: 6, fontFamily: "'Plus Jakarta Sans'" }}>{config.progressHint}</p>
           </div>
-        )}
-
-        {/* ALL OTHER MATERIALS */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{spotlightMat ? "Explore mais materiais" : config.sectionTitle}</h2>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
             <button onClick={() => setShowDownloadedOnly(false)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: !showDownloadedOnly ? T.accent + "22" : T.statBg, color: !showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${!showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>Todos</button>
             <button onClick={() => setShowDownloadedOnly(true)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: showDownloadedOnly ? T.accent + "22" : T.statBg, color: showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>📥 Baixados</button>
           </div>
-        </div>
+          {deepLinkMatId && !spotlightMat && (
+            <div style={{ marginBottom: 16, padding: "16px 18px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14 }}>
+              <p style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6 }}>Material não encontrado</p>
+              <p style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>O material deste link não está disponível ou foi removido.</p>
+              <button type="button" onClick={() => setDeepLinkMatId(null)} style={{ padding: "8px 14px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.text, fontSize: 12, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>Ok</button>
+            </div>
+          )}
+          {spotlightMat && (
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: T.accent, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>📌 Seu material</h2>
+              <MaterialCard m={spotlightMat} index={0} isSpotlight isNew={newMats.some((nm) => nm.id === spotlightMat.id)} />
+            </div>
+          )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {(showDownloadedOnly ? otherMats.filter(m => downloaded.includes(m.id)) : otherMats).map((m, i) => (
             <MaterialCard key={m.id} m={m} index={i + (spotlightMat ? 1 : 0)} isSpotlight={false} isNew={newMats.some((nm) => nm.id === m.id)} />
@@ -1470,9 +1501,127 @@ export default function VollHub() {
             </div>
           )}
         </div>
+            </>
+          )}
+        </div>
 
-        <footer style={{ textAlign: "center", padding: "24px 0 8px" }}><a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a></footer>
+        {/* ALERTAS / CTAs — após os materiais */}
+        {newMats.length > 0 && (
+          <div style={{ background: T.newBg, border: `1px solid ${T.newBorder}`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>🔥</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: T.newText }}>{newMats.length} {newMats.length === 1 ? "novo material" : "novos materiais"}!</p>
+              <p style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", marginTop: 2 }}>Adicionado{newMats.length > 1 ? "s" : ""} desde sua última visita</p>
+            </div>
+            <button onClick={() => setSeenNewIds((p) => [...p, ...newMats.map((m) => m.id)])} style={{ padding: "6px 12px", borderRadius: 8, background: T.newText + "22", color: T.newText, fontSize: 12, fontWeight: 600, border: `1px solid ${T.newText}33` }}>Visto ✓</button>
+          </div>
+        )}
+        {visibleAlerts.includes("instagram") && creditsEnabled && (activeInstaPosts.length > 0 ? (() => {
+          if (pendingInstaComments.length > 0) {
+            const post = pendingInstaComments[0];
+            const amt = post.credits || 1;
+            const more = pendingInstaComments.length > 1 ? ` (e mais ${pendingInstaComments.length - 1} post${pendingInstaComments.length > 2 ? "s" : ""})` : "";
+            return (
+              <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 22 }}>💬</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>Faça um comentário no post abaixo e receba +1 crédito grátis!{more}</p>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); setInstaCommentOpenClickedAt(Date.now()); setShowInstaCommentButton(false); }} style={{ fontSize: 12, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "6px 12px", borderRadius: 8, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>Abrir Post e Comentar ↗</a>
+                    {showInstaCommentButton && (!commentVerifying ? (
+                      <button onClick={(e) => { e.stopPropagation(); const postId = post.id ?? post.url ?? ""; setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, `comment_${postId}`); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 12, fontWeight: 600, color: T.gold, padding: "6px 12px", borderRadius: 8, background: T.gold + "15", border: `1px solid ${T.gold}33` }}>Já comentei ✓</button>
+                    ) : (
+                      <span style={{ fontSize: 12, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })() : instaPosts.length === 0 ? null : (
+          <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>💬</span>
+            <p style={{ fontSize: 12, color: T.gold, margin: 0 }}>Comente no Instagram: ative o post e preencha a URL em Admin → Gamificação → Posts Instagram.</p>
+          </div>
+        ))}
+        {visibleAlerts.includes("install") && (() => {
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          const isStandalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || !!window.navigator.standalone);
+          if (config.messagesInstallBannerEnabled === "false" || !isMobile || isStandalone || installBannerDismissed || installBannerHiddenThisSession) return null;
+          const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+          const isAndroid = /Android/i.test(navigator.userAgent);
+          const dismiss = (permanent) => { if (permanent) { setInstallBannerDismissed(true); localStorage.setItem("vollhub_install_dismissed", "1"); } else setInstallBannerHiddenThisSession(true); };
+          const triggerInstall = async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); const { outcome } = await deferredInstallPrompt.userChoice; if (outcome === "accepted") dismiss(true); setDeferredInstallPrompt(null); } };
+          const steps = isIOS ? [config.installBannerStepsIos1, config.installBannerStepsIos2, config.installBannerStepsIos3].filter(Boolean) : [config.installBannerStepsAndroid1, config.installBannerStepsAndroid2, config.installBannerStepsAndroid3].filter(Boolean);
+          const title = config.installBannerTitle || "Instale na tela inicial — como um app";
+          const btnInstall = config.installBannerBtnInstall || "Instalar agora";
+          const btnDone = config.installBannerBtnDone || "Já instalei";
+          const btnLater = config.installBannerBtnLater || "Agora não";
+          return (
+            <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #0d1a16, #0a1210)" : "linear-gradient(135deg, #e8f8f2, #d0f0e8)", border: `1px solid ${T.accent}33`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10, position: "relative" }}>
+              <span style={{ fontSize: 22 }}>📱</span>
+              <div style={{ flex: 1, paddingRight: 28 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{title}</p>
+                {deferredInstallPrompt && isAndroid ? (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <button onClick={triggerInstall} style={{ fontSize: 12, fontWeight: 600, color: "#060a09", padding: "6px 12px", borderRadius: 8, background: `linear-gradient(135deg, ${T.accent}, #7DE2C7)`, border: "none" }}>{btnInstall}</button>
+                    <button onClick={() => dismiss(true)} style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}` }}>{btnDone}</button>
+                    <button onClick={() => dismiss(false)} style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, padding: "6px 12px", borderRadius: 8, background: "transparent", border: "none" }}>{btnLater}</button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 8 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: T.accent, marginBottom: 4 }}>{isIOS ? "Safari" : "Chrome"} — 3 passos:</p>
+                    <ol style={{ fontSize: 11, color: T.textMuted, margin: 0, paddingLeft: 16, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6 }}>{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button onClick={() => dismiss(true)} style={{ fontSize: 12, fontWeight: 600, color: T.accent, padding: "6px 12px", borderRadius: 8, background: T.accent + "15", border: `1px solid ${T.accent}33` }}>{btnDone}</button>
+                      <button onClick={() => dismiss(false)} style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}` }}>{btnLater}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button type="button" aria-label="Fechar e não mostrar de novo" onClick={() => dismiss(true)} style={{ position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+            </div>
+          );
+        })()}
+        {visibleAlerts.includes("profile") && !userProfile.completed && (
+          <div onClick={() => setView("profile")} style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `1px solid ${T.gold}22`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <span style={{ fontSize: 22 }}>🎁</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{completedPhases === PHASES.length ? "Todas as fases completas! 🏆" : `${config.profilePromptText || 'Ganhe créditos!'} ${completedPhases}/${PHASES.length} fases`}</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <div style={{ flex: 1, height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: `linear-gradient(90deg, ${T.gold}, #FFD863)`, width: `${(completedPhases / (PHASES.length || 1)) * 100}%`, transition: "width 0.5s" }} /></div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.gold }}>{completedPhases}/{PHASES.length}</span>
+              </div>
+            </div>
+            <span style={{ fontSize: 12, color: T.gold, fontWeight: 600 }}>→</span>
+          </div>
+        )}
+
+        <footer style={{ textAlign: "center", padding: "24px 0 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a>
+          <button type="button" onClick={() => setShowHowWorksModal(true)} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", textDecoration: "underline", cursor: "pointer", padding: 0 }}>{config.howWorksFooterLink || "Como funciona?"}</button>
+        </footer>
       </div>
+
+      {/* Modal Como funciona? */}
+      {showHowWorksModal && (() => {
+        const n = String(parseInt(config.creditsInitial) || 3);
+        const step2Desc = (config.howWorksStep2Desc || "Alguns materiais pedem créditos. Você já ganhou {n} ao se cadastrar!").replace(/\{n\}/g, n);
+        return (
+        <div role="dialog" aria-modal="true" aria-label="Como funciona" style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowHowWorksModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: theme === "dark" ? "linear-gradient(135deg, #0d1a18, #0d1210)" : "linear-gradient(135deg, #f0faf6, #e8f5f0)", border: `1px solid ${T.accent}22`, borderRadius: 20, padding: "24px 22px", maxWidth: 400, width: "100%", position: "relative", animation: "fadeInUp 0.3s ease" }}>
+            <button type="button" aria-label="Fechar" onClick={() => setShowHowWorksModal(false)} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18, border: "none", cursor: "pointer" }}>✕</button>
+            <p style={{ fontSize: 16, fontWeight: 700, color: T.accent, marginBottom: 14 }}>{config.howWorksTitle || "💡 Como funciona?"}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>📚</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>{config.howWorksStep1Title || "Materiais gratuitos"}</b> — {config.howWorksStep1Desc || "Baixe e-books, guias e templates feitos pra você crescer no Pilates."}</p></div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>🎯</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>{config.howWorksStep2Title || "Créditos"}</b> — {step2Desc}</p></div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>⭐</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>{config.howWorksStep3Title || "Ganhe mais"}</b> — {config.howWorksStep3Desc || "Complete seu perfil ou indique amigas para ganhar créditos extras."}</p></div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {/* Download Modal */}
       {selectedMaterial && (() => {
@@ -1632,10 +1781,9 @@ export default function VollHub() {
         <div role="dialog" aria-modal="true" aria-label="Ganhar créditos" style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowCreditStore(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto", animation: "fadeInUp 0.3s ease" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{config.creditsStoreTitle || "🎯 Ganhe Créditos"}</h2>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{config.creditsStoreTitle || "Ganhe Créditos"}</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Saldo:</span>
-                <span style={{ fontSize: 22, fontWeight: 800, color: T.gold }}>{userCredits}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>Você tem {userCredits} crédito{userCredits !== 1 ? "s" : ""}</span>
               </div>
             </div>
 
@@ -1676,28 +1824,41 @@ export default function VollHub() {
                 );
               })}
 
-              {/* Instagram Comments */}
-              {instaPosts.filter(p => p.active !== false).map(post => {
-                const done = userCreditsEarned[`comment_${post.id}`];
-                const amt = post.credits || 1;
+              {/* Instagram Comments — só novos posts (já ganhou não aparece) */}
+              {(() => {
+                const activePosts = instaPosts.filter(p => p.active !== false);
+                const pendingPosts = activePosts.filter(post => !userCreditsEarned[`comment_${post.id}`]);
+                const allDone = activePosts.length > 0 && pendingPosts.length === 0;
                 return (
-                  <div key={post.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: done ? T.successBg : T.cardBg, border: `1px solid ${done ? T.accent + "44" : T.cardBorder}`, opacity: done ? 0.6 : 1 }}>
-                    <span style={{ fontSize: 24 }}>{done ? "✅" : "💬"}</span>
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{post.title || "Comentar no Instagram"}</span>
-                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{done ? "Já verificado" : (post.description || "Comente no post e volte aqui")}</span>
-                    </div>
-                    {!done && !commentVerifying && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                        <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "4px 10px", borderRadius: 6, background: T.accent + "15", textAlign: "center" }}>Abrir post ↗</a>
-                        <button onClick={(e) => { e.stopPropagation(); setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, `comment_${post.id}`); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 11, fontWeight: 600, color: T.gold, padding: "4px 10px", borderRadius: 6, background: T.gold + "15" }}>Comentei ✓</button>
+                  <>
+                    {pendingPosts.map(post => {
+                      const amt = post.credits || 1;
+                      return (
+                        <div key={post.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorder}` }}>
+                          <span style={{ fontSize: 24 }}>💬</span>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{post.title || "Comentar no Instagram"}</span>
+                            <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{post.description || "Comente no post e volte aqui"}</span>
+                          </div>
+                          {!commentVerifying && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                              <a href={post.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 600, color: T.accent, textDecoration: "none", padding: "4px 10px", borderRadius: 6, background: T.accent + "15", textAlign: "center" }}>Abrir post ↗</a>
+                              <button onClick={(e) => { e.stopPropagation(); setCommentVerifying(true); setTimeout(async () => { const ok = await earnCredits(amt, `comment_${post.id}`); setCommentVerifying(false); if (ok) showT(`+${amt} crédito! Comentário verificado ✅`); }, 3500); }} style={{ fontSize: 11, fontWeight: 600, color: T.gold, padding: "4px 10px", borderRadius: 6, background: T.gold + "15" }}>Comentei ✓</button>
+                            </div>
+                          )}
+                          {commentVerifying && <span style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>}
+                          <span style={{ fontSize: 13, fontWeight: 800, color: T.gold, marginLeft: 4 }}>+{amt}</span>
+                        </div>
+                      );
+                    })}
+                    {allDone && (
+                      <div style={{ padding: "10px 16px", borderRadius: 12, background: T.successBg, border: `1px solid ${T.accent}33` }}>
+                        <span style={{ fontSize: 12, color: T.accent, fontFamily: "'Plus Jakarta Sans'" }}>✅ Você já ganhou créditos por todos os posts disponíveis.</span>
                       </div>
                     )}
-                    {commentVerifying && <span style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1s ease-in-out infinite" }}>🔍 Verificando...</span>}
-                    {!done && <span style={{ fontSize: 13, fontWeight: 800, color: T.gold, marginLeft: 4 }}>+{amt}</span>}
-                  </div>
+                  </>
                 );
-              })}
+              })()}
 
               {/* Referral via WhatsApp */}
               {(() => {
@@ -1705,6 +1866,16 @@ export default function VollHub() {
                 const refLink = config.baseUrl || "https://rafael.grupovoll.com.br";
                 const msg = (config.creditsReferralMsg || "Confira: {link}").replace("{link}", refLink);
                 const waUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+                const alreadyEarned = !!userCreditsEarned["referral_share"];
+                const handleReferralSend = () => {
+                  window.open(waUrl, "_blank");
+                  setReferralVerifying(true);
+                  setTimeout(async () => {
+                    await earnCredits(amt, "referral_share");
+                    showT(`+${amt} créditos! Indicação registrada ✅`);
+                    setReferralVerifying(false);
+                  }, 2500);
+                };
                 return (
                   <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorder}` }}>
                     <span style={{ fontSize: 24 }}>🔗</span>
@@ -1712,7 +1883,13 @@ export default function VollHub() {
                       <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{config.creditsStoreReferralTitle || "Indicar amigo"}</span>
                       <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{config.creditsStoreReferralSubtitle || "Envie pelo WhatsApp"}</span>
                     </div>
-                    <a href={waUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 600, color: "#25D366", padding: "6px 12px", borderRadius: 8, background: "#25D36615", textDecoration: "none" }}>Enviar 📲</a>
+                    {alreadyEarned ? (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: T.accent, padding: "6px 12px", borderRadius: 8, background: T.successBg, border: `1px solid ${T.accent}33` }}>Já verificado ✓</span>
+                    ) : referralVerifying ? (
+                      <span style={{ fontSize: 11, color: T.accent, fontFamily: "'Plus Jakarta Sans'", padding: "6px 12px", animation: "pulse 1s ease-in-out infinite" }}>Verificando envio...</span>
+                    ) : (
+                      <button type="button" onClick={handleReferralSend} style={{ fontSize: 11, fontWeight: 600, color: "#25D366", padding: "6px 12px", borderRadius: 8, background: "#25D36615", border: "1px solid #25D36644", cursor: "pointer" }}>Enviar 📲</button>
+                    )}
                     <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>+{amt}</span>
                   </div>
                 );
@@ -1821,7 +1998,7 @@ export default function VollHub() {
             </div>
             {(() => {
               const rankLeads = leads.filter(l => l.name && l.whatsapp).map(l => ({
-                name: l.name, whatsapp: l.whatsapp,
+                name: l.name, whatsapp: l.whatsapp, avatarUrl: l.avatarUrl || "",
                 reads: (l.reflectionsRead || []).length,
                 downloads: (l.downloads || []).length,
                 streak: l.streakBest || l.streakCount || 0,
@@ -1843,6 +2020,7 @@ export default function VollHub() {
                     {sorted.map((l, i) => (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, marginBottom: 4, background: isMe(l) ? T.accent + "11" : "transparent", border: isMe(l) ? `1px solid ${T.accent}33` : "1px solid transparent" }}>
                         <span style={{ fontSize: 14, fontWeight: 800, color: i < 3 ? T.gold : T.textFaint, width: 24, textAlign: "center" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`}</span>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: l.avatarUrl ? "transparent" : T.statBg, border: `1px solid ${T.cardBorder}`, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.textFaint }}>{l.avatarUrl ? <img src={l.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (l.name || "?").charAt(0).toUpperCase()}</div>
                         <span style={{ flex: 1, fontSize: 13, fontWeight: isMe(l) ? 700 : 500, color: isMe(l) ? T.accent : T.text, fontFamily: "'Plus Jakarta Sans'" }}>{l.name.split(" ")[0]}{isMe(l) ? " (voce)" : ""}</span>
                         <span style={{ fontSize: 14, fontWeight: 700, color: i < 3 ? T.gold : T.accent }}>{l[cat.key]}</span>
                       </div>
@@ -1891,7 +2069,7 @@ export default function VollHub() {
           <div style={{ position: "absolute", inset: 0, background: "#000000bb", backdropFilter: "blur(6px)" }} />
           <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="email-popup-title" style={{ position: "relative", width: "100%", maxWidth: 360, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "36px 24px 28px", display: "flex", flexDirection: "column", alignItems: "center", animation: "fadeInUp 0.4s ease", textAlign: "center" }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}22, ${T.gold}08)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 36 }}>✉️</span></div>
-            <h2 id="email-popup-title" style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'" }}>Informe agora o seu email e receba +2 créditos</h2>
+            <h2 id="email-popup-title" style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'" }}>{config.emailPopupTitle || "Informe agora o seu email e receba +2 créditos"}</h2>
             <input type="email" value={emailPopupValue} onChange={e => setEmailPopupValue(e.target.value)} placeholder="seu@email.com" required style={{ width: "100%", padding: "14px 16px", borderRadius: 14, border: `1px solid ${T.cardBorder}`, background: T.bg, color: T.text, fontSize: 15, marginBottom: 16, fontFamily: "'Plus Jakarta Sans'" }} />
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
               <button
@@ -1930,9 +2108,40 @@ export default function VollHub() {
                 }}
                 style={{ flex: 1, padding: "14px", borderRadius: 14, background: emailPopupSaving ? T.statBg : "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none", cursor: emailPopupSaving ? "wait" : "pointer" }}
               >
-                {emailPopupSaving ? "Salvando..." : "Receber créditos"}
+                {emailPopupSaving ? "Salvando..." : (config.emailPopupBtnSubmit || "Receber créditos")}
               </button>
-              <button disabled={emailPopupSaving} onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }} style={{ padding: "14px 18px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>Agora não</button>
+              <button disabled={emailPopupSaving} onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }} style={{ padding: "14px 18px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>{config.emailPopupBtnDismiss || "Agora não"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUPPORT MODAL: reportar erro ou sugerir melhoria */}
+      {showSupportModal && (
+        <div role="dialog" aria-modal="true" aria-label="Suporte" style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowSupportModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto" }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 16 }}>Suporte</h2>
+            <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'" }}>Reporte um erro ou envie uma sugestão de melhoria.</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <button type="button" onClick={() => setSupportType("error")} style={{ flex: 1, padding: "10px 14px", borderRadius: 12, background: supportType === "error" ? T.dangerBrd + "22" : T.statBg, border: `1px solid ${supportType === "error" ? T.dangerBrd : T.cardBorder}`, color: supportType === "error" ? T.dangerBrd : T.textMuted, fontSize: 13, fontWeight: 600 }}>Reportar erro</button>
+              <button type="button" onClick={() => setSupportType("suggestion")} style={{ flex: 1, padding: "10px 14px", borderRadius: 12, background: supportType === "suggestion" ? T.accent + "22" : T.statBg, border: `1px solid ${supportType === "suggestion" ? T.accent : T.cardBorder}`, color: supportType === "suggestion" ? T.accent : T.textMuted, fontSize: 13, fontWeight: 600 }}>Sugerir melhoria</button>
+            </div>
+            <textarea value={supportMessage} onChange={(e) => setSupportMessage(e.target.value)} placeholder={supportType === "error" ? "Descreva o que aconteceu ou o erro que encontrou..." : "Conte sua ideia ou sugestão..."} rows={4} style={{ width: "100%", padding: "12px 14px", borderRadius: 12, background: T.inputBg || T.statBg, border: `1px solid ${T.cardBorder}`, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", resize: "vertical", marginBottom: 16 }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" disabled={!supportMessage.trim() || supportSending} onClick={async () => {
+                if (!supportMessage.trim() || supportSending) return;
+                setSupportSending(true);
+                try {
+                  const res = await fetch("/api/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: supportType, message: supportMessage.trim(), name: userName || "", whatsapp: userWhatsApp || "" }) });
+                  const data = res.ok ? await res.json() : await res.json().catch(() => ({}));
+                  if (!res.ok) { showT(data.error || "Não foi possível enviar. Tente novamente."); return; }
+                  showT("Mensagem enviada! Obrigado pelo retorno.");
+                  setShowSupportModal(false);
+                  setSupportMessage("");
+                } catch (e) { showT("Erro de conexão. Tente novamente."); }
+                finally { setSupportSending(false); }
+              }} style={{ flex: 1, padding: "12px", borderRadius: 12, background: supportMessage.trim() && !supportSending ? "linear-gradient(135deg, #349980, #7DE2C7)" : T.statBg, color: supportMessage.trim() && !supportSending ? "#060a09" : T.textFaint, fontSize: 14, fontWeight: 700, border: "none", cursor: supportMessage.trim() && !supportSending ? "pointer" : "default" }}>{supportSending ? "Enviando..." : "Enviar"}</button>
+              <button type="button" onClick={() => { setShowSupportModal(false); setSupportMessage(""); }} disabled={supportSending} style={{ padding: "12px 18px", borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -1973,23 +2182,28 @@ export default function VollHub() {
       )}
 
       {/* ONBOARDING MODAL */}
-      {showOnboarding && (
+      {showOnboarding && (() => {
+        const name = (userName || "").split(" ")[0] || "";
+        const n = String(parseInt(config.creditsInitial) || 3);
+        const welcomeTitle = (config.onboardingWelcomeTitle || "Bem-vinda, {name}!").replace(/\{name\}/g, name);
+        const creditsDesc = (config.onboardingCreditsDesc || "Alguns materiais especiais precisam de créditos pra desbloquear. Você já ganhou {n} créditos ao se cadastrar!").replace(/\{n\}/g, n);
+        return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)" }}>
           <div style={{ background: T.cardBg, borderRadius: 24, padding: "32px 24px", maxWidth: 360, width: "100%", textAlign: "center", animation: "fadeInUp 0.4s ease", border: `1px solid ${T.cardBorder}` }}>
             {onboardingStep === 0 && (<>
               <div style={{ fontSize: 48, marginBottom: 16 }}>👋</div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>Bem-vinda, {userName.split(" ")[0]}!</h2>
-              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>Aqui você encontra <b style={{ color: T.accent }}>materiais gratuitos</b> pra turbinar sua carreira no Pilates: e-books, guias, templates e mais.</p>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>{welcomeTitle}</h2>
+              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>{config.onboardingWelcomeDesc || "Aqui você encontra materiais gratuitos pra turbinar sua carreira no Pilates: e-books, guias, templates e mais."}</p>
             </>)}
             {onboardingStep === 1 && (<>
               <div style={{ fontSize: 48, marginBottom: 16 }}>🎯</div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>Créditos</h2>
-              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>Alguns materiais especiais precisam de <b style={{ color: T.gold }}>créditos</b> pra desbloquear. Você já ganhou <b style={{ color: T.gold }}>{parseInt(config.creditsInitial) || 3} créditos</b> ao se cadastrar!</p>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>{config.onboardingCreditsTitle || "Créditos"}</h2>
+              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>{creditsDesc}</p>
             </>)}
             {onboardingStep === 2 && (<>
               <div style={{ fontSize: 48, marginBottom: 16 }}>⭐</div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>Ganhe mais créditos</h2>
-              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>Complete as <b style={{ color: T.accent }}>fases do seu perfil</b> ou <b style={{ color: T.accent }}>indique amigas</b> para ganhar créditos extras e desbloquear tudo!</p>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>{config.onboardingGanheTitle || "Ganhe mais créditos"}</h2>
+              <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans'" }}>{config.onboardingGanheDesc || "Complete as fases do seu perfil ou indique amigas para ganhar créditos extras e desbloquear tudo!"}</p>
             </>)}
             <div style={{ display: "flex", gap: 6, justifyContent: "center", margin: "20px 0 16px" }}>
               {[0, 1, 2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: 4, background: i === onboardingStep ? T.accent : T.statBg, border: `1px solid ${i === onboardingStep ? T.accent : T.statBorder}`, transition: "all 0.3s" }} />)}
@@ -1997,15 +2211,16 @@ export default function VollHub() {
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               {onboardingStep > 0 && <button onClick={() => setOnboardingStep(s => s - 1)} style={{ padding: "10px 20px", borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>← Voltar</button>}
               {onboardingStep < 2 ? (
-                <button onClick={() => setOnboardingStep(s => s + 1)} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>Próximo →</button>
+                <button onClick={() => setOnboardingStep(s => s + 1)} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingNextBtn || "Próximo →"}</button>
               ) : (
-                <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>Começar! 🚀</button>
+                <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingStartBtn || "Começar! 🚀"}</button>
               )}
             </div>
-            <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ background: "none", color: T.textFaint, fontSize: 12, marginTop: 12, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>Pular</button>
+            <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ background: "none", color: T.textFaint, fontSize: 12, marginTop: 12, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.onboardingSkipBtn || "Pular"}</button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <Toast />
     </div>

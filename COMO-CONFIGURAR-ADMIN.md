@@ -47,6 +47,7 @@ Se ao digitar o PIN aparece **"Servidor indisponível"**, **"Não foi possível 
 | `ADMIN_MASTER_NAME` | Opcional: nome que aparece no painel | `Rafael` |
 | `SUPABASE_URL` | Supabase → Project Settings → API → Project URL | `https://xxxxx.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` (secret) | `eyJhbGciOi...` |
+| `GEMINI_API_KEY` | Opcional. Usada só pelo gerador de reflexões no Admin. [Google AI Studio](https://aistudio.google.com/app/apikey) → criar/copiar API key | `AIza...` |
 
 **Como achar no Supabase:**
 
@@ -55,6 +56,10 @@ Se ao digitar o PIN aparece **"Servidor indisponível"**, **"Não foi possível 
 3. Menu **API**.
 4. **Project URL** → copie e cole em `SUPABASE_URL`.
 5. Em **Project API keys**, localize a chave **`service_role`** (não use a `anon`). Clique em "Reveal" e copie → cole em `SUPABASE_SERVICE_ROLE_KEY`.
+
+**Como obter a chave Gemini (opcional):**
+
+Se você quiser usar o **gerador de reflexões** no Admin (CMS → Reflexões → "Gerar reflexão"), crie uma API key em [Google AI Studio](https://aistudio.google.com/app/apikey), copie o valor e cadastre como `GEMINI_API_KEY` no Vercel. Sem essa variável, o botão de gerar reflexão retornará "GEMINI_API_KEY não configurada no servidor".
 
 Depois de salvar todas, anote o **PIN** que você colocou em `ADMIN_PIN`; é esse que você vai usar na tela de login.
 
