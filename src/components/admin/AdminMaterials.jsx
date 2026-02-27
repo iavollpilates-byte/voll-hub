@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { getUnlockLabel } from "../../utils";
 
 export default function AdminMaterials({
@@ -6,6 +7,48 @@ export default function AdminMaterials({
   addMat, updMat, deleteMat, copyLink, linkCopied, confirmDeleteId, setConfirmDeleteId,
   dlCountByMat, UnlockEditor, setShowIconPicker, sInp,
 }) {
+  const [matFilterCategory, setMatFilterCategory] = useState("");
+  const [matFilterStatus, setMatFilterStatus] = useState("all");
+  const [matSortBy, setMatSortBy] = useState("downloads"); // "downloads" | "name" | "date" | "category"
+  const [matSearchQuery, setMatSearchQuery] = useState("");
+
+  const materialsWithDl = useMemo(() =>
+    materials.map(m => ({ ...m, dlCount: dlCountByMat[m.id] || 0 })),
+    [materials, dlCountByMat]
+  );
+
+  const rankingList = useMemo(() =>
+    [...materialsWithDl].sort((a, b) => b.dlCount - a.dlCount),
+    [materialsWithDl]
+  );
+
+  const categories = useMemo(() =>
+    [...new Set(materials.map(m => m.category).filter(Boolean))].sort(),
+    [materials]
+  );
+
+  const filteredAndSortedMaterials = useMemo(() => {
+    let list = materialsWithDl.filter(m => {
+      if (matFilterCategory && m.category !== matFilterCategory) return false;
+      if (matFilterStatus === "active" && !m.active) return false;
+      if (matFilterStatus === "inactive" && m.active) return false;
+      const q = (matSearchQuery || "").trim().toLowerCase();
+      if (q && !(m.title || "").toLowerCase().includes(q) && !(m.description || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+    if (matSortBy === "downloads") list.sort((a, b) => b.dlCount - a.dlCount);
+    else if (matSortBy === "name") list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    else if (matSortBy === "date") list.sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
+    else if (matSortBy === "category") list.sort((a, b) => (a.category || "").localeCompare(b.category || "") || (a.title || "").localeCompare(b.title || ""));
+    return list;
+  }, [materialsWithDl, matFilterCategory, matFilterStatus, matSortBy, matSearchQuery]);
+
+  const rankByDownload = useMemo(() => {
+    const map = {};
+    rankingList.forEach((m, i) => { map[m.id] = i + 1; });
+    return map;
+  }, [rankingList]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
       {can("materials_edit") && (!showNewForm ? (
@@ -22,8 +65,66 @@ export default function AdminMaterials({
         </div>
       ))}
 
+      {/* Ranking — materiais mais baixados */}
+      <section style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 12 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 10, fontFamily: "'Plus Jakarta Sans'" }}>Ranking — materiais mais baixados</h3>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'Plus Jakarta Sans'" }}>
+            <thead>
+              <tr style={{ borderBottom: `2px solid ${T.cardBorder}` }}>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: T.textMuted, fontWeight: 700, fontSize: 10 }}>#</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: T.textMuted, fontWeight: 700, fontSize: 10 }}>Ícone</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: T.textMuted, fontWeight: 700, fontSize: 10 }}>Título</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: T.textMuted, fontWeight: 700, fontSize: 10 }}>Categoria</th>
+                <th style={{ textAlign: "right", padding: "6px 8px", color: T.textMuted, fontWeight: 700, fontSize: 10 }}>Downloads</th>
+                <th style={{ padding: "6px 8px", width: 80 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankingList.slice(0, 15).map((m, i) => (
+                <tr key={m.id} style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                  <td style={{ padding: "6px 8px", color: T.textFaint, fontWeight: 700 }}>{i + 1}</td>
+                  <td style={{ padding: "6px 8px", fontSize: 16 }}>{m.icon}</td>
+                  <td style={{ padding: "6px 8px", color: T.text, fontWeight: 600 }}>{m.title}</td>
+                  <td style={{ padding: "6px 8px", color: T.textMuted, fontSize: 11 }}>{m.category || "—"}</td>
+                  <td style={{ padding: "6px 8px", color: T.accent, fontWeight: 700, textAlign: "right" }}>{m.dlCount}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    <button onClick={() => copyLink(m.id)} style={{ padding: "3px 8px", borderRadius: 6, background: T.tabBg, border: `1px solid ${T.tabBorder}`, color: T.textMuted, fontSize: 10, fontWeight: 600 }}>📋 Link</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Filtros e ordenação */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        <input
+          placeholder="🔍 Buscar por título ou descrição..."
+          value={matSearchQuery}
+          onChange={(e) => setMatSearchQuery(e.target.value)}
+          style={{ ...sInp, minWidth: 180, flex: "1 1 180px" }}
+        />
+        <select value={matFilterCategory} onChange={(e) => setMatFilterCategory(e.target.value)} style={{ ...sInp, minWidth: 120 }}>
+          <option value="">Todas as categorias</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={matFilterStatus} onChange={(e) => setMatFilterStatus(e.target.value)} style={{ ...sInp, minWidth: 100 }}>
+          <option value="all">Todos</option>
+          <option value="active">Ativos</option>
+          <option value="inactive">Inativos</option>
+        </select>
+        <select value={matSortBy} onChange={(e) => setMatSortBy(e.target.value)} style={{ ...sInp, minWidth: 140 }}>
+          <option value="downloads">Mais baixados</option>
+          <option value="name">Nome A–Z</option>
+          <option value="date">Data (mais recente)</option>
+          <option value="category">Categoria</option>
+        </select>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
-        {materials.map((m, i) => {
+        {filteredAndSortedMaterials.map((m, i) => {
           const ul = getUnlockLabel(m);
           return (
             <div key={m.id} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6, borderLeft: `3px solid ${m.active ? T.accent : T.textFaint}`, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(15px)", transition: `all 0.3s ease ${i * 0.05}s` }}>
@@ -64,6 +165,7 @@ export default function AdminMaterials({
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 {can("materials_edit") && <button onClick={() => updMat(m.id, "active", !m.active)} style={{ padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: m.active ? T.successBg : T.dangerBg, color: m.active ? T.accent : T.gold, border: `1px solid ${m.active ? T.accent + "33" : T.gold + "33"}` }}>{m.active ? "✓ Ativo" : "Inativo"}</button>}
+                {(matSortBy === "downloads" && rankByDownload[m.id]) ? <span style={{ fontSize: 11, fontWeight: 700, color: T.accent, marginRight: 4 }}>#{rankByDownload[m.id]}</span> : null}
                 <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginLeft: "auto" }}>📥 {dlCountByMat[m.id] || 0}</span>
               </div>
             </div>

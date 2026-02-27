@@ -34,10 +34,12 @@ export default function AdminPanel({
   const [editUserId, setEditUserId] = useState(null);
   const [searchLead, setSearchLead] = useState("");
   const [leadFilter, setLeadFilter] = useState("all");
+  const [atuaPilatesFilter, setAtuaPilatesFilter] = useState("");
   const [showBulkWA, setShowBulkWA] = useState(false);
   const [bulkMsg, setBulkMsg] = useState("Olá {nome}! 👋 Temos novos materiais exclusivos no VOLL Pilates Hub. Acesse agora!");
   const [bulkWAIndex, setBulkWAIndex] = useState(-1);
   const [bulkWASent, setBulkWASent] = useState([]);
+  const [bulkWAListOverride, setBulkWAListOverride] = useState(null);
   const [activityLog, setActivityLog] = useState([]);
   const [linkCopied, setLinkCopied] = useState(null);
   const [adminRefEdit, setAdminRefEdit] = useState(null);
@@ -87,10 +89,11 @@ export default function AdminPanel({
   const segmentedLeads = useMemo(() => leads.filter((l) => {
     const matchSearch = l.name.toLowerCase().includes(searchLead.toLowerCase()) || l.whatsapp.includes(searchLead);
     if (!matchSearch) return false;
+    if (atuaPilatesFilter !== "" && l.atuaPilates !== atuaPilatesFilter) return false;
     if (leadFilter === "all") return true;
     if (leadFilter === "referral") return l.source === "referral";
     return getLeadSegment(l) === leadFilter;
-  }), [leads, searchLead, leadFilter, getLeadSegment]);
+  }), [leads, searchLead, leadFilter, atuaPilatesFilter, getLeadSegment]);
   const segmentCounts = useMemo(() => ({
     all: leads.length,
     hot: leads.filter((l) => getLeadSegment(l) === "hot").length,
@@ -98,6 +101,11 @@ export default function AdminPanel({
     cold: leads.filter((l) => getLeadSegment(l) === "cold").length,
     referral: leads.filter((l) => l.source === "referral").length
   }), [leads, getLeadSegment]);
+
+  const atuaPilatesOptions = useMemo(() =>
+    [...new Set(leads.map(l => l.atuaPilates).filter(Boolean))].sort(),
+    [leads]
+  );
 
   const dlCountByMat = useMemo(() => {
     const map = {};
@@ -471,7 +479,16 @@ export default function AdminPanel({
         {/* LEADS */}
         {adminTab === "leads" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <input style={{ ...inp }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} key="lead-search" />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input style={{ ...inp, flex: "1 1 200px" }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} key="lead-search" />
+              <div style={{ minWidth: 160 }}>
+                <label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Atua c/ Pilates</label>
+                <select value={atuaPilatesFilter} onChange={(e) => setAtuaPilatesFilter(e.target.value)} style={{ ...inp, padding: "6px 10px", minHeight: 36 }}>
+                  <option value="">Todos</option>
+                  {atuaPilatesOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+            </div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {can("leads_export") && <button onClick={() => exportCSV(segmentedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📊 Exportar CSV</button>}
               {can("leads_export") && <button onClick={() => copyAllNumbers(segmentedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📋 Copiar números</button>}
@@ -565,15 +582,16 @@ export default function AdminPanel({
 
         {/* BULK WHATSAPP MODAL */}
         {showBulkWA && (() => {
+          const bulkList = bulkWAListOverride || segmentedLeads;
           const sending = bulkWAIndex >= 0;
-          const currentLead = sending ? segmentedLeads[bulkWAIndex] : null;
-          const total = segmentedLeads.length;
+          const currentLead = sending ? bulkList[bulkWAIndex] : null;
+          const total = bulkList.length;
           const sentCount = bulkWASent.length;
           const progress = total > 0 ? (sentCount / total) * 100 : 0;
           const startSending = () => { setBulkWAIndex(0); setBulkWASent([]); };
           const sendCurrent = () => { if (!currentLead) return; openWA(currentLead, bulkMsg); setBulkWASent(p => [...p, currentLead.id]); };
           const goNext = () => { if (bulkWAIndex < total - 1) setBulkWAIndex(p => p + 1); else { setBulkWAIndex(-1); showT(`✅ ${sentCount} mensagens enviadas!`); } };
-          const closeBulk = () => { setShowBulkWA(false); setBulkWAIndex(-1); setBulkWASent([]); };
+          const closeBulk = () => { setShowBulkWA(false); setBulkWAIndex(-1); setBulkWASent([]); setBulkWAListOverride(null); };
           return (
             <div style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 12 }} onClick={closeBulk}>
               <div onClick={(e) => e.stopPropagation()} style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: "14px 16px", maxWidth: 420, width: "100%", display: "flex", flexDirection: "column", gap: 10, animation: "fadeInUp 0.3s ease", maxHeight: "85vh", overflowY: "auto" }}>
@@ -587,7 +605,7 @@ export default function AdminPanel({
                       <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>Destinatários</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>{total} leads</span>
                     </div>
-                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Filtro: <span style={{ color: T.accent, fontWeight: 600 }}>{leadFilter === "all" ? "Todos" : leadFilter === "hot" ? "🔥 Quentes" : leadFilter === "warm" ? "Engajados" : leadFilter === "cold" ? "❄️ Frios" : "🔗 Indicados"}</span></p>
+                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Filtro: <span style={{ color: T.accent, fontWeight: 600 }}>{bulkWAListOverride ? "Não atuam c/ Pilates" : leadFilter === "all" ? "Todos" : leadFilter === "hot" ? "🔥 Quentes" : leadFilter === "warm" ? "Engajados" : leadFilter === "cold" ? "❄️ Frios" : "🔗 Indicados"}</span></p>
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Mensagem <span style={{ fontWeight: 400, color: T.textFaint }}>( use {"\"{nome}\""} )</span></label>
@@ -595,12 +613,12 @@ export default function AdminPanel({
                   </div>
                   <div style={{ padding: "8px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}` }}>
                     <p style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>Preview:</p>
-                    <p style={{ fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{bulkMsg.replace("{nome}", segmentedLeads[0]?.name.split(" ")[0] || "Nome")}</p>
+                    <p style={{ fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5 }}>{bulkMsg.replace("{nome}", bulkList[0]?.name.split(" ")[0] || "Nome")}</p>
                   </div>
                   <button onClick={startSending} style={{ padding: "10px 12px", borderRadius: 10, background: "#25D366", color: "#fff", fontSize: 13, fontWeight: 700 }}>💬 Iniciar envio ({total} leads)</button>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => { copyAllNumbers(segmentedLeads); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📋 Copiar números</button>
-                    <button onClick={() => { exportCSV(segmentedLeads); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📊 Exportar CSV</button>
+                    <button onClick={() => { copyAllNumbers(bulkList); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📋 Copiar números</button>
+                    <button onClick={() => { exportCSV(bulkList); closeBulk(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📊 Exportar CSV</button>
                   </div>
                 </>) : (<>
                   <div>
@@ -667,6 +685,26 @@ export default function AdminPanel({
               dlLeads.forEach(l => { const v = l[f.key]; if (v) vals[v] = (vals[v] || 0) + 1; });
               const entries = Object.entries(vals).sort((a, b) => b[1] - a[1]);
               return { ...f, entries, total: dlLeads.length };
+            }).filter(f => f.entries.length > 0);
+          };
+
+          const getProfileBreakdownCompiled = () => {
+            const leadsWithProfile = leads.filter(l =>
+              (l.grau || l.formacao || l.atuaPilates || l.temStudio) ||
+              (l.phaseResponses && Object.keys(l.phaseResponses).some(pid => l.phaseResponses[pid]?.completed_at))
+            );
+            if (leadsWithProfile.length === 0) return [];
+            const fields = [
+              { key: "grau", label: "Grau" },
+              { key: "formacao", label: "Formação" },
+              { key: "atuaPilates", label: "Atua c/ Pilates" },
+              { key: "temStudio", label: "Tem Studio" },
+            ];
+            return fields.map(f => {
+              const vals = {};
+              leadsWithProfile.forEach(l => { const v = l[f.key]; if (v) vals[v] = (vals[v] || 0) + 1; });
+              const entries = Object.entries(vals).sort((a, b) => b[1] - a[1]);
+              return { ...f, entries, total: leadsWithProfile.length };
             }).filter(f => f.entries.length > 0);
           };
 
@@ -964,6 +1002,74 @@ export default function AdminPanel({
                   ))}
                 </div>
               </div>
+
+              {/* Perfil geral (todos que responderam) — visão compilada */}
+              {(() => {
+                const compiled = getProfileBreakdownCompiled();
+                if (compiled.length === 0) return null;
+                return (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>📋 Perfil geral (todos que responderam)</h3>
+                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>Respostas de perfil agregadas de todos os leads que têm pelo menos uma resposta (grau, formação, atua c/ Pilates ou tem studio).</p>
+                    {compiled.map(f => (
+                      <div key={f.key} style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 4, fontFamily: "'Plus Jakarta Sans'" }}>{f.label} (n={f.total})</p>
+                        {f.entries.map(([val, count]) => {
+                          const pct = ((count / f.total) * 100).toFixed(0);
+                          return (
+                            <div key={val} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                              <div style={{ flex: 1, height: 18, borderRadius: 4, background: T.progressTrack, overflow: "hidden", position: "relative" }}>
+                                <div style={{ height: "100%", borderRadius: 4, background: T.accent + "44", width: `${pct}%` }} />
+                                <span style={{ position: "absolute", left: 6, top: 2, fontSize: 10, fontWeight: 600, color: T.text }}>{val}</span>
+                              </div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, width: 36, textAlign: "right" }}>{pct}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Para conversão — não atuam com Pilates */}
+              {(() => {
+                const NAO_ATUA_VALUES = ["não", "não atuo", "ainda não", "nao"];
+                const norm = (v) => (v || "").trim().toLowerCase();
+                const leadsNaoAtuam = leads.filter(l => NAO_ATUA_VALUES.includes(norm(l.atuaPilates)));
+                return (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>🎯 Para conversão — não atuam com Pilates</h3>
+                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>Leads que responderam que não atuam com Pilates (ex.: &quot;Não&quot;, &quot;Não atuo&quot;, &quot;Ainda não&quot;). Use para conversão ou curso.</p>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                      {can("leads_export") && <button onClick={() => exportCSV(leadsNaoAtuam)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📊 Exportar CSV</button>}
+                      {can("leads_export") && <button onClick={() => copyAllNumbers(leadsNaoAtuam)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600 }}>📋 Copiar números</button>}
+                      {can("leads_whatsapp") && leadsNaoAtuam.length > 0 && <button onClick={() => { setBulkWAListOverride(leadsNaoAtuam); setShowBulkWA(true); }} style={{ padding: "6px 12px", borderRadius: 8, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 12, fontWeight: 600 }}>💬 Enviar em massa</button>}
+                    </div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>{leadsNaoAtuam.length} lead{leadsNaoAtuam.length !== 1 ? "s" : ""}</p>
+                    <div style={{ maxHeight: 220, overflowY: "auto", border: `1px solid ${T.inputBorder}`, borderRadius: 8, background: T.inputBg }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'Plus Jakarta Sans'" }}>
+                        <thead>
+                          <tr style={{ borderBottom: `2px solid ${T.cardBorder}` }}>
+                            <th style={{ textAlign: "left", padding: "6px 8px", color: T.textMuted, fontWeight: 700, fontSize: 10 }}>Nome</th>
+                            <th style={{ textAlign: "left", padding: "6px 8px", color: T.textMuted, fontWeight: 700, fontSize: 10 }}>WhatsApp</th>
+                            <th style={{ padding: "6px 8px", width: 40 }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leadsNaoAtuam.map((l) => (
+                            <tr key={l.id} style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                              <td style={{ padding: "6px 8px", color: T.text, fontWeight: 600 }}>{l.name}</td>
+                              <td style={{ padding: "6px 8px", color: T.textMuted }}>{l.whatsapp}</td>
+                              <td style={{ padding: "6px 8px" }}>{can("leads_whatsapp") && <button onClick={(e) => { e.stopPropagation(); openWA(l); }} style={{ width: 28, height: 28, borderRadius: 6, background: "#25D36622", border: "1px solid #25D36644", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }} title="WhatsApp">💬</button>}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Profile cross-data for top 3 materials */}
               {matDlCounts.slice(0, 3).filter(m => m.dlCount > 0).map(m => {
