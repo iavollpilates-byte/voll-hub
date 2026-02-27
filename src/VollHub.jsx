@@ -153,6 +153,7 @@ export default function VollHub() {
   const [emailPopupSaving, setEmailPopupSaving] = useState(false);
   const [referralVerifying, setReferralVerifying] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [hubTab, setHubTab] = useState("home"); // "home" | "materials" | "community" — Perfil is view "profile"
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportType, setSupportType] = useState("error"); // "error" | "suggestion"
   const [supportMessage, setSupportMessage] = useState("");
@@ -1204,7 +1205,7 @@ export default function VollHub() {
         <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
         <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1, paddingTop: isOffline ? 44 : 0 }}>
           <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0" }}>
-            <button onClick={() => { try { localStorage.setItem("vollhub_profile_draft", JSON.stringify(phaseResponses)); } catch (e) {} setView("hub"); setActivePhase(null); }} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", color: T.accent, fontSize: 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar ao Hub</button>
+            <button onClick={() => { try { localStorage.setItem("vollhub_profile_draft", JSON.stringify(phaseResponses)); } catch (e) {} setView("hub"); setHubTab("home"); setActivePhase(null); }} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", color: T.accent, fontSize: 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar ao Hub</button>
             <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
           </header>
 
@@ -1316,8 +1317,47 @@ export default function VollHub() {
             </div>
           )}
 
+          {/* Configurações: Tema, Suporte, downloads, Sair */}
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: "16px 18px", marginBottom: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>⚙️ Configurações</h3>
+            <button type="button" onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderRadius: 10 }}>{theme === "dark" ? "☀️" : "🌙"} Tema: {theme === "dark" ? "escuro" : "claro"}</button>
+            <button type="button" onClick={() => { setShowSupportModal(true); setSupportMessage(""); setSupportType("error"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderRadius: 10 }}>💬 Suporte</button>
+            <div style={{ padding: "12px 16px", fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>📥 {downloaded.length} download{downloaded.length !== 1 ? "s" : ""}</div>
+            <button type="button" onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setUserAvatarUrl(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.dangerBrd, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderRadius: 10, borderTop: `1px solid ${T.cardBorder}` }}>🚪 Sair</button>
+          </div>
+
           <footer style={{ textAlign: "center", padding: "24px 0 8px" }}><a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a></footer>
         </div>
+      {/* Suporte também disponível no perfil */}
+      {showSupportModal && (
+        <div role="dialog" aria-modal="true" aria-label="Suporte" style={{ position: "fixed", inset: 0, background: T.overlayBg, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowSupportModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "85vh", overflowY: "auto" }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 16 }}>Suporte</h2>
+            <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 12, fontFamily: "'Plus Jakarta Sans'" }}>Reporte um erro ou envie uma sugestão de melhoria.</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <button type="button" onClick={() => setSupportType("error")} style={{ flex: 1, padding: "10px 14px", borderRadius: 12, background: supportType === "error" ? T.dangerBrd + "22" : T.statBg, border: `1px solid ${supportType === "error" ? T.dangerBrd : T.cardBorder}`, color: supportType === "error" ? T.dangerBrd : T.textMuted, fontSize: 13, fontWeight: 600 }}>Reportar erro</button>
+              <button type="button" onClick={() => setSupportType("suggestion")} style={{ flex: 1, padding: "10px 14px", borderRadius: 12, background: supportType === "suggestion" ? T.accent + "22" : T.statBg, border: `1px solid ${supportType === "suggestion" ? T.accent : T.cardBorder}`, color: supportType === "suggestion" ? T.accent : T.textMuted, fontSize: 13, fontWeight: 600 }}>Sugerir melhoria</button>
+            </div>
+            <textarea value={supportMessage} onChange={(e) => setSupportMessage(e.target.value)} placeholder={supportType === "error" ? "Descreva o que aconteceu ou o erro que encontrou..." : "Conte sua ideia ou sugestão..."} rows={4} style={{ width: "100%", padding: "12px 14px", borderRadius: 12, background: T.inputBg || T.statBg, border: `1px solid ${T.cardBorder}`, color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", resize: "vertical", marginBottom: 16 }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" disabled={!supportMessage.trim() || supportSending} onClick={async () => {
+                if (!supportMessage.trim() || supportSending) return;
+                setSupportSending(true);
+                try {
+                  const res = await fetch("/api/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: supportType, message: supportMessage.trim(), name: userName || "", whatsapp: userWhatsApp || "" }) });
+                  const data = res.ok ? await res.json() : await res.json().catch(() => ({}));
+                  if (!res.ok) { showT(data.error || "Não foi possível enviar. Tente novamente."); return; }
+                  showT("Mensagem enviada! Obrigado pelo retorno.");
+                  setShowSupportModal(false);
+                  setSupportMessage("");
+                } catch (e) { showT("Erro de conexão. Tente novamente."); }
+                finally { setSupportSending(false); }
+              }} style={{ flex: 1, padding: "12px", borderRadius: 12, background: supportMessage.trim() && !supportSending ? "linear-gradient(135deg, #349980, #7DE2C7)" : T.statBg, color: supportMessage.trim() && !supportSending ? "#060a09" : T.textFaint, fontSize: 14, fontWeight: 700, border: "none", cursor: supportMessage.trim() && !supportSending ? "pointer" : "default" }}>{supportSending ? "Enviando..." : "Enviar"}</button>
+              <button type="button" onClick={() => { setShowSupportModal(false); setSupportMessage(""); }} disabled={supportSending} style={{ padding: "12px 18px", borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
         <Toast />
       </div>
     );
@@ -1333,7 +1373,7 @@ export default function VollHub() {
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "10px 16px", background: T.gold + "22", borderBottom: `1px solid ${T.gold}44`, color: T.text, fontSize: 13, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", zIndex: 50 }} role="status">Você está offline</div>
       )}
       <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
-      <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1, paddingTop: isOffline ? 44 : 0 }}>
+      <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1, paddingTop: isOffline ? 44 : 0, paddingBottom: 80 }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0", gap: 10, flexWrap: "nowrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: "1 1 auto" }}>
             <div onClick={() => setLogoTaps((t) => t + 1)} style={{ width: 42, height: 42, borderRadius: "50%", background: T.avBg, border: `2px solid ${T.avBrd}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><InfLogo size={24} /></div>
@@ -1365,37 +1405,11 @@ export default function VollHub() {
             {!headerNarrow && (
               <button type="button" onClick={() => setView("linktree")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }} title="Voltar" aria-label="Voltar">←</button>
             )}
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <button type="button" onClick={() => setShowHeaderMenu(t => !t)} style={{ height: 34, padding: headerNarrow ? 0 : "0 12px", width: headerNarrow ? 34 : "auto", borderRadius: 17, background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: headerNarrow ? 18 : 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }} aria-label="Menu" aria-expanded={showHeaderMenu}><span style={{ lineHeight: 1 }}>☰</span>{!headerNarrow && <span>Menu</span>}</button>
-              {showHeaderMenu && (
-                <>
-                  <div role="presentation" style={{ position: "fixed", inset: 0, zIndex: 98 }} onClick={() => setShowHeaderMenu(false)} />
-                  <div role="dialog" aria-label="Menu" style={{ position: "absolute", top: 42, right: 0, minWidth: 200, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "8px 0", zIndex: 99, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", animation: "fadeInUp 0.2s ease" }}>
-                    {headerNarrow && (
-                      <button type="button" onClick={() => { setShowHeaderMenu(false); setView("linktree"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>← Voltar</button>
-                    )}
-                    {config.rankingEnabled !== "false" && (
-                      <button type="button" onClick={() => { setShowHeaderMenu(false); setShowLeaderboard(true); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>🏆 Ranking</button>
-                    )}
-                    {profileEnabled && (
-                      <button type="button" onClick={() => { setShowHeaderMenu(false); setView("profile"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", position: "relative" }}>
-                        👤 Meu perfil
-                        {!profileComplete && <span style={{ position: "absolute", top: 10, right: 16, width: 8, height: 8, borderRadius: "50%", background: T.gold }} />}
-                      </button>
-                    )}
-                    <button type="button" onClick={() => { setShowHeaderMenu(false); setTheme((t) => t === "dark" ? "light" : "dark"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>{theme === "dark" ? "☀️" : "🌙"} Tema: {theme === "dark" ? "escuro" : "claro"}</button>
-                    <button type="button" onClick={() => { setShowHeaderMenu(false); setShowSupportModal(true); setSupportMessage(""); setSupportType("error"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer" }}>💬 Suporte</button>
-                    <div style={{ padding: "12px 16px", fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", borderTop: `1px solid ${T.cardBorder}` }}>📥 {downloaded.length} download{downloaded.length !== 1 ? "s" : ""}</div>
-                    <button type="button" onClick={() => { setShowHeaderMenu(false); setView("linktree"); setUserName(""); setUserWhatsApp(""); setUserAvatarUrl(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.dangerBrd, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderTop: `1px solid ${T.cardBorder}` }}>🚪 Sair</button>
-                  </div>
-                </>
-              )}
-            </div>
           </div>
         </header>
 
-        {/* Aviso novidade: foto no ranking (uma vez, só para quem não tem foto) */}
-        {config.messagesPhotoAnnounceEnabled !== "false" && profileEnabled && !userAvatarUrl && !photoAnnounceDismissed && (
+        {/* Aviso novidade: foto no ranking (uma vez, só para quem não tem foto) — só na aba Início */}
+        {hubTab === "home" && config.messagesPhotoAnnounceEnabled !== "false" && profileEnabled && !userAvatarUrl && !photoAnnounceDismissed && (
           <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "12px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <p style={{ flex: "1 1 200px", fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", margin: 0 }}>{config.photoAnnounceText || "Novidade: adicione sua foto no Perfil e apareça no ranking."}</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1405,6 +1419,9 @@ export default function VollHub() {
           </div>
         )}
 
+        {/* ABA INÍCIO: reflexão + resumo + atalho materiais */}
+        {hubTab === "home" && (
+          <>
         {/* REFLECTION OF THE DAY */}
         {todayReflection && (
           <div style={{ background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fffdf5, #fdf8e8)", border: `1px solid ${T.gold}33`, borderRadius: 18, padding: "18px 18px 14px", marginBottom: 18, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
@@ -1450,6 +1467,31 @@ export default function VollHub() {
           </div>
         )}
 
+        {/* Resumo: streak, créditos, downloads + CTA materiais */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+            <span style={{ fontSize: 20 }}>🔥</span>
+            <p style={{ fontSize: 18, fontWeight: 800, color: T.gold, margin: "4px 0 2px" }}>{streak.count}</p>
+            <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>dias seguidos</p>
+          </div>
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+            <span style={{ fontSize: 20 }}>🎯</span>
+            <p style={{ fontSize: 18, fontWeight: 800, color: T.gold, margin: "4px 0 2px" }}>{userCredits}</p>
+            <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>créditos</p>
+          </div>
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+            <span style={{ fontSize: 20 }}>📥</span>
+            <p style={{ fontSize: 18, fontWeight: 800, color: T.accent, margin: "4px 0 2px" }}>{downloaded.length}</p>
+            <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{config.progressSuffix}</p>
+          </div>
+        </div>
+        <button type="button" onClick={() => setHubTab("materials")} style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, border: "none", fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", marginBottom: 24 }}>Ver todos os materiais →</button>
+          </>
+        )}
+
+        {/* ABA MATERIAIS */}
+        {hubTab === "materials" && (
+        <>
         {/* SEÇÃO DE MATERIAIS — título + progresso + filtros + spotlight + lista (ou estado vazio) */}
         <div style={{ marginBottom: 24, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: T.textMuted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'" }}>Pilates é vida!</p>
@@ -1598,10 +1640,69 @@ export default function VollHub() {
           </div>
         )}
 
+        </>
+        )}
+
+        {/* ABA COMUNIDADE: ranking */}
+        {hubTab === "community" && (config.rankingEnabled === "false" ? (
+          <div style={{ marginBottom: 24, textAlign: "center", padding: "32px 20px", background: T.cardBg, borderRadius: 16, border: `1px solid ${T.cardBorder}` }}>
+            <p style={{ fontSize: 32, marginBottom: 12 }}>🏆</p>
+            <p style={{ fontSize: 15, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>Ranking desativado no momento.</p>
+          </div>
+        ) : (() => {
+          const rankLeads = leads.filter(l => l.name && l.whatsapp).map(l => ({
+            name: l.name, whatsapp: l.whatsapp, avatarUrl: l.avatarUrl || "",
+            reads: (l.reflectionsRead || []).length,
+            downloads: (l.downloads || []).length,
+            streak: l.streakBest || l.streakCount || 0,
+            totalDays: l.totalDays || 0,
+          }));
+          const categories = [
+            { key: "reads", label: "Reflexões lidas", icon: "📖" },
+            { key: "downloads", label: "Downloads", icon: "📥" },
+            { key: "streak", label: "Melhor streak", icon: "🔥" },
+            { key: "totalDays", label: "Total de dias", icon: "📅" },
+          ];
+          const isMe = (l) => l.whatsapp === userWhatsApp;
+          return (
+            <div style={{ marginBottom: 24, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 16 }}>🏆 Ranking</h2>
+              {categories.map(cat => {
+                const sorted = [...rankLeads].sort((a, b) => b[cat.key] - a[cat.key]).filter(l => l[cat.key] > 0).slice(0, 10);
+                if (sorted.length === 0) return null;
+                return (
+                  <div key={cat.key} style={{ marginBottom: 20 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>{cat.icon} {cat.label}</p>
+                    {sorted.map((l, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, marginBottom: 4, background: isMe(l) ? T.accent + "11" : "transparent", border: isMe(l) ? `1px solid ${T.accent}33` : "1px solid transparent" }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: i < 3 ? T.gold : T.textFaint, width: 24, textAlign: "center" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`}</span>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: l.avatarUrl ? "transparent" : T.statBg, border: `1px solid ${T.cardBorder}`, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.textFaint }}>{l.avatarUrl ? <img src={l.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (l.name || "?").charAt(0).toUpperCase()}</div>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: isMe(l) ? 700 : 500, color: isMe(l) ? T.accent : T.text, fontFamily: "'Plus Jakarta Sans'" }}>{l.name.split(" ")[0]}{isMe(l) ? " (você)" : ""}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: i < 3 ? T.gold : T.accent }}>{l[cat.key]}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {rankLeads.length === 0 && (
+                <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", padding: "24px 0" }}>Ninguém no ranking ainda. Seja o primeiro!</p>
+              )}
+            </div>
+          );
+        })())}
+
         <footer style={{ textAlign: "center", padding: "24px 0 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a>
           <button type="button" onClick={() => setShowHowWorksModal(true)} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", textDecoration: "underline", cursor: "pointer", padding: 0 }}>{config.howWorksFooterLink || "Como funciona?"}</button>
         </footer>
+
+      {/* Bottom navigation */}
+      <nav role="navigation" aria-label="Menu principal" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: T.cardBg, borderTop: `1px solid ${T.cardBorder}`, display: "flex", justifyContent: "space-around", padding: "10px 8px 12px", paddingBottom: "max(12px, env(safe-area-inset-bottom))", zIndex: 90, boxShadow: "0 -4px 20px rgba(0,0,0,0.08)" }}>
+        <button type="button" onClick={() => setHubTab("home")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: hubTab === "home" ? T.accent : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px" }} aria-current={hubTab === "home" ? "page" : undefined}><span style={{ fontSize: 20 }}>🏠</span>Início</button>
+        <button type="button" onClick={() => setHubTab("materials")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: hubTab === "materials" ? T.accent : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px" }} aria-current={hubTab === "materials" ? "page" : undefined}><span style={{ fontSize: 20 }}>📚</span>Materiais</button>
+        <button type="button" onClick={() => setHubTab("community")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: hubTab === "community" ? T.accent : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px" }} aria-current={hubTab === "community" ? "page" : undefined} disabled={config.rankingEnabled === "false"}><span style={{ fontSize: 20 }}>🏆</span>Comunidade</button>
+        <button type="button" onClick={() => setView("profile")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px", position: "relative" }}><span style={{ fontSize: 20 }}>👤</span>Perfil{!profileComplete && <span style={{ position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: "50%", background: T.gold }} />}</button>
+      </nav>
       </div>
 
       {/* Modal Como funciona? */}

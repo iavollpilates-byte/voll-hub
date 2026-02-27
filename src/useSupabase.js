@@ -50,6 +50,7 @@ const leadFromDb = (r) => {
     streakCount: r.streak_count || 0, streakLastDate: r.streak_last_date || '', streakBest: r.streak_best || 0,
     totalDays: r.total_days || 0, reflectionsRead: r.reflections_read || [], milestonesAchieved: r.milestones_achieved || [],
     avatarUrl: r.avatar_url || '',
+    createdAt: r.created_at, updatedAt: r.updated_at,
   }
 }
 

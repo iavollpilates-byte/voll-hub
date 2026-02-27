@@ -339,20 +339,35 @@ export default function AdminPanel({
     <div style={{ gridColumn: "1 / -1" }}><CmsField label={label} ck={ck} multi={multi} hint={hint} /></div>
   );
 
-  // ─── Nav items (permission-based) ───
-  const navItems = [
-    can("materials_view") && ["materials", "📄", "Materiais"],
-    can("leads_view") && ["leads", "👥", "Leads"],
-    can("leads_view") && ["insights", "📊", "Insights"],
-    can("textos_edit") && ["bio", "🔗", "Linktree"],
-    can("textos_edit") && ["textos", "✏️", "Textos"],
-    can("textos_edit") && ["gamification", "🎮", "Gamificação"],
-    can("textos_edit") && ["quizzes", "🧠", "Quizzes"],
-    can("textos_edit") && ["reflections", "💭", "Reflexões"],
-    can("leads_view") && ["support", "💬", "Suporte"],
-    isMaster && ["users", "👑", "Usuários"],
-    isMaster && ["log", "📜", "Log"],
-  ].filter(Boolean);
+  // ─── Nav items (permission-based), agrupados ───
+  const navGroups = [
+    {
+      title: "Conteúdo",
+      items: [
+        can("materials_view") && ["materials", "📄", "Materiais"],
+        can("textos_edit") && ["bio", "🔗", "Linktree"],
+        can("textos_edit") && ["textos", "✏️", "Textos"],
+        can("textos_edit") && ["reflections", "💭", "Reflexões"],
+        can("textos_edit") && ["quizzes", "🧠", "Quizzes"],
+      ].filter(Boolean),
+    },
+    {
+      title: "Pessoas",
+      items: [
+        can("leads_view") && ["leads", "👥", "Leads"],
+        can("leads_view") && ["insights", "📊", "Insights"],
+        can("leads_view") && ["support", "💬", "Suporte"],
+        isMaster && ["users", "👑", "Usuários"],
+      ].filter(Boolean),
+    },
+    {
+      title: "Sistema",
+      items: [
+        can("textos_edit") && ["gamification", "🎮", "Gamificação"],
+        isMaster && ["log", "📜", "Log"],
+      ].filter(Boolean),
+    },
+  ];
 
   // ═══════════════════════════════════════
   // RETURN — full-width layout: sidebar + main
@@ -384,11 +399,20 @@ export default function AdminPanel({
           </div>
         </div>
         <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          {navItems.map(([t, icon, label]) => (
-            <button key={t} onClick={() => { setAdminTab(t); setSidebarOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 12, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent", textAlign: "left" }}>
-              <span style={{ fontSize: 18 }}>{icon}</span>
-              <span>{label}</span>
-            </button>
+          {navGroups.map((group) => (
+            group.items.length > 0 && (
+              <div key={group.title} style={{ marginTop: group.title === "Conteúdo" ? 0 : 12 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: T.textFaint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, paddingLeft: 10, fontFamily: "'Plus Jakarta Sans'" }}>{group.title}</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {group.items.map(([t, icon, label]) => (
+                    <button key={t} onClick={() => { setAdminTab(t); setSidebarOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: adminTab === t ? T.tabActiveBg : "transparent", color: adminTab === t ? (t === "users" ? T.gold : T.accent) : T.textFaint, fontSize: 12, fontWeight: 600, transition: "all 0.2s", border: adminTab === t ? `1px solid ${T.statBorder}` : "1px solid transparent", textAlign: "left" }}>
+                      <span style={{ fontSize: 18 }}>{icon}</span>
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
           ))}
         </nav>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, borderTop: `1px solid ${T.cardBorder}` }}>
@@ -676,6 +700,108 @@ export default function AdminPanel({
                 <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 6 }}>Acessos contabilizados desde a ativação do contador.</p>
               </div>
 
+              {/* Leads por dia + Dia da semana com mais cadastros */}
+              {(() => {
+                const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+                const leadsWithDate = leads.filter(l => l.createdAt);
+                const toDateKey = (iso) => {
+                  if (!iso) return null;
+                  const d = new Date(iso);
+                  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+                };
+                const lastDays = 30;
+                const today = new Date();
+                const dayCounts = {};
+                for (let i = lastDays - 1; i >= 0; i--) {
+                  const d = new Date(today);
+                  d.setDate(d.getDate() - i);
+                  dayCounts[d.toISOString().slice(0, 10)] = 0;
+                }
+                leadsWithDate.forEach(l => {
+                  const key = toDateKey(l.createdAt);
+                  if (key && dayCounts[key] !== undefined) dayCounts[key]++;
+                });
+                const dayOfWeekCounts = { Dom: 0, Seg: 0, Ter: 0, Qua: 0, Qui: 0, Sex: 0, Sáb: 0 };
+                leadsWithDate.forEach(l => {
+                  const d = new Date(l.createdAt);
+                  if (!isNaN(d.getTime())) dayOfWeekCounts[DAY_NAMES[d.getDay()]]++;
+                });
+                const sortedWeekDays = Object.entries(dayOfWeekCounts).sort((a, b) => b[1] - a[1]);
+                const maxDay = Math.max(...Object.values(dayCounts), 1);
+                const sortedDates = Object.entries(dayCounts).sort((a, b) => a[0].localeCompare(b[0]));
+                return (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>📅 Leads por dia (últimos 30 dias)</h3>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 80, marginBottom: 12 }}>
+                      {sortedDates.map(([date, count]) => {
+                        const pct = (count / maxDay) * 100;
+                        const label = new Date(date + "Z").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+                        return (
+                          <div key={date} title={`${label}: ${count} lead(s)`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
+                            <div style={{ width: "100%", height: 60, background: T.progressTrack, borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "flex-end" }}>
+                              <div style={{ width: "100%", height: pct + "%", minHeight: count > 0 ? 4 : 0, background: "linear-gradient(180deg, #349980, #7DE2C7)", borderRadius: 2, transition: "height 0.3s" }} />
+                            </div>
+                            <span style={{ fontSize: 8, color: T.textFaint, marginTop: 4, fontFamily: "'Plus Jakarta Sans'" }}>{label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <h4 style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans'" }}>Dia da semana com mais cadastros</h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {sortedWeekDays.map(([day, count], i) => (
+                        <div key={day} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: i < 3 ? T.gold : T.textFaint, width: 28 }}>{day}</span>
+                          <div style={{ flex: 1, height: 20, borderRadius: 4, background: T.progressTrack, overflow: "hidden", position: "relative" }}>
+                            <div style={{ height: "100%", width: `${sortedWeekDays[0][1] > 0 ? (count / sortedWeekDays[0][1]) * 100 : 0}%`, borderRadius: 4, background: i === 0 ? `linear-gradient(90deg, ${T.gold}, #FFD863)` : `linear-gradient(90deg, ${T.accent}, #7DE2C7)`, transition: "width 0.3s" }} />
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: T.accent, width: 36, textAlign: "right" }}>{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Dias com mais atividade (leads atualizados por dia) */}
+              {(() => {
+                const leadsWithUpdated = leads.filter(l => l.updatedAt);
+                const toDateKey = (iso) => {
+                  if (!iso) return null;
+                  const d = new Date(iso);
+                  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+                };
+                const activityByDay = {};
+                leadsWithUpdated.forEach(l => {
+                  const key = toDateKey(l.updatedAt);
+                  if (key) activityByDay[key] = (activityByDay[key] || 0) + 1;
+                });
+                const sortedActivity = Object.entries(activityByDay).sort((a, b) => b[1] - a[1]).slice(0, 14);
+                if (sortedActivity.length === 0) return null;
+                const topActivity = sortedActivity[0][1];
+                return (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>📈 Dias com mais atividade</h3>
+                    <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 8 }}>Dias em que mais leads foram atualizados (login ou ação no app)</p>
+                    {sortedActivity.map(([date, count], i) => {
+                      const barW = topActivity > 0 ? (count / topActivity) * 100 : 0;
+                      const label = new Date(date + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+                      return (
+                        <div key={date} style={{ marginBottom: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: i < 3 ? T.gold : T.textFaint, width: 18 }}>#{i + 1}</span>
+                            <span style={{ flex: 1, fontSize: 11, color: T.text, fontFamily: "'Plus Jakarta Sans'" }}>{label}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>{count} lead{count !== 1 ? "s" : ""}</span>
+                          </div>
+                          <div style={{ height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden", marginLeft: 26 }}>
+                            <div style={{ height: "100%", borderRadius: 2, background: i === 0 ? `linear-gradient(90deg, ${T.gold}, #FFD863)` : `linear-gradient(90deg, ${T.accent}, #7DE2C7)`, width: `${barW}%`, transition: "width 0.3s" }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
               {/* Bio Link Clicks */}
               {(() => {
                 const linksWithClicks = bioLinks.filter(l => l.active && (l.clicks || 0) > 0).sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
@@ -740,6 +866,36 @@ export default function AdminPanel({
                   );
                 })}
               </div>
+
+              {/* Reflexões mais curtidas */}
+              {(() => {
+                const refsSorted = [...(dbReflections || [])].sort((a, b) => (b.likes || 0) - (a.likes || 0));
+                const topRef = refsSorted[0];
+                if (refsSorted.length === 0) return null;
+                return (
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>💭 Reflexões mais curtidas</h3>
+                    {refsSorted.map((r, i) => {
+                      const barW = topRef && (topRef.likes || 0) > 0 ? ((r.likes || 0) / topRef.likes) * 100 : 0;
+                      const dateLabel = r.publishDate ? new Date(r.publishDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+                      return (
+                        <div key={r.id} style={{ marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: i < 3 ? T.gold : T.textFaint, width: 18 }}>#{i + 1}</span>
+                            <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: T.text, fontFamily: "'Plus Jakarta Sans'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
+                            <span style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", flexShrink: 0 }}>{dateLabel}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }} title="Curtidas">👍 {r.likes || 0}</span>
+                            <span style={{ fontSize: 11, color: T.textFaint }}>👎 {r.dislikes || 0}</span>
+                          </div>
+                          <div style={{ height: 4, borderRadius: 2, background: T.progressTrack, overflow: "hidden", marginLeft: 26 }}>
+                            <div style={{ height: "100%", borderRadius: 2, background: i === 0 ? `linear-gradient(90deg, ${T.gold}, #FFD863)` : `linear-gradient(90deg, ${T.accent}, #7DE2C7)`, width: `${barW}%`, transition: "width 0.5s" }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Categorias */}
               {catStats.length > 0 && (
