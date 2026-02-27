@@ -633,6 +633,15 @@ export default function VollHub() {
     return true;
   };
 
+  /** Persiste uma flag ui_* em creditsEarned (local + DB) para métricas no Admin. */
+  const persistUiFlag = async (flagKey, value) => {
+    const newEarned = { ...userCreditsEarned, [flagKey]: value };
+    setUserCreditsEarned(newEarned);
+    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.creditsEarned = newEarned; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
+    const lead = await db.findLeadByWhatsApp(userWhatsApp);
+    if (lead) await db.updateLead(lead.id, { creditsEarned: newEarned });
+  };
+
   const handleDownload = async (mat) => {
     setDownloadingMatId(mat.id);
     try {
@@ -1156,6 +1165,17 @@ export default function VollHub() {
     const MIN_TEXT_LEN = 10;
     const PHASE_TIMER = 15; // seconds
 
+    const getCompletedQuizzesCount = () =>
+      Object.keys(userCreditsEarned || {}).filter((k) => k.startsWith("quiz_") && !k.endsWith("_fail") && userCreditsEarned[k]).length;
+
+    const getCommentActionsCount = () =>
+      Object.keys(userCreditsEarned || {}).filter((k) => k.startsWith("comment_") && userCreditsEarned[k]).length;
+
+    const getReferralActionsCount = () =>
+      userCreditsEarned && userCreditsEarned["referral_share"] ? 1 : 0;
+
+    const getSocialActionsCount = () => getCommentActionsCount() + getReferralActionsCount();
+
     const validatePhaseText = (phaseId) => {
       const phase = PHASES.find(p => p.id === phaseId);
       if (!phase) return null;
@@ -1224,6 +1244,43 @@ export default function VollHub() {
               ))}
             </div>
             <p style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{completedPhases}/{PHASES.length} fases completas</p>
+          </div>
+
+          {/* Resumo social: streak, dias, materiais, reflexões, quizzes, ações sociais */}
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: "16px 16px 10px", marginBottom: 16, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease 0.05s" }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>{config.profileStatsTitle || "Seu progresso no Hub"}</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+              <div style={{ background: T.statBg, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.statBorder}` }}>
+                <span style={{ fontSize: 18 }}>🔥</span>
+                <p style={{ fontSize: 16, fontWeight: 800, color: T.gold, margin: "2px 0 0" }}>{streak.count}</p>
+                <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 0 }}>{config.profileStatsStreakLabel || "Dias seguidos"}</p>
+              </div>
+              <div style={{ background: T.statBg, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.statBorder}` }}>
+                <span style={{ fontSize: 18 }}>📅</span>
+                <p style={{ fontSize: 16, fontWeight: 800, color: T.accent, margin: "2px 0 0" }}>{totalDays}</p>
+                <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 0 }}>{config.profileStatsTotalDaysLabel || "Dias no Hub"}</p>
+              </div>
+              <div style={{ background: T.statBg, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.statBorder}` }}>
+                <span style={{ fontSize: 18 }}>📥</span>
+                <p style={{ fontSize: 16, fontWeight: 800, color: T.accent, margin: "2px 0 0" }}>{downloaded.length}</p>
+                <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 0 }}>{config.profileStatsDownloadsLabel || "Materiais baixados"}</p>
+              </div>
+              <div style={{ background: T.statBg, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.statBorder}` }}>
+                <span style={{ fontSize: 18 }}>📖</span>
+                <p style={{ fontSize: 16, fontWeight: 800, color: T.accentDark, margin: "2px 0 0" }}>{reflectionsRead.length}</p>
+                <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 0 }}>{config.profileStatsReflectionsLabel || "Reflexões lidas"}</p>
+              </div>
+              <div style={{ background: T.statBg, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.statBorder}` }}>
+                <span style={{ fontSize: 18 }}>🧠</span>
+                <p style={{ fontSize: 16, fontWeight: 800, color: T.gold, margin: "2px 0 0" }}>{getCompletedQuizzesCount()}</p>
+                <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 0 }}>{config.profileStatsQuizzesLabel || "Quizzes completos"}</p>
+              </div>
+              <div style={{ background: T.statBg, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.statBorder}` }}>
+                <span style={{ fontSize: 18 }}>🤝</span>
+                <p style={{ fontSize: 16, fontWeight: 800, color: T.accent, margin: "2px 0 0" }}>{getSocialActionsCount()}</p>
+                <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 0 }}>{config.profileStatsSocialLabel || "Ações sociais"}</p>
+              </div>
+            </div>
           </div>
 
           {/* Sua foto — upload para aparecer no ranking */}
@@ -1413,8 +1470,8 @@ export default function VollHub() {
           <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "12px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <p style={{ flex: "1 1 200px", fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", margin: 0 }}>{config.photoAnnounceText || "Novidade: adicione sua foto no Perfil e apareça no ranking."}</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button type="button" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); setView("profile"); }} style={{ padding: "8px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 12, fontWeight: 700, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnVer || "Ver"}</button>
-              <button type="button" aria-label="Fechar aviso de novidade" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnFechar || "Fechar"}</button>
+              <button type="button" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); persistUiFlag("ui_photo_announce_seen", true); setView("profile"); }} style={{ padding: "8px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 12, fontWeight: 700, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnVer || "Ver"}</button>
+              <button type="button" aria-label="Fechar aviso de novidade" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); persistUiFlag("ui_photo_announce_seen", true); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnFechar || "Fechar"}</button>
             </div>
           </div>
         )}
@@ -1593,7 +1650,7 @@ export default function VollHub() {
           if (config.messagesInstallBannerEnabled === "false" || !isMobile || isStandalone || installBannerDismissed || installBannerHiddenThisSession) return null;
           const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
           const isAndroid = /Android/i.test(navigator.userAgent);
-          const dismiss = (permanent) => { if (permanent) { setInstallBannerDismissed(true); localStorage.setItem("vollhub_install_dismissed", "1"); } else setInstallBannerHiddenThisSession(true); };
+          const dismiss = (permanent) => { if (permanent) { setInstallBannerDismissed(true); localStorage.setItem("vollhub_install_dismissed", "1"); persistUiFlag("ui_install_dismissed", true); } else setInstallBannerHiddenThisSession(true); };
           const triggerInstall = async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); const { outcome } = await deferredInstallPrompt.userChoice; if (outcome === "accepted") dismiss(true); setDeferredInstallPrompt(null); } };
           const steps = isIOS ? [config.installBannerStepsIos1, config.installBannerStepsIos2, config.installBannerStepsIos3].filter(Boolean) : [config.installBannerStepsAndroid1, config.installBannerStepsAndroid2, config.installBannerStepsAndroid3].filter(Boolean);
           const title = config.installBannerTitle || "Instale na tela inicial — como um app";
@@ -1709,10 +1766,11 @@ export default function VollHub() {
       {showHowWorksModal && (() => {
         const n = String(parseInt(config.creditsInitial) || 3);
         const step2Desc = (config.howWorksStep2Desc || "Alguns materiais pedem créditos. Você já ganhou {n} ao se cadastrar!").replace(/\{n\}/g, n);
+        const closeHowWorks = () => { setShowHowWorksModal(false); persistUiFlag("ui_howworks_seen", true); };
         return (
-        <div role="dialog" aria-modal="true" aria-label="Como funciona" style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setShowHowWorksModal(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Como funciona" style={{ position: "fixed", inset: 0, background: T.overlayBg, backdropFilter: "blur(8px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={closeHowWorks}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: theme === "dark" ? "linear-gradient(135deg, #0d1a18, #0d1210)" : "linear-gradient(135deg, #f0faf6, #e8f5f0)", border: `1px solid ${T.accent}22`, borderRadius: 20, padding: "24px 22px", maxWidth: 400, width: "100%", position: "relative", animation: "fadeInUp 0.3s ease" }}>
-            <button type="button" aria-label="Fechar" onClick={() => setShowHowWorksModal(false)} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18, border: "none", cursor: "pointer" }}>✕</button>
+            <button type="button" aria-label="Fechar" onClick={closeHowWorks} style={{ position: "absolute", top: 12, right: 16, background: "none", color: T.textFaint, fontSize: 18, border: "none", cursor: "pointer" }}>✕</button>
             <p style={{ fontSize: 16, fontWeight: 700, color: T.accent, marginBottom: 14 }}>{config.howWorksTitle || "💡 Como funciona?"}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ fontSize: 18, minWidth: 26 }}>📚</span><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans'" }}><b style={{ color: T.text }}>{config.howWorksStep1Title || "Materiais gratuitos"}</b> — {config.howWorksStep1Desc || "Baixe e-books, guias e templates feitos pra você crescer no Pilates."}</p></div>
@@ -2165,8 +2223,10 @@ export default function VollHub() {
       )}
 
       {/* EMAIL POPUP: +2 créditos (só para lead sem email) */}
-      {showEmailPopup && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }}>
+      {showEmailPopup && (() => {
+        const dismissEmailPopup = () => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); persistUiFlag("ui_email_dismissed_at", Date.now()); };
+        return (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={dismissEmailPopup}>
           <div style={{ position: "absolute", inset: 0, background: "#000000bb", backdropFilter: "blur(6px)" }} />
           <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="email-popup-title" style={{ position: "relative", width: "100%", maxWidth: 360, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "36px 24px 28px", display: "flex", flexDirection: "column", alignItems: "center", animation: "fadeInUp 0.4s ease", textAlign: "center" }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}22, ${T.gold}08)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 36 }}>✉️</span></div>
@@ -2211,11 +2271,12 @@ export default function VollHub() {
               >
                 {emailPopupSaving ? "Salvando..." : (config.emailPopupBtnSubmit || "Receber créditos")}
               </button>
-              <button disabled={emailPopupSaving} onClick={() => { setShowEmailPopup(false); sessionStorage.setItem("vollhub_email_popup_dismissed", "1"); }} style={{ padding: "14px 18px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>{config.emailPopupBtnDismiss || "Agora não"}</button>
+              <button disabled={emailPopupSaving} onClick={dismissEmailPopup} style={{ padding: "14px 18px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 14, fontWeight: 600 }}>{config.emailPopupBtnDismiss || "Agora não"}</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* SUPPORT MODAL: reportar erro ou sugerir melhoria */}
       {showSupportModal && (
@@ -2314,10 +2375,10 @@ export default function VollHub() {
               {onboardingStep < 2 ? (
                 <button onClick={() => setOnboardingStep(s => s + 1)} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingNextBtn || "Próximo →"}</button>
               ) : (
-                <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingStartBtn || "Começar! 🚀"}</button>
+                <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); persistUiFlag("ui_onboarding_done", true); }} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingStartBtn || "Começar! 🚀"}</button>
               )}
             </div>
-            <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); }} style={{ background: "none", color: T.textFaint, fontSize: 12, marginTop: 12, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.onboardingSkipBtn || "Pular"}</button>
+            <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); persistUiFlag("ui_onboarding_done", true); }} style={{ background: "none", color: T.textFaint, fontSize: 12, marginTop: 12, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.onboardingSkipBtn || "Pular"}</button>
           </div>
         </div>
         );

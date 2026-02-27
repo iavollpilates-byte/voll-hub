@@ -5,6 +5,30 @@ import { drawReflectionCanvas } from "../canvasUtils";
 import AdminMaterials from "./admin/AdminMaterials";
 import AdminLog from "./admin/AdminLog";
 
+// Contrato das flags ui_* em creditsEarned (mensagens/onboarding) — alinhado ao CMS
+const UI_FLAGS_REGISTRY = [
+  { id: "onboarding", flagKey: "ui_onboarding_done", label: "Onboarding concluído", type: "flag" },
+  { id: "howWorks", flagKey: "ui_howworks_seen", label: "Já viu Como funciona", type: "flag" },
+  { id: "emailSaved", label: "Tem e-mail salvo", type: "email" },
+  { id: "photoAnnounce", flagKey: "ui_photo_announce_seen", label: "Já viu banner Foto no ranking", type: "flag" },
+  { id: "installDismissed", flagKey: "ui_install_dismissed", label: "Instalação dispensada", type: "flag" },
+  { id: "emailPopupDismissed7d", flagKey: "ui_email_dismissed_at", label: "Popup e-mail ignorado (7 dias)", type: "email_dismissed_7d" },
+];
+
+function countUiFlag(leads, flagKey) {
+  return leads.filter((l) => !!(l.creditsEarned || {})[flagKey]).length;
+}
+function countUiEmailRecentlyDismissed(leads, days = 7) {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return leads.filter((l) => {
+    const ts = (l.creditsEarned || {}).ui_email_dismissed_at;
+    return typeof ts === "number" && ts >= cutoff;
+  }).length;
+}
+function countLeadsWithEmail(leads) {
+  return leads.filter((l) => (l.email || "").trim() !== "").length;
+}
+
 export default function AdminPanel({
   db, config, T, theme, setTheme, setView,
   currentAdmin, setCurrentAdmin, isMaster, can,
@@ -738,6 +762,32 @@ export default function AdminPanel({
                 <p style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginTop: 6 }}>Acessos contabilizados desde a ativação do contador.</p>
               </div>
 
+              {/* Mensagens & Onboarding — métricas de flags ui_* em creditsEarned */}
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>📢 Mensagens & Onboarding</h3>
+                <p style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", marginBottom: 10 }}>Quantos leads já passaram por cada mensagem ou modal.</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+                  {UI_FLAGS_REGISTRY.map((item) => {
+                    const total = leads.length;
+                    let count;
+                    if (item.type === "flag") count = countUiFlag(leads, item.flagKey);
+                    else if (item.type === "email") count = countLeadsWithEmail(leads);
+                    else if (item.type === "email_dismissed_7d") count = countUiEmailRecentlyDismissed(leads, 7);
+                    else count = 0;
+                    const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0;
+                    const is7d = item.type === "email_dismissed_7d";
+                    return (
+                      <div key={item.id} title={is7d ? `${count} lead(s) dispensaram popup de e-mail nos últimos 7 dias` : `${item.label}: ${count} de ${total} leads`} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: "10px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                        <span style={{ fontSize: 18 }}>{item.type === "email" ? "✉️" : item.type === "email_dismissed_7d" ? "📭" : "✓"}</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: T.accent }}>{count}</span>
+                        <span style={{ fontSize: 9, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", textAlign: "center", lineHeight: 1.2 }}>{item.label}</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>{is7d ? "últimos 7 dias" : `de ${total} leads · ${pct}%`}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Leads por dia + Dia da semana com mais cadastros */}
               {(() => {
                 const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -1227,6 +1277,15 @@ export default function AdminPanel({
                   <CmsGroup label="Perfil">
                     <CmsField label="Texto perfil (hub)" ck="profilePromptText" hint="Ex: Ganhe créditos!" />
                     <CmsField label="Título perfil (tela)" ck="profileSectionTitle" hint="Ex: Ganhe créditos" />
+                  </CmsGroup>
+                  <CmsGroup label="Status social (Perfil)">
+                    <CmsField label="Título bloco de progresso" ck="profileStatsTitle" hint="Ex: Seu progresso no Hub" />
+                    <CmsField label="Label dias seguidos" ck="profileStatsStreakLabel" hint="Ex: Dias seguidos" />
+                    <CmsField label="Label dias no Hub" ck="profileStatsTotalDaysLabel" hint="Ex: Dias no Hub" />
+                    <CmsField label="Label materiais baixados" ck="profileStatsDownloadsLabel" hint="Ex: Materiais baixados" />
+                    <CmsField label="Label reflexões lidas" ck="profileStatsReflectionsLabel" hint="Ex: Reflexões lidas" />
+                    <CmsField label="Label quizzes completos" ck="profileStatsQuizzesLabel" hint="Ex: Quizzes completos" />
+                    <CmsField label="Label ações sociais" ck="profileStatsSocialLabel" hint="Ex: Ações sociais" />
                   </CmsGroup>
                 </div>
               )}
