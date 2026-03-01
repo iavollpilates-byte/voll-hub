@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense, memo, forwardRef } from "react";
 import { useSupabase } from "./useSupabase";
+import { useUserSession } from "./hooks/useUserSession";
+import { useGamification } from "./hooks/useGamification";
+import { useMaterialsHub } from "./hooks/useMaterialsHub";
+import { useUIState } from "./hooks/useUIState";
+import { useProfilePhases } from "./hooks/useProfilePhases";
 import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, PERM_LABELS, THEMES } from "./constants";
 import { getUnlockLabel, timeAgo, fmtWA, normalizeWhatsApp, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
 import { REFLECTION_STYLES, drawReflectionCanvas, getPreviewDataUrl, wrapCanvasText } from "./canvasUtils";
@@ -155,67 +160,58 @@ export default function VollHub() {
   }, [db.config.bioLinks]);
   const saveBioLinks = useCallback((links) => { setBioLinks(links); db.updateConfig("bioLinks", JSON.stringify(links)); }, [db]);
 
-  const [userName, setUserName] = useState("");
-  const [userWhatsApp, setUserWhatsApp] = useState("");
-  const [userAvatarUrl, setUserAvatarUrl] = useState("");
-  const [souDeForaDoBrasil, setSouDeForaDoBrasil] = useState(false);
-  const [downloaded, setDownloaded] = useState([]);
-  // Auto-login from localStorage (restore user data but stay on linktree)
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("vollhub_user");
-      if (saved) {
-        const u = JSON.parse(saved);
-        if (u.name && u.whatsapp) {
-          setUserName(u.name);
-          setUserWhatsApp(u.whatsapp);
-          if (u.downloaded) setDownloaded(u.downloaded);
-          if (u.phaseResponses) setPhaseResponses(u.phaseResponses);
-          if (u.profile) setUserProfile(u.profile);
-          if (u.credits !== undefined) setUserCredits(u.credits);
-          if (u.creditsEarned) setUserCreditsEarned(u.creditsEarned);
-          if (u.streak) setStreak(u.streak);
-          if (u.totalDays) setTotalDays(u.totalDays);
-          if (u.avatarUrl) setUserAvatarUrl(u.avatarUrl);
-          // Don't auto-navigate to hub - stay on linktree
-        }
-      }
-    } catch (e) {}
-  }, []);
+  // ─── USER SESSION (Supabase as source of truth, LS only stores {name, whatsapp}) ───
+  const [toast, setToast] = useState(null);
+  const showT = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3000); }, []);
+  const session = useUserSession(db, showT);
+  const {
+    userName, setUserName, userWhatsApp, setUserWhatsApp, userAvatarUrl, setUserAvatarUrl,
+    souDeForaDoBrasil, setSouDeForaDoBrasil, downloaded, setDownloaded,
+    userCredits, setUserCredits, userCreditsEarned, setUserCreditsEarned,
+    streak, setStreak, totalDays, setTotalDays,
+    reflectionsRead, setReflectionsRead, milestonesAchieved, setMilestonesAchieved,
+    loginLoading, loginError, sessionLoading, isLoggedIn, leadId,
+    onboardingDone: sessionOnboardingDone, seenHubOnce: sessionSeenHubOnce,
+    photoAnnounceSeen: sessionPhotoAnnounceSeen, refVotes: sessionRefVotes,
+    phaseResponses, setPhaseResponses, userProfile, setUserProfile,
+  } = session;
 
-  useEffect(() => {
-    // preventDefault() captures the event so we show our own install UI and call prompt() when user taps "Instalar agora". Console may warn "Banner not shown" — expected.
-    const handler = (e) => { e.preventDefault(); setDeferredInstallPrompt(e); };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
+  // ─── MATERIALS HUB (hook) ───
+  const mats = useMaterialsHub(materials, downloaded, config);
+  const {
+    selectedMaterial, setSelectedMaterial, unlockTarget, setUnlockTarget, setUnlock,
+    downloadingMatId, setDownloadingMatId, deepLinkMatId, setDeepLinkMatId,
+    selectedCategory, setSelectedCategory, showDownloadedOnly, setShowDownloadedOnly,
+    previewImgIdx, setPreviewImgIdx, funnelStep, setFunnelStep, funnelAnswers, setFunnelAnswers,
+    seenNewIds, setSeenNewIds, spotlightRef,
+    selectMat, markNewAsSeen,
+    activeMats, newMats, lockedMats, categories, spotlightMat, otherMats, dlCount, bannerContent,
+  } = mats;
 
-  const [selectedMaterial, setSelectedMaterial] = useState(null);
-  const [unlockTarget, setUnlockTarget] = useState(null);
-  const setUnlock = useCallback((m) => { setUnlockTarget(m); setPreviewImgIdx(0); }, []);
-  // Credits system
-  const [userCredits, setUserCredits] = useState(3);
-  const [userCreditsEarned, setUserCreditsEarned] = useState({});
-  const [showCreditStore, setShowCreditStore] = useState(false);
-  const [phaseReward, setPhaseReward] = useState(null);
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [quizAnswers, setQuizAnswers] = useState({});
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [commentVerifying, setCommentVerifying] = useState(false);
-  const [instaCommentOpenClickedAt, setInstaCommentOpenClickedAt] = useState(0);
-  const [showInstaCommentButton, setShowInstaCommentButton] = useState(false);
-  // Funnel system
-  const [funnelStep, setFunnelStep] = useState("download"); // "questions" | "download" | "cta"
-  const [funnelAnswers, setFunnelAnswers] = useState({});
-  const selectMat = useCallback((m) => {
-    if (!m) { setSelectedMaterial(null); return; }
-    const f = m.funnel;
-    const alreadyDl = downloaded.includes(m.id);
-    const hasQuestions = f?.questions?.length > 0 && !alreadyDl;
-    setFunnelAnswers({});
-    setFunnelStep(hasQuestions ? "questions" : "download");
-    setSelectedMaterial(m);
-  }, [downloaded]);
+  // ─── UI STATE (hook) ───
+  const ui = useUIState();
+  const {
+    animateIn, setAnimateIn,
+    showOnboarding, setShowOnboarding, onboardingStep, setOnboardingStep,
+    showCreditTooltip, setShowCreditTooltip, showCreditStore, setShowCreditStore,
+    phaseReward, setPhaseReward,
+    showQuiz, setShowQuiz, quizAnswers, setQuizAnswers, quizSubmitted, setQuizSubmitted,
+    commentVerifying, setCommentVerifying,
+    instaCommentOpenClickedAt, setInstaCommentOpenClickedAt,
+    showInstaCommentButton, setShowInstaCommentButton,
+    reflectionVote, setReflectionVote, reflectionExpanded, setReflectionExpanded,
+    showShareModal, setShowShareModal, shareSelectedStyle, setShareSelectedStyle, shareGenerating, setShareGenerating,
+    isOffline,
+    showSupportModal, setShowSupportModal, supportType, setSupportType, supportMessage, setSupportMessage, supportSending, setSupportSending,
+    showHowWorksModal, setShowHowWorksModal,
+    headerNarrow, showHeaderMenu, setShowHeaderMenu,
+    showEmailPopup, setShowEmailPopup, emailPopupLeadId, setEmailPopupLeadId, emailPopupValue, setEmailPopupValue, emailPopupSaving, setEmailPopupSaving,
+    installBannerDismissed, installBannerHiddenThisSession, deferredInstallPrompt, setDeferredInstallPrompt,
+    dismissInstallBanner,
+    referralVerifying, setReferralVerifying,
+    logoTaps, setLogoTaps,
+  } = ui;
+
   const creditsEnabled = config.creditsEnabled === "true";
   const getQuizzes = useCallback(() => {
     const raw = config.quizzes;
@@ -241,50 +237,17 @@ export default function VollHub() {
   const pendingInstaComments = useMemo(() =>
     activeInstaPosts.filter(p => !userCreditsEarned[`comment_${p.id ?? p.url ?? ""}`]),
     [activeInstaPosts, userCreditsEarned]);
-  const [toast, setToast] = useState(null);
-  const [animateIn, setAnimateIn] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
-  const [showCreditTooltip, setShowCreditTooltip] = useState(false);
-  const [showDownloadedOnly, setShowDownloadedOnly] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [reflectionVote, setReflectionVote] = useState(null); // "like" | "dislike" | null
-  const [reflectionExpanded, setReflectionExpanded] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [shareSelectedStyle, setShareSelectedStyle] = useState(0);
-  const [shareGenerating, setShareGenerating] = useState(false);
-  const [downloadingMatId, setDownloadingMatId] = useState(null);
-  const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
-  useEffect(() => {
-    const onOnline = () => setIsOffline(false);
-    const onOffline = () => setIsOffline(true);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
-  }, []);
 
   // ─── REFLECTION OF THE DAY ───
   const todayStr = new Date().toISOString().split("T")[0];
   const todayReflection = useMemo(() => (dbReflections || []).find(r => r.publishDate === todayStr && r.active), [dbReflections, todayStr]);
 
-  // ─── STREAK & GAMIFICATION SYSTEM ───
-  const [streak, setStreak] = useState({ count: 0, lastDate: "", best: 0 });
-  const [totalDays, setTotalDays] = useState(0);
-  const [reflectionsRead, setReflectionsRead] = useState([]);
-  const [milestonesAchieved, setMilestonesAchieved] = useState([]);
-  const [gamificationPopup, setGamificationPopup] = useState(null);
-  const [gamificationQueue, setGamificationQueue] = useState([]);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [installBannerDismissed, setInstallBannerDismissed] = useState(() => !!localStorage.getItem("vollhub_install_dismissed"));
-  const [installBannerHiddenThisSession, setInstallBannerHiddenThisSession] = useState(false);
-  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
-  const [showEmailPopup, setShowEmailPopup] = useState(false);
-  const [emailPopupLeadId, setEmailPopupLeadId] = useState(null);
-  const [emailPopupValue, setEmailPopupValue] = useState("");
-  const [emailPopupSaving, setEmailPopupSaving] = useState(false);
-  const [referralVerifying, setReferralVerifying] = useState(false);
-  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
-  const [hubTab, setHubTab] = useState("home"); // "home" | "materials" | "community" — Perfil is view "profile"
+  // ─── GAMIFICATION (hook) ───
+  const gamification = useGamification(session, db, config);
+  const { gamificationPopup, gamificationQueue, showLeaderboard, setShowLeaderboard, processGamification, dismissPopup, getStreakRules, getMilestones } = gamification;
+
+  const photoAnnounceDismissed = sessionPhotoAnnounceSeen;
+  const [hubTab, setHubTab] = useState("home");
 
   // When ranking modal opens, fetch leaderboard if not yet loaded
   useEffect(() => {
@@ -293,127 +256,26 @@ export default function VollHub() {
     }
   }, [showLeaderboard]);
 
-  const [showSupportModal, setShowSupportModal] = useState(false);
-  const [supportType, setSupportType] = useState("error"); // "error" | "suggestion"
-  const [supportMessage, setSupportMessage] = useState("");
-  const [supportSending, setSupportSending] = useState(false);
-  const [showHowWorksModal, setShowHowWorksModal] = useState(false);
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [loginError, setLoginError] = useState(false);
-  const [headerNarrow, setHeaderNarrow] = useState(typeof window !== "undefined" && window.innerWidth < 380);
-  const [photoAnnounceDismissed, setPhotoAnnounceDismissed] = useState(() => !!localStorage.getItem("vollhub_photo_announce_seen"));
-
-  const getStreakRules = useCallback(() => {
-    const def = [{ every: 5, credits: 1, message: "dias seguidos! +1 credito" }, { at: 30, credits: 3, message: "1 mes de dedicacao! +3 creditos" }];
-    const raw = config.streakRules;
-    if (raw != null && typeof raw === "object") return Array.isArray(raw) ? raw : def;
-    if (typeof raw !== "string") return def;
-    try { return JSON.parse(raw); } catch (e) { return def; }
-  }, [config.streakRules]);
-  const getMilestones = useCallback(() => {
-    const def = [{ days: 10, title: "10 dias!", message: "Voce e incrivel! Continue assim!", credits: 0 }, { days: 20, title: "20 dias!", message: "Dedicacao de verdade!", credits: 1 }, { days: 30, title: "1 mes!", message: "Que comprometimento!", credits: 2 }, { days: 50, title: "50 dias!", message: "Voce e referencia!", credits: 3 }, { days: 100, title: "100 dias!", message: "Lendario! Poucos chegam aqui!", credits: 5 }];
-    const raw = config.milestones;
-    if (raw != null && typeof raw === "object") return Array.isArray(raw) ? raw : def;
-    if (typeof raw !== "string") return def;
-    try { return JSON.parse(raw); } catch (e) { return def; }
-  }, [config.milestones]);
-
-  const showNextPopup = useCallback((queue) => {
-    if (queue.length === 0) return;
-    setGamificationPopup(queue[0]);
-    setGamificationQueue(queue.slice(1));
-  }, []);
-  const dismissPopup = () => {
-    if (gamificationQueue.length > 0) { setTimeout(() => showNextPopup(gamificationQueue), 400); }
-    setGamificationPopup(null);
-  };
-
-  const processGamification = async (lead) => {
-    const popups = [];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-    const oldStreak = { count: lead.streakCount || 0, lastDate: lead.streakLastDate || "", best: lead.streakBest || 0 };
-    let oldTotalDays = lead.totalDays || 0;
-
-    if (oldStreak.lastDate === todayStr) {
-      setStreak(oldStreak);
-      setTotalDays(oldTotalDays);
-      setMilestonesAchieved(lead.milestonesAchieved || []);
-      setReflectionsRead(lead.reflectionsRead || []);
-      return;
-    }
-
-    let newCount = oldStreak.lastDate === yesterday ? oldStreak.count + 1 : 1;
-    let newBest = Math.max(oldStreak.best, newCount);
-    let newTotalDays = oldTotalDays + 1;
-    const newStreak = { count: newCount, lastDate: todayStr, best: newBest };
-    setStreak(newStreak);
-    setTotalDays(newTotalDays);
-
-    const streakRules = getStreakRules();
-    for (const rule of streakRules) {
-      if (rule.every && newCount > 0 && newCount % rule.every === 0) {
-        if (rule.credits > 0) await earnCredits(rule.credits, `streak_${newCount}`);
-        popups.push({ type: "streak", icon: "🔥", title: `${newCount} ${rule.message || "dias seguidos!"}`, credits: rule.credits || 0, streakCount: newCount });
-      }
-      if (rule.at && newCount === rule.at) {
-        if (rule.credits > 0) await earnCredits(rule.credits, `streak_at_${rule.at}`);
-        popups.push({ type: "streak", icon: "🎉", title: `${rule.message || rule.at + " dias!"}`, credits: rule.credits || 0, streakCount: newCount });
-      }
-    }
-
-    const milestones = getMilestones();
-    const achieved = [...(lead.milestonesAchieved || [])];
-    for (const m of milestones) {
-      if (newTotalDays >= m.days && !achieved.includes(m.days)) {
-        achieved.push(m.days);
-        if (m.credits > 0) await earnCredits(m.credits, `milestone_${m.days}`);
-        popups.push({ type: "milestone", icon: "🏆", title: m.title, message: m.message, credits: m.credits || 0, days: m.days });
-      }
-    }
-    setMilestonesAchieved(achieved);
-
-    await db.updateLead(lead.id, { streakCount: newCount, streakLastDate: todayStr, streakBest: newBest, totalDays: newTotalDays, milestonesAchieved: achieved });
-    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.streak = newStreak; saved.totalDays = newTotalDays; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
-
-    if (popups.length > 0) { setGamificationPopup(popups[0]); setGamificationQueue(popups.slice(1)); }
-  };
-
-  // Check if user already voted today
+  // Check if user already voted today (from Supabase via session)
   useEffect(() => {
-    try {
-      const votes = JSON.parse(localStorage.getItem("vollhub_ref_votes") || "{}");
-      if (todayReflection && votes[todayReflection.id]) setReflectionVote(votes[todayReflection.id]);
-      else setReflectionVote(null);
-    } catch(e) {}
-  }, [todayReflection]);
+    if (todayReflection && sessionRefVotes[todayReflection.id]) setReflectionVote(sessionRefVotes[todayReflection.id]);
+    else setReflectionVote(null);
+  }, [todayReflection, sessionRefVotes]);
 
-  // Auto-mark reflection as read
+  // Auto-mark reflection as read (via session hook)
   useEffect(() => {
     if (!todayReflection || !userWhatsApp || view !== "hub") return;
-    const alreadyRead = reflectionsRead.some(r => r.id === todayReflection.id);
-    if (alreadyRead) return;
-    const newReads = [...reflectionsRead, { id: todayReflection.id, date: todayStr }];
-    setReflectionsRead(newReads);
-    (async () => {
-      const lead = await db.findLeadByWhatsApp(userWhatsApp);
-      if (lead) await db.updateLead(lead.id, { reflectionsRead: newReads });
-    })();
+    session.markReflectionRead(todayReflection.id, todayStr);
   }, [todayReflection, view, userWhatsApp]);
 
   // Email popup: only when hub, logged in, lead has no email, and not dismissed this session
   useEffect(() => {
-    if (view !== "hub" || !userWhatsApp || dbLoading) return;
-    let cancelled = false;
-    (async () => {
-      const lead = await db.findLeadByWhatsApp(userWhatsApp);
-      if (cancelled) return;
-      if (config.messagesEmailPopupEnabled !== "false" && lead && !(lead.email || "").trim() && !sessionStorage.getItem("vollhub_email_popup_dismissed")) {
-        setEmailPopupLeadId(lead.id);
-        setShowEmailPopup(true);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [view, userWhatsApp, dbLoading, config.messagesEmailPopupEnabled]);
+    if (view !== "hub" || !userWhatsApp || dbLoading || !leadId) return;
+    if (config.messagesEmailPopupEnabled !== "false" && !sessionStorage.getItem("vollhub_email_popup_dismissed")) {
+      setEmailPopupLeadId(leadId);
+      setShowEmailPopup(true);
+    }
+  }, [view, userWhatsApp, dbLoading, config.messagesEmailPopupEnabled, leadId]);
   const [refName, setRefName] = useState("");
   const [refWA, setRefWA] = useState("");
   const [adminPin, setAdminPin] = useState("");
@@ -437,48 +299,26 @@ export default function VollHub() {
     }
   }, [view, hubTab, config.rankingEnabled, userWhatsApp, db]);
 
-  const [logoTaps, setLogoTaps] = useState(0);
-  const [previewImgIdx, setPreviewImgIdx] = useState(0);
+  // logoTaps from UI hook
 
   // ─── SURVEY SYSTEM ───
   const [surveyAnswers, setSurveyAnswers] = useState({});
   const [currentSurvey, setCurrentSurvey] = useState(null);
   const [tempAnswers, setTempAnswers] = useState({});
 
-  // ─── DEEP LINK & RETURN TRIGGERS ───
-  const [deepLinkMatId, setDeepLinkMatId] = useState(null);
-  const [lastVisitTs, setLastVisitTs] = useState(Date.now());
-  const [seenNewIds, setSeenNewIds] = useState([]);
-  const spotlightRef = useRef(null);
+  // Deep link & return triggers from mats hook
 
-  // ─── USER PROFILE (DYNAMIC PHASES) ───
-  const [phaseResponses, setPhaseResponses] = useState({});
-  const [activePhase, setActivePhase] = useState(null);
-  const [phaseStartTime, setPhaseStartTime] = useState(null);
-  const [phaseTimer, setPhaseTimer] = useState(0);
-  const [avatarUploading, setAvatarUploading] = useState(false);
-  const profilePhotoInputRef = useRef(null);
-  const openPhase = (id) => { setActivePhase(id); setPhaseStartTime(Date.now()); setPhaseTimer(0); };
-  const PHASES = useMemo(() => (dbPhases || []).filter(p => p.active), [dbPhases]);
-  const getPhaseAnswer = useCallback((phaseId, qId) => (phaseResponses[String(phaseId)] || {})[qId] || "", [phaseResponses]);
-  const setPhaseAnswer = (phaseId, qId, val) => setPhaseResponses(prev => ({ ...prev, [String(phaseId)]: { ...(prev[String(phaseId)] || {}), [qId]: val } }));
-  const isPhaseFieldsComplete = useCallback((phaseId) => {
-    const phase = PHASES.find(p => p.id === phaseId);
-    if (!phase) return false;
-    return phase.questions.every(q => {
-      if (q.required === false) return true;
-      const val = getPhaseAnswer(phaseId, q.id);
-      if (Array.isArray(val)) return val.length > 0;
-      return typeof val === "string" ? val.trim().length > 0 : !!val;
-    });
-  }, [PHASES, getPhaseAnswer]);
-  const isPhaseUnlocked = useCallback((phaseId) => !!(phaseResponses[String(phaseId)]?.completed_at), [phaseResponses]);
-  const completedPhases = useMemo(() => PHASES.filter(p => isPhaseUnlocked(p.id)).length, [PHASES, isPhaseUnlocked]);
-  const profileEnabled = config.profileEnabled !== "false";
-  const profileComplete = useMemo(() => PHASES.length > 0 && completedPhases === PHASES.length, [PHASES, completedPhases]);
-  // Backward compat: keep old userProfile for legacy lead columns
-  const [userProfile, setUserProfile] = useState({});
-  const updProfile = (k, v) => setUserProfile((p) => ({ ...p, [k]: v }));
+  // ─── PROFILE PHASES (hook) ───
+  const profile = useProfilePhases(dbPhases, phaseResponses, setPhaseResponses, config);
+  const {
+    activePhase, setActivePhase, phaseStartTime, phaseTimer, setPhaseTimer,
+    avatarUploading, setAvatarUploading, profilePhotoInputRef,
+    openPhase, PHASES,
+    getPhaseAnswer, setPhaseAnswer,
+    isPhaseFieldsComplete, isPhaseUnlocked,
+    completedPhases, profileEnabled, profileComplete,
+  } = profile;
+  const updProfile = (k, v) => session.setUserProfile((p) => ({ ...p, [k]: v }));
 
   const T = THEMES[theme];
 
@@ -486,30 +326,15 @@ export default function VollHub() {
     if (view === "hub" || view === "admin" || view === "profile" || view === "linktree") { setAnimateIn(false); setTimeout(() => setAnimateIn(true), 100); }
   }, [view]);
 
-  // Restore profile draft when entering profile view
-  useEffect(() => {
-    if (view !== "profile") return;
-    try {
-      const raw = localStorage.getItem("vollhub_profile_draft");
-      if (raw) {
-        const draft = JSON.parse(raw);
-        if (draft && typeof draft === "object" && Object.keys(draft).length > 0) setPhaseResponses(prev => ({ ...prev, ...draft }));
-      }
-    } catch (e) {}
-  }, [view]);
+  // Profile draft is ephemeral (React state only, no localStorage)
 
-  // Narrow header: move Voltar into menu
+  // Narrow header detection is in useUIState hook
   useEffect(() => {
-    const check = () => setHeaderNarrow(window.innerWidth < 380);
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-  useEffect(() => {
-    if (view === "hub" && config.messagesHowWorksAutoShow !== "false" && !localStorage.getItem("vollhub_seen_hub_once")) {
-      localStorage.setItem("vollhub_seen_hub_once", "1");
+    if (view === "hub" && config.messagesHowWorksAutoShow !== "false" && !sessionSeenHubOnce) {
+      session.setSeenHubOnceFlag();
       setShowHowWorksModal(true);
     }
-  }, [view, config.messagesHowWorksAutoShow]);
+  }, [view, config.messagesHowWorksAutoShow, sessionSeenHubOnce]);
   useEffect(() => { if (logoTaps >= 5) { setLogoTaps(0); setView("admin-login"); } }, [logoTaps]);
 
   // Auto-refresh data every 30s when in admin
@@ -528,31 +353,30 @@ export default function VollHub() {
     return () => clearInterval(interval);
   }, [phaseStartTime, activePhase]);
 
-  // Read URL param on mount
+  // Read URL params and deep link (session hook handles identity from LS → Supabase)
+  const urlParamsRef = useRef(false);
   useEffect(() => {
+    if (urlParamsRef.current) return;
+    urlParamsRef.current = true;
     const params = new URLSearchParams(window.location.search);
     const mParam = params.get("m");
     const vParam = params.get("view");
-    if (mParam) {
-      setDeepLinkMatId(parseInt(mParam, 10));
-      // If deep link, go straight to hub (or landing if not logged in)
-      try {
-        const saved = localStorage.getItem("vollhub_user");
-        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setView("hub"); } else { setView("landing"); } }
-        else { setView("landing"); }
-      } catch(e) { setView("landing"); }
-    } else if (vParam === "hub" || vParam === "materiais") {
-      try {
-        const saved = localStorage.getItem("vollhub_user");
-        if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); if (u.avatarUrl) setUserAvatarUrl(u.avatarUrl); setView("hub"); } else { setView("landing"); } }
-        else { setView("landing"); }
-      } catch(e) { setView("landing"); }
-    } else if (vParam === "landing" || vParam === "cadastro") {
-      setView("landing");
-    }
-    // Track page view
+    if (mParam) setDeepLinkMatId(parseInt(mParam, 10));
+    if (vParam === "landing" || vParam === "cadastro") setView("landing");
     db.incrementPageView();
   }, []);
+
+  // When session loads and URL params want hub view, navigate accordingly
+  useEffect(() => {
+    if (sessionLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const mParam = params.get("m");
+    const vParam = params.get("view");
+    if (mParam || vParam === "hub" || vParam === "materiais") {
+      if (userName && userWhatsApp) setView("hub");
+      else if (view === "linktree") setView("landing");
+    }
+  }, [sessionLoading, userName, userWhatsApp]);
 
   // Scroll to spotlight when entering hub with deep link
   useEffect(() => {
@@ -581,8 +405,6 @@ export default function VollHub() {
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
   }, [selectedMaterial, unlockTarget, showShareModal, showHowWorksModal, currentSurvey, showCreditStore, showQuiz, gamificationPopup, showLeaderboard, phaseReward, showEmailPopup, showOnboarding]);
-
-  const showT = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3000); }, []);
 
   // Mostrar botão "Já comentei" só 10s depois de clicar em "Abrir Post e Comentar"
   const firstPendingPostKey = pendingInstaComments[0] ? (pendingInstaComments[0].id ?? pendingInstaComments[0].url ?? "") : "";
@@ -624,48 +446,13 @@ export default function VollHub() {
   const waNormalizedIntl = normalizeWhatsApp(userWhatsApp, true);
   const waValidIntl = waNormalizedIntl.length >= 10 && waNormalizedIntl.length <= 15;
   const handleLogin = async () => {
-    setLoginError(false);
-    if (!userName.trim() || !userWhatsApp.trim()) return showT("Preencha todos os campos!");
-    let whatsappToUse = userWhatsApp;
-    if (souDeForaDoBrasil) {
-      const norm = normalizeWhatsApp(userWhatsApp, true);
-      if (norm.length < 10 || norm.length > 15) return showT("Informe o número com código do país (ex.: +34 612 345 678)");
-      whatsappToUse = norm;
+    const result = await session.login(config);
+    if (!result) return;
+    setView("hub");
+    if (result.isNew) {
+      if (config.messagesOnboardingEnabled !== "false" && !sessionOnboardingDone) { setShowOnboarding(true); setOnboardingStep(0); }
     } else {
-      if (waDigits.length !== 11) return showT("WhatsApp deve ter DDD (2 dígitos) + número (9 dígitos)");
-      if (waDigits[2] !== "9") return showT("Número de celular deve começar com 9 após o DDD");
-      const ddd = parseInt(waDigits.slice(0, 2));
-      if (ddd < 11 || ddd > 99) return showT("DDD inválido");
-      whatsappToUse = normalizeWhatsApp(userWhatsApp, false) || ("55" + waDigits);
-    }
-    setLoginLoading(true);
-    try {
-      const existing = await db.findLeadByWhatsApp(whatsappToUse);
-      const today = new Date(); const dateStr = `${String(today.getDate()).padStart(2,"0")} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][today.getMonth()]}`;
-      if (existing) {
-        const ok = await db.updateLead(existing.id, { visits: (existing.visits || 0) + 1, lastVisit: dateStr, name: userName });
-        if (!ok) { setLoginError(true); showT("Erro ao atualizar. Tente novamente."); return; }
-        setDownloaded(existing.downloads || []);
-        setUserCredits(existing.credits ?? 3);
-        setUserCreditsEarned(existing.creditsEarned || {});
-        setReflectionsRead(existing.reflectionsRead || []);
-        setUserAvatarUrl(existing.avatarUrl || "");
-        processGamification(existing);
-      } else {
-        const created = await db.addLead({ name: userName, whatsapp: whatsappToUse, downloads: [], visits: 1, firstVisit: dateStr, lastVisit: dateStr, source: "direct", phaseResponses: {}, surveyResponses: {}, credits: parseInt(config.creditsInitial) || 3, creditsEarned: {}, streakCount: 1, streakLastDate: todayStr, streakBest: 1, totalDays: 1, reflectionsRead: [], milestonesAchieved: [] });
-        if (!created) { setLoginError(true); showT("Erro ao criar cadastro. Verifique sua conexão e tente novamente."); return; }
-        setUserCredits(parseInt(config.creditsInitial) || 3);
-        setStreak({ count: 1, lastDate: todayStr, best: 1 });
-        setTotalDays(1);
-      }
-      const pr = existing?.phaseResponses || {};
-      setPhaseResponses(pr);
-      setView("hub");
-      if (config.messagesOnboardingEnabled !== "false" && !existing && !localStorage.getItem("vollhub_onboarding_done")) { setShowOnboarding(true); setOnboardingStep(0); }
-      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-      localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: whatsappToUse, downloaded: existing ? existing.downloads || [] : [], credits: existing ? (existing.credits ?? 3) : (parseInt(config.creditsInitial) || 3), creditsEarned: existing ? (existing.creditsEarned || {}) : {}, phaseResponses: pr, streak: existing ? { count: existing.streakCount, lastDate: existing.streakLastDate, best: existing.streakBest } : { count: 1, lastDate: todayStr, best: 1 }, totalDays: existing ? existing.totalDays : 1, avatarUrl: existing?.avatarUrl || "" }));
-    } finally {
-      setLoginLoading(false);
+      processGamification(result.lead);
     }
   };
   // ─── CREDITS HELPERS ───
@@ -750,51 +537,14 @@ export default function VollHub() {
     const voteType = isLike ? "like" : "dislike";
     await db.likeReflection(todayReflection.id, isLike);
     setReflectionVote(voteType);
-    try {
-      const votes = JSON.parse(localStorage.getItem("vollhub_ref_votes") || "{}");
-      votes[todayReflection.id] = voteType;
-      localStorage.setItem("vollhub_ref_votes", JSON.stringify(votes));
-    } catch(e) {}
+    await session.voteReflection(todayReflection.id, voteType);
     showT(isLike ? "Obrigado pelo feedback! 💚" : "Obrigado pelo feedback! Vamos melhorar 🙏");
   };
 
-  const earnCredits = async (amount, earnKey) => {
-    if (earnKey && userCreditsEarned[earnKey]) return false; // already earned
-    const newCredits = userCredits + amount;
-    const newEarned = earnKey ? { ...userCreditsEarned, [earnKey]: true } : userCreditsEarned;
-    setUserCredits(newCredits);
-    setUserCreditsEarned(newEarned);
-    // Save to localStorage
-    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.credits = newCredits; saved.creditsEarned = newEarned; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
-    // Save to DB
-    const lead = await db.findLeadByWhatsApp(userWhatsApp);
-    if (lead) {
-      const ok = await db.updateLead(lead.id, { credits: newCredits, creditsEarned: newEarned });
-      if (!ok) showT("Crédito concedido aqui, mas não foi possível sincronizar. Tente recarregar.");
-    }
-    return true;
-  };
-  const spendCredits = async (amount) => {
-    if (userCredits < amount) return false;
-    const newCredits = userCredits - amount;
-    setUserCredits(newCredits);
-    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.credits = newCredits; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
-    const lead = await db.findLeadByWhatsApp(userWhatsApp);
-    if (lead) {
-      const ok = await db.updateLead(lead.id, { credits: newCredits });
-      if (!ok) showT("Crédito descontado aqui, mas a sincronização falhou. Recarregue a página.");
-    }
-    return true;
-  };
+  const earnCredits = session.earnCredits;
+  const spendCredits = session.spendCredits;
 
-  /** Persiste uma flag ui_* em creditsEarned (local + DB) para métricas no Admin. */
-  const persistUiFlag = async (flagKey, value) => {
-    const newEarned = { ...userCreditsEarned, [flagKey]: value };
-    setUserCreditsEarned(newEarned);
-    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.creditsEarned = newEarned; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
-    const lead = await db.findLeadByWhatsApp(userWhatsApp);
-    if (lead) await db.updateLead(lead.id, { creditsEarned: newEarned });
-  };
+  const persistUiFlag = session.persistUiFlag;
 
   const handleDownload = async (mat) => {
     setDownloadingMatId(mat.id);
@@ -805,22 +555,10 @@ export default function VollHub() {
           const spent = await spendCredits(cost);
           if (!spent) { showT("Créditos insuficientes! 🎯"); setShowCreditStore(true); return; }
         }
-        const newDl = [...downloaded, mat.id];
-        setDownloaded(newDl);
-        try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.downloaded = newDl; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) { localStorage.setItem("vollhub_user", JSON.stringify({ name: userName, whatsapp: userWhatsApp, downloaded: newDl })); }
-        const lead = await db.findLeadByWhatsApp(userWhatsApp);
-        if (lead) {
-          const ok = await db.updateLead(lead.id, { downloads: [...new Set([...(lead.downloads || []), mat.id])] });
-          if (!ok) showT("Material baixado, mas não foi possível salvar no servidor. Tente novamente mais tarde.");
-        }
+        await session.addDownload(mat.id);
       }
-      if (Object.keys(funnelAnswers).length > 0) {
-        const lead = await db.findLeadByWhatsApp(userWhatsApp);
-        if (lead) {
-          const prev = lead.surveyResponses || {};
-          const ok = await db.updateLead(lead.id, { surveyResponses: { ...prev, [`funnel_${mat.id}`]: funnelAnswers } });
-          if (!ok) showT("Respostas não salvas. Tente novamente.");
-        }
+      if (Object.keys(funnelAnswers).length > 0 && leadId) {
+        await session.updateLead({ surveyResponses: { [`funnel_${mat.id}`]: funnelAnswers } });
       }
       if (mat.funnel?.cta?.url && !downloaded.includes(mat.id)) {
         showT(`"${mat.title}" baixado! ✅`);
@@ -885,10 +623,7 @@ export default function VollHub() {
       showT("Não foi possível conectar. Verifique sua internet e se o site está no ar.");
     }
   };
-  const markNewAsSeen = useCallback((id) => { setSeenNewIds((p) => p.includes(id) ? p : [...p, id]); }, []);
-
-  const activeMats = useMemo(() => materials.filter((m) => m.active), [materials]);
-  const newMats = useMemo(() => activeMats.filter((m) => m.createdAt > lastVisitTs && !seenNewIds.includes(m.id)), [activeMats, lastVisitTs, seenNewIds]);
+  // markNewAsSeen, activeMats, newMats from mats hook
   const totalDl = useMemo(() => leads.reduce((s, l) => s + l.downloads.length, 0), [leads]);
 
   // ─── SOCIAL PROOF ───
@@ -912,30 +647,7 @@ export default function VollHub() {
     return `${name} baixou recentemente`;
   }, [config.socialProofNames, config.socialProofMinutes]);
 
-  // ─── DYNAMIC BANNER ───
-  const lockedMats = useMemo(() => activeMats.filter((m) => m.unlockType !== "free"), [activeMats]);
-  const dlCount = downloaded.length;
-  const bannerContent = useMemo(() => {
-    if (!config.bannerPersonalized) return { title: config.ctaBannerTitle, desc: config.ctaBannerDesc, btn: config.ctaBannerBtn, icon: "⭐" };
-    if (dlCount === 0) return { title: "Comece sua jornada!", desc: `${activeMats.length} materiais esperando por você. Baixe o primeiro agora!`, btn: "Explorar", icon: "🚀" };
-    if (dlCount >= activeMats.length) return { title: "Você é fera! 🏆", desc: "Todos os materiais baixados. Fique ligado — novidades em breve!", btn: "Completo!", icon: "🏆" };
-    if (lockedMats.length > 0 && dlCount >= 2) {
-      const surveyMats = lockedMats.filter((m) => m.unlockType === "survey");
-      const dataMats = lockedMats.filter((m) => m.unlockType === "data");
-      if (surveyMats.length > 0) return { title: `Você já aproveitou ${dlCount} materiais!`, desc: `Responda pesquisas rápidas e desbloqueie ${surveyMats.length === 1 ? "mais 1 conteúdo exclusivo" : `mais ${surveyMats.length} conteúdos exclusivos`}!`, btn: "Ver conteúdos 🔍", icon: "🔓" };
-      if (dataMats.length > 0) return { title: `Falta pouco!`, desc: `Complete seu perfil e desbloqueie ${dataMats.length === 1 ? "mais 1 material" : `mais ${dataMats.length} materiais`}!`, btn: "Completar perfil 📋", icon: "🔓" };
-      return { title: `Você já aproveitou ${dlCount} materiais!`, desc: `Ainda ${lockedMats.length === 1 ? "tem 1 material" : `tem ${lockedMats.length} materiais`} esperando por você!`, btn: "Desbloquear", icon: "🔓" };
-    }
-    return { title: `${dlCount} de ${activeMats.length} baixados!`, desc: `Continue explorando — ainda ${activeMats.length - dlCount === 1 ? "tem 1 material" : `tem ${activeMats.length - dlCount} materiais`} pra você!`, btn: "Ver mais", icon: "💪" };
-  }, [config.bannerPersonalized, config.ctaBannerTitle, config.ctaBannerDesc, config.ctaBannerBtn, dlCount, activeMats, lockedMats]);
-
-  const categories = useMemo(() => {
-    const cats = [...new Set(activeMats.map(m => m.category).filter(Boolean))];
-    return cats.sort((a, b) => a.localeCompare(b));
-  }, [activeMats]);
-
-  const spotlightMat = useMemo(() => deepLinkMatId ? activeMats.find((m) => m.id === deepLinkMatId) : null, [deepLinkMatId, activeMats]);
-  const otherMats = useMemo(() => spotlightMat ? activeMats.filter((m) => m.id !== spotlightMat.id) : activeMats, [spotlightMat, activeMats]);
+  // lockedMats, dlCount, bannerContent, categories, spotlightMat, otherMats from mats hook
 
   // Máx. 2 CTAs visíveis (Instalar > Instagram > Perfil) para reduzir poluição
   const visibleAlerts = useMemo(() => {
@@ -973,7 +685,7 @@ export default function VollHub() {
   }, [creditsEnabled, userCredits, profileComplete, markNewAsSeen, selectMat, setShowCreditStore, showT, setView, setCurrentSurvey, setTempAnswers, setPreviewImgIdx, setUnlock]);
 
   // ─── LOADING ───
-  if (dbLoading) return (
+  if (dbLoading || sessionLoading) return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: T.bg, fontFamily: "'Outfit'" }}>
       <style>{getCSS(T)}</style>
       <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>⚡</div>
@@ -1002,11 +714,7 @@ export default function VollHub() {
       saveBioLinks(updated);
       // Navigate
       if (link.url === "_hub") {
-        // Check if user is logged in
-        try {
-          const saved = localStorage.getItem("vollhub_user");
-          if (saved) { const u = JSON.parse(saved); if (u.name && u.whatsapp) { setUserName(u.name); setUserWhatsApp(u.whatsapp); if (u.downloaded) setDownloaded(u.downloaded); if (u.phaseResponses) setPhaseResponses(u.phaseResponses); if (u.avatarUrl) setUserAvatarUrl(u.avatarUrl); setView("hub"); return; } }
-        } catch(e) {}
+        if (userName && userWhatsApp) { setView("hub"); return; }
         setView("landing");
       } else {
         window.open(link.url, "_blank");
@@ -1229,20 +937,13 @@ export default function VollHub() {
       if (textErr) return showT(textErr);
       const newResponses = { ...phaseResponses, [String(phaseId)]: { ...(phaseResponses[String(phaseId)] || {}), completed_at: new Date().toISOString().slice(0, 10) } };
       setPhaseResponses(newResponses);
-      try {
-        const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}");
-        saved.phaseResponses = newResponses;
-        localStorage.setItem("vollhub_user", JSON.stringify(saved));
-      } catch(e) {}
-      const lead = await db.findLeadByWhatsApp(userWhatsApp);
-      if (lead) {
-        const ok = await db.updateLead(lead.id, { phaseResponses: newResponses });
+      if (leadId) {
+        const ok = await session.updateLead({ phaseResponses: newResponses });
         if (!ok) { showT("Erro ao salvar fase. Tente novamente."); return; }
         const phase = PHASES.find(p2 => p2.id === phaseId);
         const creditsPerPhase = phase?.credits || 2;
         await earnCredits(creditsPerPhase, `phase${phaseId}`);
       }
-      try { localStorage.removeItem("vollhub_profile_draft"); } catch (e) {}
       setActivePhase(null);
       const phase = PHASES.find(p2 => p2.id === phaseId);
       setPhaseReward({ title: phase?.title || "Fase", credits: phase?.credits || 2, prize: phase?.prize || "", prizeUrl: phase?.prizeUrl || "", icon: phase?.icon || "🎉" });
@@ -1257,7 +958,7 @@ export default function VollHub() {
         <div style={{ position: "fixed", top: "-25%", right: "-15%", width: 450, height: 450, borderRadius: "50%", background: `radial-gradient(circle, rgba(125,226,199,${T.glowOp}) 0%, transparent 70%)`, animation: "pulse 5s ease-in-out infinite", pointerEvents: "none" }} />
         <div style={{ width: "100%", maxWidth: 480, position: "relative", zIndex: 1, paddingTop: isOffline ? 44 : 0 }}>
           <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0" }}>
-            <button onClick={() => { try { localStorage.setItem("vollhub_profile_draft", JSON.stringify(phaseResponses)); } catch (e) {} setView("hub"); setHubTab("home"); setActivePhase(null); }} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", color: T.accent, fontSize: 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar ao Hub</button>
+            <button onClick={() => { setView("hub"); setHubTab("home"); setActivePhase(null); }} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", color: T.accent, fontSize: 14, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>← Voltar ao Hub</button>
             <button type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: 34, height: 34, borderRadius: "50%", background: T.statBg, border: `1px solid ${T.statBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{theme === "dark" ? "☀️" : "🌙"}</button>
           </header>
 
@@ -1323,7 +1024,7 @@ export default function VollHub() {
               <div style={{ width: 56, height: 56, borderRadius: "50%", background: userAvatarUrl ? "transparent" : T.statBg, border: `2px solid ${T.cardBorder}`, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, color: T.textFaint }}>{userAvatarUrl ? <img src={userAvatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : userName.charAt(0).toUpperCase()}</div>
               <div style={{ flex: 1 }}>
                 <input ref={profilePhotoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
-                  const file = e.target?.files?.[0]; if (!file || !db.uploadProfilePhoto) return; const lead = await db.findLeadByWhatsApp(userWhatsApp); if (!lead) { showT("Faça login novamente."); return; } setAvatarUploading(true); try { const url = await db.uploadProfilePhoto(lead.id, file); if (url) { await db.updateLead(lead.id, { avatarUrl: url }); setUserAvatarUrl(url); try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.avatarUrl = url; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch (err) {} showT("Foto atualizada!"); } else showT("Erro ao enviar. Tente de novo."); } catch (err) { showT("Erro ao enviar. Tente de novo."); } finally { setAvatarUploading(false); e.target.value = ""; }
+                  const file = e.target?.files?.[0]; if (!file || !db.uploadProfilePhoto || !leadId) { if (!leadId) showT("Faça login novamente."); return; } setAvatarUploading(true); try { const url = await db.uploadProfilePhoto(leadId, file); if (url) { await session.updateLead({ avatarUrl: url }); setUserAvatarUrl(url); showT("Foto atualizada!"); } else showT("Erro ao enviar. Tente de novo."); } catch (err) { showT("Erro ao enviar. Tente de novo."); } finally { setAvatarUploading(false); e.target.value = ""; }
                 }} />
                 <button type="button" disabled={avatarUploading} onClick={() => profilePhotoInputRef.current?.click()} style={{ padding: "8px 14px", borderRadius: 10, background: avatarUploading ? T.statBg : T.accent + "22", color: avatarUploading ? T.textFaint : T.accent, fontSize: 12, fontWeight: 600, border: `1px solid ${avatarUploading ? T.statBorder : T.accent + "44"}`, fontFamily: "'Plus Jakarta Sans'" }}>{avatarUploading ? "Enviando..." : (userAvatarUrl ? "Trocar foto" : "Escolher foto")}</button>
               </div>
@@ -1412,7 +1113,7 @@ export default function VollHub() {
             <button type="button" onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderRadius: 10 }}>{theme === "dark" ? "☀️" : "🌙"} Tema: {theme === "dark" ? "escuro" : "claro"}</button>
             <button type="button" onClick={() => { setShowSupportModal(true); setSupportMessage(""); setSupportType("error"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.text, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderRadius: 10 }}>💬 Suporte</button>
             <div style={{ padding: "12px 16px", fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>📥 {downloaded.length} download{downloaded.length !== 1 ? "s" : ""}</div>
-            <button type="button" onClick={() => { setView("linktree"); setUserName(""); setUserWhatsApp(""); setUserAvatarUrl(""); setDownloaded([]); setUserCredits(3); setUserCreditsEarned({}); setPhaseResponses({}); setStreak({ count: 0, lastDate: "", best: 0 }); setTotalDays(0); setReflectionsRead([]); setMilestonesAchieved([]); localStorage.removeItem("vollhub_user"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.dangerBrd, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderRadius: 10, borderTop: `1px solid ${T.cardBorder}` }}>🚪 Sair</button>
+            <button type="button" onClick={() => { session.logout(); setView("linktree"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "none", border: "none", color: T.dangerBrd, fontSize: 14, fontFamily: "'Plus Jakarta Sans'", textAlign: "left", cursor: "pointer", borderRadius: 10, borderTop: `1px solid ${T.cardBorder}` }}>🚪 Sair</button>
           </div>
 
           <footer style={{ textAlign: "center", padding: "24px 0 8px" }}><a href={config.instagramUrl} target="_blank" rel="noreferrer" style={{ color: T.textFaint, fontSize: 13, textDecoration: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.instagramHandle}</a></footer>
@@ -1502,8 +1203,8 @@ export default function VollHub() {
           <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: "12px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <p style={{ flex: "1 1 200px", fontSize: 13, color: T.text, fontFamily: "'Plus Jakarta Sans'", margin: 0 }}>{config.photoAnnounceText || "Novidade: adicione sua foto no Perfil e apareça no ranking."}</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button type="button" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); persistUiFlag("ui_photo_announce_seen", true); setView("profile"); }} style={{ padding: "8px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 12, fontWeight: 700, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnVer || "Ver"}</button>
-              <button type="button" aria-label="Fechar aviso de novidade" onClick={() => { try { localStorage.setItem("vollhub_photo_announce_seen", "1"); } catch (e) {} setPhotoAnnounceDismissed(true); persistUiFlag("ui_photo_announce_seen", true); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnFechar || "Fechar"}</button>
+              <button type="button" onClick={() => { session.setPhotoAnnounceSeenFlag(); persistUiFlag("ui_photo_announce_seen", true); setView("profile"); }} style={{ padding: "8px 14px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 12, fontWeight: 700, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnVer || "Ver"}</button>
+              <button type="button" aria-label="Fechar aviso de novidade" onClick={() => { session.setPhotoAnnounceSeenFlag(); persistUiFlag("ui_photo_announce_seen", true); }} style={{ padding: "8px 12px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textMuted, fontSize: 12, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'" }}>{config.photoAnnounceBtnFechar || "Fechar"}</button>
             </div>
           </div>
         )}
@@ -1696,7 +1397,7 @@ export default function VollHub() {
           if (config.messagesInstallBannerEnabled === "false" || !isMobile || isStandalone || installBannerDismissed || installBannerHiddenThisSession) return null;
           const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
           const isAndroid = /Android/i.test(navigator.userAgent);
-          const dismiss = (permanent) => { if (permanent) { setInstallBannerDismissed(true); localStorage.setItem("vollhub_install_dismissed", "1"); persistUiFlag("ui_install_dismissed", true); } else setInstallBannerHiddenThisSession(true); };
+          const dismiss = (permanent) => { dismissInstallBanner(permanent); if (permanent) persistUiFlag("ui_install_dismissed", true); };
           const triggerInstall = async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); const { outcome } = await deferredInstallPrompt.userChoice; if (outcome === "accepted") dismiss(true); setDeferredInstallPrompt(null); } };
           const steps = isIOS ? [config.installBannerStepsIos1, config.installBannerStepsIos2, config.installBannerStepsIos3].filter(Boolean) : [config.installBannerStepsAndroid1, config.installBannerStepsAndroid2, config.installBannerStepsAndroid3].filter(Boolean);
           const title = config.installBannerTitle || "Instale na tela inicial — como um app";
@@ -2148,11 +1849,7 @@ export default function VollHub() {
                     await earnCredits(amt, `quiz_${q.id}`);
                     showT(`🎉 Parabéns! +${amt} crédito!`);
                   } else {
-                    const newEarned = { ...userCreditsEarned, [`quiz_${q.id}_fail`]: Date.now() };
-                    setUserCreditsEarned(newEarned);
-                    try { const saved = JSON.parse(localStorage.getItem("vollhub_user") || "{}"); saved.creditsEarned = newEarned; localStorage.setItem("vollhub_user", JSON.stringify(saved)); } catch(e) {}
-                    const lead = await db.findLeadByWhatsApp(userWhatsApp);
-                    if (lead) await db.updateLead(lead.id, { creditsEarned: newEarned });
+                    await persistUiFlag(`quiz_${q.id}_fail`, Date.now());
                     showT("Não foi dessa vez. Tente novamente amanhã! 💪");
                   }
                 }} style={{ width: "100%", padding: 14, borderRadius: 14, background: allAnswered ? "linear-gradient(135deg, #c49500, #FFD863)" : T.statBg, color: allAnswered ? "#1a1a12" : T.textFaint, fontSize: 14, fontWeight: 700, marginTop: 4, opacity: allAnswered ? 1 : 0.5 }}>Verificar respostas</button>
@@ -2425,10 +2122,10 @@ export default function VollHub() {
               {onboardingStep < 2 ? (
                 <button onClick={() => setOnboardingStep(s => s + 1)} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingNextBtn || "Próximo →"}</button>
               ) : (
-                <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); persistUiFlag("ui_onboarding_done", true); }} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingStartBtn || "Começar! 🚀"}</button>
+                <button onClick={() => { setShowOnboarding(false); session.setOnboardingDoneFlag(); persistUiFlag("ui_onboarding_done", true); }} style={{ padding: "10px 24px", borderRadius: 12, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 14, fontWeight: 700, border: "none" }}>{config.onboardingStartBtn || "Começar! 🚀"}</button>
               )}
             </div>
-            <button onClick={() => { setShowOnboarding(false); localStorage.setItem("vollhub_onboarding_done", "1"); persistUiFlag("ui_onboarding_done", true); }} style={{ background: "none", color: T.textFaint, fontSize: 12, marginTop: 12, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.onboardingSkipBtn || "Pular"}</button>
+            <button onClick={() => { setShowOnboarding(false); session.setOnboardingDoneFlag(); persistUiFlag("ui_onboarding_done", true); }} style={{ background: "none", color: T.textFaint, fontSize: 12, marginTop: 12, border: "none", fontFamily: "'Plus Jakarta Sans'" }}>{config.onboardingSkipBtn || "Pular"}</button>
           </div>
         </div>
         );

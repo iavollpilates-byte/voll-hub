@@ -50,6 +50,10 @@ const leadFromDb = (r) => {
     streakCount: r.streak_count || 0, streakLastDate: r.streak_last_date || '', streakBest: r.streak_best || 0,
     totalDays: r.total_days || 0, reflectionsRead: r.reflections_read || [], milestonesAchieved: r.milestones_achieved || [],
     avatarUrl: r.avatar_url || '',
+    onboardingDone: !!r.onboarding_done,
+    seenHubOnce: !!r.seen_hub_once,
+    photoAnnounceSeen: !!r.photo_announce_seen,
+    refVotes: r.ref_votes || {},
     createdAt: r.created_at, updatedAt: r.updated_at,
   }
 }
@@ -74,6 +78,10 @@ const leadToDb = (l) => ({
   credits: l.credits ?? 3, credits_earned: l.creditsEarned || {},
   streak_count: l.streakCount || 0, streak_last_date: l.streakLastDate || '', streak_best: l.streakBest || 0,
   total_days: l.totalDays || 0, reflections_read: l.reflectionsRead || [], milestones_achieved: l.milestonesAchieved || [],
+  ...(l.onboardingDone !== undefined && { onboarding_done: !!l.onboardingDone }),
+  ...(l.seenHubOnce !== undefined && { seen_hub_once: !!l.seenHubOnce }),
+  ...(l.photoAnnounceSeen !== undefined && { photo_announce_seen: !!l.photoAnnounceSeen }),
+  ...(l.refVotes !== undefined && { ref_votes: l.refVotes }),
 })
 
 // Payload sem email/credits/credits_earned para DB que ainda não rodou a migração
@@ -334,6 +342,7 @@ export function useSupabase() {
       streakCount: 'streak_count', streakLastDate: 'streak_last_date', streakBest: 'streak_best',
       totalDays: 'total_days', reflectionsRead: 'reflections_read', milestonesAchieved: 'milestones_achieved',
       avatarUrl: 'avatar_url',
+      onboardingDone: 'onboarding_done', seenHubOnce: 'seen_hub_once', photoAnnounceSeen: 'photo_announce_seen', refVotes: 'ref_votes',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v
