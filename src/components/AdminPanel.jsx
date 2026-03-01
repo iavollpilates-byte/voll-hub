@@ -34,6 +34,7 @@ export default function AdminPanel({
   currentAdmin, setCurrentAdmin, isMaster, can,
   showT, animateIn, Toast,
   materials, leads, adminUsers, dbReflections, dbPhases,
+  leadsLoading, loadLeads,
   bioLinks, saveBioLinks,
   activeMats, totalDl, getMatDownloads, getRecentPerson,
   creditsEnabled, todayStr,
@@ -503,6 +504,11 @@ export default function AdminPanel({
         {/* LEADS */}
         {adminTab === "leads" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {leads.length === 0 && leadsLoading && (
+              <p style={{ textAlign: "center", color: T.textMuted, fontSize: 14, padding: 24, fontFamily: "'Plus Jakarta Sans'" }}>Carregando leads…</p>
+            )}
+            {!(leads.length === 0 && leadsLoading) && (
+            <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <input style={{ ...inp, flex: "1 1 200px" }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} key="lead-search" />
               <div style={{ minWidth: 160 }}>
@@ -601,6 +607,11 @@ export default function AdminPanel({
               </table>
             </div>
             <p style={{ color: T.textFaint, fontSize: 11, textAlign: "center", marginTop: 6, fontFamily: "'Plus Jakarta Sans'" }}>{segmentedLeads.length} de {leads.length} lead{leads.length !== 1 && "s"}</p>
+            {loadLeads && (
+              <button type="button" onClick={() => loadLeads(leads.length, 1000, true)} disabled={leadsLoading} style={{ padding: "10px 16px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 13, fontWeight: 600, alignSelf: "center", fontFamily: "'Plus Jakarta Sans'" }}>{leadsLoading ? "Carregando…" : "Carregar mais"}</button>
+            )}
+            </>
+            )}
           </div>
         )}
 

@@ -98,6 +98,8 @@ export function useSupabase() {
   const [supportRequests, setSupportRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [leadsLoading, setLeadsLoading] = useState(false)
+  const [leaderboard, setLeaderboard] = useState([])
 
   // ─── ADMIN TOKEN (for secure server-side operations) ───
   const adminTokenRef = useRef(null)
@@ -117,11 +119,10 @@ export function useSupabase() {
     return result
   }
 
-  // ─── LOAD ALL (public data only — admin_users loaded separately after auth) ───
+  // ─── LOAD ALL (public data only — no leads; admin loads leads via loadLeads) ───
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
-      const PAGE = 1000
       const [matRes, cfgRes, refRes, phaseRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('config').select('*'),
@@ -131,16 +132,7 @@ export function useSupabase() {
       if (matRes.error) throw matRes.error
       if (cfgRes.error) throw cfgRes.error
 
-      let allLeads = []
-      for (let offset = 0; offset < 50000; offset += PAGE) {
-        const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false }).range(offset, offset + PAGE - 1)
-        if (error) throw error
-        allLeads = allLeads.concat(data || [])
-        if (!data || data.length < PAGE) break
-      }
-
       setMaterials((matRes.data || []).map(matFromDb))
-      setLeads(allLeads.map(leadFromDb))
       setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
       setPhases((phaseRes.data || []).map(phaseFromDb))
 
@@ -173,6 +165,36 @@ export function useSupabase() {
   }, [])
 
   useEffect(() => { loadAll() }, [loadAll])
+
+  const loadLeads = useCallback(async (offset = 0, limit = 1000, append = false) => {
+    if (!adminTokenRef.current) return
+    try {
+      setLeadsLoading(true)
+      const result = await adminFetch({ action: 'list_leads', limit, offset })
+      const data = result.data || []
+      if (append && offset > 0) setLeads(prev => [...prev, ...data])
+      else setLeads(data)
+    } catch (e) {
+      console.error('loadLeads error:', e)
+    } finally {
+      setLeadsLoading(false)
+    }
+  }, [])
+
+  const fetchLeaderboard = useCallback(async (opts = {}) => {
+    const limit = opts.limit || 50
+    const me = opts.me ? encodeURIComponent(opts.me) : ''
+    const url = `/api/leaderboard?limit=${limit}${me ? `&me=${me}` : ''}`
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Leaderboard failed')
+      const data = await res.json()
+      setLeaderboard(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error('fetchLeaderboard error:', e)
+      setLeaderboard([])
+    }
+  }, [])
 
   // ─── ADMIN USERS (loaded via secure API) ───
   const loadAdminUsers = async () => {
@@ -504,6 +526,7 @@ export function useSupabase() {
 
   return {
     materials, leads, adminUsers, config, reflections, phases, supportRequests, loading, error,
+    leaderboard, leadsLoading, loadLeads, fetchLeaderboard,
     setMaterials, setLeads, setPhases,
     addMaterial, updateMaterial, deleteMaterial,
     addLead, updateLead, findLeadByWhatsApp,

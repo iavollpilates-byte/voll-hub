@@ -12,8 +12,22 @@ export default function VollHub() {
 
   // ─── SUPABASE (must be before anything that uses config) ───
   const db = useSupabase();
-  const { materials, leads, adminUsers, reflections: dbReflections, phases: dbPhases, loading: dbLoading, error: dbError } = db;
+  const { materials, leads, adminUsers, reflections: dbReflections, phases: dbPhases, loading: dbLoading, error: dbError, leaderboard, leadsLoading, loadLeads, fetchLeaderboard } = db;
   const config = { ...DEFAULT_CONFIG, ...db.config };
+
+  // Load leads only when admin opens panel
+  useEffect(() => {
+    if (view === "admin" && currentAdmin && db.setAdminToken) {
+      db.loadLeads(0, 1000);
+    }
+  }, [view, currentAdmin]);
+
+  // Fetch leaderboard when user opens Community tab (ranking from API, not full leads)
+  useEffect(() => {
+    if (view === "hub" && hubTab === "community" && config.rankingEnabled !== "false" && userWhatsApp) {
+      db.fetchLeaderboard({ limit: 50, me: userWhatsApp });
+    }
+  }, [view, hubTab, config.rankingEnabled, userWhatsApp]);
 
   // Bio links
   const [bioLinks, setBioLinks] = useState(DEFAULT_BIO_LINKS);
@@ -154,6 +168,14 @@ export default function VollHub() {
   const [referralVerifying, setReferralVerifying] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [hubTab, setHubTab] = useState("home"); // "home" | "materials" | "community" — Perfil is view "profile"
+
+  // When ranking modal opens, fetch leaderboard if not yet loaded
+  useEffect(() => {
+    if (showLeaderboard && (leaderboard || []).length === 0 && userWhatsApp) {
+      db.fetchLeaderboard({ limit: 50, me: userWhatsApp });
+    }
+  }, [showLeaderboard]);
+
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportType, setSupportType] = useState("error"); // "error" | "suggestion"
   const [supportMessage, setSupportMessage] = useState("");
@@ -1148,6 +1170,7 @@ export default function VollHub() {
         currentAdmin={currentAdmin} setCurrentAdmin={setCurrentAdmin} isMaster={isMaster} can={can}
         showT={showT} animateIn={animateIn} Toast={Toast}
         materials={materials} leads={leads} adminUsers={adminUsers} dbReflections={dbReflections} dbPhases={dbPhases}
+        leadsLoading={leadsLoading} loadLeads={loadLeads}
         bioLinks={bioLinks} saveBioLinks={saveBioLinks}
         activeMats={activeMats} totalDl={totalDl} getMatDownloads={getMatDownloads} getRecentPerson={getRecentPerson}
         creditsEnabled={creditsEnabled} todayStr={todayStr}
@@ -1707,12 +1730,14 @@ export default function VollHub() {
             <p style={{ fontSize: 15, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>Ranking desativado no momento.</p>
           </div>
         ) : (() => {
-          const rankLeads = leads.filter(l => l.name && l.whatsapp).map(l => ({
-            name: l.name, whatsapp: l.whatsapp, avatarUrl: l.avatarUrl || "",
-            reads: (l.reflectionsRead || []).length,
-            downloads: (l.downloads || []).length,
-            streak: l.streakBest || l.streakCount || 0,
-            totalDays: l.totalDays || 0,
+          const rankLeads = (leaderboard || []).map(l => ({
+            name: l.name,
+            avatarUrl: l.avatarUrl || "",
+            reads: l.reads,
+            downloads: l.downloads,
+            streak: l.best ?? l.streak,
+            totalDays: l.days,
+            isMe: l.isMe,
           }));
           const categories = [
             { key: "reads", label: "Reflexões lidas", icon: "📖" },
@@ -1720,7 +1745,7 @@ export default function VollHub() {
             { key: "streak", label: "Melhor streak", icon: "🔥" },
             { key: "totalDays", label: "Total de dias", icon: "📅" },
           ];
-          const isMe = (l) => l.whatsapp === userWhatsApp;
+          const isMe = (l) => l.isMe;
           return (
             <div style={{ marginBottom: 24, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 16 }}>🏆 Ranking</h2>
@@ -2156,12 +2181,14 @@ export default function VollHub() {
               <button type="button" aria-label="Fechar" onClick={() => setShowLeaderboard(false)} style={{ background: "none", color: T.textFaint, fontSize: 18 }}>✕</button>
             </div>
             {(() => {
-              const rankLeads = leads.filter(l => l.name && l.whatsapp).map(l => ({
-                name: l.name, whatsapp: l.whatsapp, avatarUrl: l.avatarUrl || "",
-                reads: (l.reflectionsRead || []).length,
-                downloads: (l.downloads || []).length,
-                streak: l.streakBest || l.streakCount || 0,
-                totalDays: l.totalDays || 0,
+              const rankLeads = (leaderboard || []).map(l => ({
+                name: l.name,
+                avatarUrl: l.avatarUrl || "",
+                reads: l.reads,
+                downloads: l.downloads,
+                streak: l.best ?? l.streak,
+                totalDays: l.days,
+                isMe: l.isMe,
               }));
               const categories = [
                 { key: "reads", label: "Reflexoes lidas", icon: "📖" },
@@ -2169,10 +2196,10 @@ export default function VollHub() {
                 { key: "streak", label: "Melhor streak", icon: "🔥" },
                 { key: "totalDays", label: "Total de dias", icon: "📅" },
               ];
+              const isMe = (l) => l.isMe;
               return categories.map(cat => {
                 const sorted = [...rankLeads].sort((a, b) => b[cat.key] - a[cat.key]).filter(l => l[cat.key] > 0).slice(0, 10);
                 if (sorted.length === 0) return null;
-                const isMe = (l) => l.whatsapp === userWhatsApp;
                 return (
                   <div key={cat.key} style={{ marginBottom: 20 }}>
                     <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>{cat.icon} {cat.label}</p>
