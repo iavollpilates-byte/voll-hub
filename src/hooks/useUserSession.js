@@ -78,15 +78,14 @@ export function useUserSession(db, showT) {
       setSessionLoading(false);
       return;
     }
+    const normalizedWA = normalizeWhatsApp(identity.whatsapp) || identity.whatsapp;
+    if (normalizedWA !== identity.whatsapp) saveIdentityToLS(identity.name, normalizedWA);
     setUserName(identity.name);
-    setUserWhatsApp(identity.whatsapp);
+    setUserWhatsApp(normalizedWA);
 
     (async () => {
-      // #region agent log
-      const _tSession = Date.now(); fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'useUserSession.js:mount:start',message:'session hydrate started',data:{whatsapp:identity.whatsapp?'set':'unset'},timestamp:Date.now(),hypothesisId:'H1-B'})}).catch(()=>{});
-      // #endregion
       try {
-        const lead = await db.findLeadByWhatsApp(identity.whatsapp);
+        const lead = await db.findLeadByWhatsApp(normalizedWA);
         if (lead) {
           hydrateFromLead(lead);
           if (lead.name !== identity.name) setUserName(lead.name);
@@ -94,9 +93,6 @@ export function useUserSession(db, showT) {
       } catch (e) {
         console.error("useUserSession: failed to load from Supabase", e);
       } finally {
-        // #region agent log
-        fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'useUserSession.js:mount:end',message:'session hydrate finished',data:{elapsedMs:Date.now()-_tSession},timestamp:Date.now(),hypothesisId:'H1-B'})}).catch(()=>{});
-        // #endregion
         setSessionLoading(false);
       }
     })();
