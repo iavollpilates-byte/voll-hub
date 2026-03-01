@@ -131,6 +131,9 @@ export function useSupabase() {
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
+      // #region agent log
+      const _t0 = Date.now(); fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'useSupabase.js:loadAll:start',message:'loadAll started',data:{},timestamp:Date.now(),hypothesisId:'H1-A'})}).catch(()=>{});
+      // #endregion
       const [matRes, cfgRes, refRes, phaseRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('config').select('*'),
@@ -168,6 +171,9 @@ export function useSupabase() {
       console.error('Supabase load error:', e)
       setError(e.message)
     } finally {
+      // #region agent log
+      fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'useSupabase.js:loadAll:end',message:'loadAll finished',data:{elapsedMs:Date.now()-_t0},timestamp:Date.now(),hypothesisId:'H1-A'})}).catch(()=>{});
+      // #endregion
       setLoading(false)
     }
   }, [])
@@ -353,6 +359,9 @@ export function useSupabase() {
   }
 
   const findLeadByWhatsApp = async (wa) => {
+    // #region agent log
+    const _tFind = Date.now(); fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'useSupabase.js:findLeadByWhatsApp:start',message:'findLead started',data:{wa},timestamp:Date.now(),hypothesisId:'H1-B'})}).catch(()=>{});
+    // #endregion
     const digits = String(wa).replace(/\D/g, '')
     let { data } = await supabase.from('leads').select('*').eq('whatsapp', wa).limit(1)
     if (data && data.length > 0) return leadFromDb(data[0])
@@ -364,6 +373,9 @@ export function useSupabase() {
     }
     if (digits.length === 11) {
       const { data: data4 } = await supabase.from('leads').select('*').eq('whatsapp', '55' + digits).limit(1)
+      // #region agent log
+      fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'useSupabase.js:findLeadByWhatsApp:end',message:'findLead finished',data:{elapsedMs:Date.now()-_tFind,found:!!(data4&&data4.length>0)},timestamp:Date.now(),hypothesisId:'H1-B'})}).catch(()=>{});
+      // #endregion
       if (data4 && data4.length > 0) return leadFromDb(data4[0])
     }
     return null

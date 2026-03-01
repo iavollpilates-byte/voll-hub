@@ -547,6 +547,9 @@ export default function VollHub() {
   const persistUiFlag = session.persistUiFlag;
 
   const handleDownload = async (mat) => {
+    // #region agent log
+    const _tDl = Date.now(); const _alreadyDl = downloaded.includes(mat.id); fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'VollHub.jsx:handleDownload:start',message:'download started',data:{matId:mat.id,alreadyDownloaded:_alreadyDl,hasUrl:!!mat.downloadUrl},timestamp:Date.now(),hypothesisId:'H2-A'})}).catch(()=>{});
+    // #endregion
     setDownloadingMatId(mat.id);
     try {
       if (!downloaded.includes(mat.id)) {
@@ -555,7 +558,13 @@ export default function VollHub() {
           const spent = await spendCredits(cost);
           if (!spent) { showT("Créditos insuficientes! 🎯"); setShowCreditStore(true); return; }
         }
+        // #region agent log
+        const _tAdd = Date.now(); fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'VollHub.jsx:handleDownload:beforeAddDl',message:'about to addDownload',data:{matId:mat.id},timestamp:Date.now(),hypothesisId:'H2-B'})}).catch(()=>{});
+        // #endregion
         await session.addDownload(mat.id);
+        // #region agent log
+        fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'VollHub.jsx:handleDownload:afterAddDl',message:'addDownload finished',data:{matId:mat.id,elapsedMs:Date.now()-_tAdd},timestamp:Date.now(),hypothesisId:'H2-B'})}).catch(()=>{});
+        // #endregion
       }
       if (Object.keys(funnelAnswers).length > 0 && leadId) {
         await session.updateLead({ surveyResponses: { [`funnel_${mat.id}`]: funnelAnswers } });
@@ -566,6 +575,9 @@ export default function VollHub() {
       } else {
         showT(`"${mat.title}" baixado! ✅`); setSelectedMaterial(null);
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7815/ingest/59bf8188-5818-4f5c-8989-1335a7246110',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4fbc71'},body:JSON.stringify({sessionId:'4fbc71',location:'VollHub.jsx:handleDownload:beforeWindowOpen',message:'about to window.open',data:{matId:mat.id,url:mat.downloadUrl,totalElapsedMs:Date.now()-_tDl},timestamp:Date.now(),hypothesisId:'H2-A'})}).catch(()=>{});
+      // #endregion
       if (mat.downloadUrl) window.open(mat.downloadUrl, "_blank");
     } finally {
       setDownloadingMatId(null);
