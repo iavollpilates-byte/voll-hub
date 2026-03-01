@@ -96,10 +96,15 @@ export default function AdminPanel({
   const addMat = async () => {
     if (!newMat.title.trim()) return showT("Preencha o título!");
     const today = new Date(); const d = `${String(today.getDate()).padStart(2, "0")} ${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][today.getMonth()]} ${today.getFullYear()}`;
-    const created = await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
-    if (!created) { showT("Erro ao criar material. Tente novamente."); return; }
-    addLog(`Criou material "${newMat.title}"`);
-    setNewMat({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] }); setShowNewForm(false); showT("Criado! ✅");
+    try {
+      const created = await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
+      if (!created) { showT("Erro ao criar material. Tente novamente."); return; }
+      addLog(`Criou material "${newMat.title}"`);
+      setNewMat({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] }); setShowNewForm(false); showT("Criado! ✅");
+    } catch (e) {
+      console.error("Erro ao criar material:", e);
+      showT("Erro: " + (e.message || "Falha ao criar material"));
+    }
   };
 
   const copyLink = (id) => {

@@ -24,6 +24,13 @@ create table if not exists materials (
   preview_bullets jsonb default '[]',
   preview_images jsonb default '[]',
   sort_order integer default 0,
+  insta_post_url text default '',
+  insta_views integer default 0,
+  insta_likes integer default 0,
+  insta_comments integer default 0,
+  insta_saves integer default 0,
+  credit_cost integer default 1,
+  funnel jsonb default null,
   created_at timestamptz default now()
 );
 

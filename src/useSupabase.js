@@ -257,15 +257,13 @@ export function useSupabase() {
 
   // ─── MATERIALS ───
   const addMaterial = async (mat) => {
-    try {
-      const result = await adminFetch({
-        action: 'insert', table: 'materials',
-        data: matToDb(mat), returnSingle: true
-      })
-      const newMat = matFromDb(result.data)
-      setMaterials(p => [newMat, ...p])
-      return newMat
-    } catch (e) { console.error(e); return null }
+    const result = await adminFetch({
+      action: 'insert', table: 'materials',
+      data: matToDb(mat), returnSingle: true
+    })
+    const newMat = matFromDb(result.data)
+    setMaterials(p => [newMat, ...p])
+    return newMat
   }
 
   const updateMaterial = async (id, updates) => {
