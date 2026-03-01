@@ -247,6 +247,7 @@ export default function VollHub() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [showCreditTooltip, setShowCreditTooltip] = useState(false);
   const [showDownloadedOnly, setShowDownloadedOnly] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [reflectionVote, setReflectionVote] = useState(null); // "like" | "dislike" | null
   const [reflectionExpanded, setReflectionExpanded] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -928,6 +929,11 @@ export default function VollHub() {
     return { title: `${dlCount} de ${activeMats.length} baixados!`, desc: `Continue explorando — ainda ${activeMats.length - dlCount === 1 ? "tem 1 material" : `tem ${activeMats.length - dlCount} materiais`} pra você!`, btn: "Ver mais", icon: "💪" };
   }, [config.bannerPersonalized, config.ctaBannerTitle, config.ctaBannerDesc, config.ctaBannerBtn, dlCount, activeMats, lockedMats]);
 
+  const categories = useMemo(() => {
+    const cats = [...new Set(activeMats.map(m => m.category).filter(Boolean))];
+    return cats.sort((a, b) => a.localeCompare(b));
+  }, [activeMats]);
+
   const spotlightMat = useMemo(() => deepLinkMatId ? activeMats.find((m) => m.id === deepLinkMatId) : null, [deepLinkMatId, activeMats]);
   const otherMats = useMemo(() => spotlightMat ? activeMats.filter((m) => m.id !== spotlightMat.id) : activeMats, [spotlightMat, activeMats]);
 
@@ -1597,10 +1603,18 @@ export default function VollHub() {
             <div style={{ width: "100%", height: 5, borderRadius: 3, background: T.progressTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: "linear-gradient(90deg, #349980, #7DE2C7)", width: `${(downloaded.length / Math.max(activeMats.length, 1)) * 100}%`, transition: "width 0.8s ease" }} /></div>
             <p style={{ fontSize: 11, color: T.textFaint, marginTop: 6, fontFamily: "'Plus Jakarta Sans'" }}>{config.progressHint}</p>
           </div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: categories.length > 0 ? 8 : 14 }}>
             <button onClick={() => setShowDownloadedOnly(false)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: !showDownloadedOnly ? T.accent + "22" : T.statBg, color: !showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${!showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>Todos</button>
             <button onClick={() => setShowDownloadedOnly(true)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: showDownloadedOnly ? T.accent + "22" : T.statBg, color: showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>📥 Baixados</button>
           </div>
+          {categories.length > 1 && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none", paddingBottom: 2 }}>
+              <button onClick={() => setSelectedCategory(null)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0, background: !selectedCategory ? T.accent + "22" : T.statBg, color: !selectedCategory ? T.accent : T.textFaint, border: `1px solid ${!selectedCategory ? T.accent + "44" : T.statBorder}`, fontFamily: "'Plus Jakarta Sans'" }}>Todas</button>
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0, background: selectedCategory === cat ? T.accent + "22" : T.statBg, color: selectedCategory === cat ? T.accent : T.textFaint, border: `1px solid ${selectedCategory === cat ? T.accent + "44" : T.statBorder}`, fontFamily: "'Plus Jakarta Sans'" }}>{cat}</button>
+              ))}
+            </div>
+          )}
           {deepLinkMatId && !spotlightMat && (
             <div style={{ marginBottom: 16, padding: "16px 18px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14 }}>
               <p style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6 }}>Material não encontrado</p>
@@ -1618,17 +1632,17 @@ export default function VollHub() {
             </div>
           )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {(showDownloadedOnly ? otherMats.filter(m => downloaded.includes(m.id)) : otherMats).map((m, i) => (
+          {otherMats.filter(m => !selectedCategory || m.category === selectedCategory).filter(m => !showDownloadedOnly || downloaded.includes(m.id)).map((m, i) => (
             <MaterialCard key={m.id} m={m} index={i + (spotlightMat ? 1 : 0)} isSpotlight={false} isNew={newMats.some((nm) => nm.id === m.id)}
               downloaded={downloaded} surveyAnswers={surveyAnswers} profileComplete={profileComplete} creditsEnabled={creditsEnabled} userCredits={userCredits}
               animateIn={animateIn} theme={theme} T={T} now={now} config={config}
               onCardClick={handleCardClick} formatCountdown={formatCountdown} isUrgent={isUrgent} getMatDownloads={getMatDownloads} getRecentPerson={getRecentPerson} />
           ))}
-          {showDownloadedOnly && otherMats.filter(m => downloaded.includes(m.id)).length === 0 && (
+          {otherMats.filter(m => !selectedCategory || m.category === selectedCategory).filter(m => !showDownloadedOnly || downloaded.includes(m.id)).length === 0 && (showDownloadedOnly || selectedCategory) && (
             <div style={{ textAlign: "center", padding: "24px 16px", background: T.cardBg, borderRadius: 16, border: `1px solid ${T.cardBorder}` }}>
-              <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
-              <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>Você ainda não baixou nenhum material.</p>
-              <button onClick={() => setShowDownloadedOnly(false)} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 10, background: T.accent, color: "#060a09", fontSize: 13, fontWeight: 600, border: "none" }}>Ver materiais disponíveis</button>
+              <p style={{ fontSize: 28, marginBottom: 8 }}>{showDownloadedOnly ? "📭" : "🔍"}</p>
+              <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>{showDownloadedOnly && selectedCategory ? `Nenhum material baixado em "${selectedCategory}".` : showDownloadedOnly ? "Você ainda não baixou nenhum material." : `Nenhum material em "${selectedCategory}".`}</p>
+              <button onClick={() => { setShowDownloadedOnly(false); setSelectedCategory(null); }} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 10, background: T.accent, color: "#060a09", fontSize: 13, fontWeight: 600, border: "none" }}>Ver todos os materiais</button>
             </div>
           )}
         </div>
