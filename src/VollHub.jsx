@@ -15,20 +15,6 @@ export default function VollHub() {
   const { materials, leads, adminUsers, reflections: dbReflections, phases: dbPhases, loading: dbLoading, error: dbError, leaderboard, leadsLoading, loadLeads, fetchLeaderboard } = db;
   const config = { ...DEFAULT_CONFIG, ...db.config };
 
-  // Load leads only when admin opens panel
-  useEffect(() => {
-    if (view === "admin" && currentAdmin && db.setAdminToken) {
-      db.loadLeads(0, 1000);
-    }
-  }, [view, currentAdmin]);
-
-  // Fetch leaderboard when user opens Community tab (ranking from API, not full leads)
-  useEffect(() => {
-    if (view === "hub" && hubTab === "community" && config.rankingEnabled !== "false" && userWhatsApp) {
-      db.fetchLeaderboard({ limit: 50, me: userWhatsApp });
-    }
-  }, [view, hubTab, config.rankingEnabled, userWhatsApp]);
-
   // Bio links
   const [bioLinks, setBioLinks] = useState(DEFAULT_BIO_LINKS);
   const bioLinksLoaded = useRef(false);
@@ -305,6 +291,21 @@ export default function VollHub() {
   const [currentAdmin, setCurrentAdmin] = useState(null);
   const isMaster = currentAdmin?.role === "master";
   const can = (perm) => currentAdmin?.permissions?.[perm] === true;
+
+  // Load leads only when admin opens panel (must be after currentAdmin is defined)
+  useEffect(() => {
+    if (view === "admin" && currentAdmin && db.setAdminToken) {
+      db.loadLeads(0, 1000);
+    }
+  }, [view, currentAdmin, db]);
+
+  // Fetch leaderboard when user opens Community tab (must be after hubTab, userWhatsApp defined)
+  useEffect(() => {
+    if (view === "hub" && hubTab === "community" && config.rankingEnabled !== "false" && userWhatsApp) {
+      db.fetchLeaderboard({ limit: 50, me: userWhatsApp });
+    }
+  }, [view, hubTab, config.rankingEnabled, userWhatsApp, db]);
+
   const [logoTaps, setLogoTaps] = useState(0);
   const [previewImgIdx, setPreviewImgIdx] = useState(0);
 
