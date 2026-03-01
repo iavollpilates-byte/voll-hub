@@ -1,10 +1,140 @@
-import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense, memo, forwardRef } from "react";
 import { useSupabase } from "./useSupabase";
 import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, PERM_LABELS, THEMES } from "./constants";
 import { getUnlockLabel, timeAgo, fmtWA, normalizeWhatsApp, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
 import { REFLECTION_STYLES, drawReflectionCanvas, getPreviewDataUrl, wrapCanvasText } from "./canvasUtils";
 
 const AdminPanel = lazy(() => import("./components/AdminPanel"));
+
+// ─── MATERIAL CARD (standalone, memoized) ───
+const MaterialCard = memo(forwardRef(function MaterialCard({
+  m, index, isSpotlight, isNew,
+  downloaded, surveyAnswers, profileComplete, creditsEnabled, userCredits,
+  animateIn, theme, T, now, config,
+  onCardClick, formatCountdown, isUrgent, getMatDownloads, getRecentPerson,
+}, ref) {
+  const isFree = m.unlockType === "free" || (m.unlockType === "data" && profileComplete);
+  const isSurvey = m.unlockType === "survey";
+  const surveyDone = isSurvey && surveyAnswers[m.id];
+  const isDl = downloaded.includes(m.id);
+  const ul = getUnlockLabel(m);
+  const ago = timeAgo(m.createdAt);
+  const hasExpiry = m.expiresAt && m.expiresAt > now;
+  const expiryUrgent = isUrgent(m.expiresAt);
+  const hasLimit = m.limitQty && (m.limitQty - (m.limitUsed || 0)) > 0;
+  const limitLow = hasLimit && (m.limitQty - (m.limitUsed || 0)) <= 10;
+  const isFlashActive = m.isFlash && m.flashUntil && m.flashUntil > now;
+
+  return (
+    <div
+      ref={isSpotlight ? ref : null}
+      onClick={() => onCardClick(m, { isNew, isFree, isFlashActive, surveyDone, isDl })}
+      style={{
+        background: isFlashActive ? (theme === "dark" ? "linear-gradient(135deg, #1a1210, #0d0a08)" : "linear-gradient(135deg, #fdf0e8, #fdf8f4)") : isSpotlight ? T.spotBg : T.cardBg,
+        border: isFlashActive ? `2px solid #e8443a55` : isSpotlight ? `2px solid ${T.spotBorder}` : `1px solid ${T.cardBorder}`,
+        borderRadius: 16, padding: 15, display: "flex", gap: 12, alignItems: "flex-start",
+        cursor: "pointer", position: "relative", flexWrap: "wrap",
+        opacity: animateIn ? (isDl || isFree || isFlashActive || surveyDone || (m.creditCost || 0) === 0 || (creditsEnabled && userCredits >= (m.creditCost || 0)) ? 1 : 0.7) : 0,
+        transform: animateIn ? "translateY(0)" : "translateY(25px)",
+        transition: `all 0.4s ease ${index * 0.07}s`,
+        boxShadow: isFlashActive ? "0 0 20px #e8443a15" : isSpotlight ? `0 0 20px ${T.accent}15` : "none",
+      }}
+    >
+      {/* Badges row */}
+      <div style={{ position: "absolute", top: 9, right: 9, display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "65%" }}>
+        {isFlashActive && (
+          <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 7, background: "#e8443a22", border: "1px solid #e8443a44", fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1.5s ease-in-out infinite" }}>
+            <span style={{ fontSize: 9 }}>⚡</span><span style={{ fontSize: 10, fontWeight: 700, color: "#e8443a" }}>FLASH</span>
+          </div>
+        )}
+        {isNew && !isDl && (
+          <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 7, background: T.newBg, border: `1px solid ${T.newBorder}`, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 2s ease-in-out infinite" }}>
+            <span style={{ fontSize: 9 }}>🔥</span><span style={{ fontSize: 10, fontWeight: 700, color: T.newText }}>NOVO</span>
+          </div>
+        )}
+        {!isFree && !isFlashActive && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 7, background: T.badgeBg, border: `1px solid ${T.badgeBorder}`, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>
+            <span style={{ fontSize: 10 }}>🔒</span><span style={{ fontSize: 10, fontWeight: 600 }}>{ul.label}</span>
+          </div>
+        )}
+        {isFree && isDl && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 7, background: T.dlBg, border: `1px solid ${T.dlBorder}`, fontFamily: "'Plus Jakarta Sans'" }}>
+            <span style={{ fontSize: 10 }}>✅</span><span style={{ fontSize: 10, fontWeight: 600, color: T.accent }}>Baixado</span>
+          </div>
+        )}
+      </div>
+
+      {isSpotlight && (
+        <div style={{ width: "100%", marginBottom: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>📌 Você veio buscar este material</span>
+        </div>
+      )}
+
+      <div style={{ width: 50, height: 50, borderRadius: 13, background: isFree || isFlashActive || surveyDone ? T.matIcon : T.matIconLock, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <span style={{ fontSize: 26, filter: isFree || isFlashActive || surveyDone ? "none" : "grayscale(1) opacity(0.4)" }}>{m.icon}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: T.accentDark, textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Plus Jakarta Sans'" }}>{m.category}</span>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 3, lineHeight: 1.3, color: isFree || isFlashActive ? T.text : T.textFaint }}>{m.title}</h3>
+        <p style={{ fontSize: 12, marginTop: 3, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5, color: isFree || isFlashActive ? T.textMuted : T.textFaint }}>{m.description}</p>
+      </div>
+
+      {(hasExpiry || (hasLimit && m.limitQty > 0) || (isFlashActive && !isFree)) && (
+        <div style={{ width: "100%", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {hasExpiry && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, background: expiryUrgent ? "#e8443a15" : T.gold + "15", border: `1px solid ${expiryUrgent ? "#e8443a33" : T.gold + "33"}` }}>
+              <span style={{ fontSize: 11 }}>⏰</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: expiryUrgent ? "#e8443a" : T.gold, fontFamily: "'Plus Jakarta Sans'", fontVariantNumeric: "tabular-nums" }}>{formatCountdown(m.expiresAt)}</span>
+            </div>
+          )}
+          {isFlashActive && !hasExpiry && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, background: "#e8443a15", border: "1px solid #e8443a33" }}>
+              <span style={{ fontSize: 11 }}>⚡</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#e8443a", fontFamily: "'Plus Jakarta Sans'", fontVariantNumeric: "tabular-nums" }}>{formatCountdown(m.flashUntil)}</span>
+            </div>
+          )}
+          {hasLimit && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, background: limitLow ? "#e8443a15" : T.accent + "15", border: `1px solid ${limitLow ? "#e8443a33" : T.accent + "33"}` }}>
+              <span style={{ fontSize: 11 }}>🔢</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: limitLow ? "#e8443a" : T.accent, fontFamily: "'Plus Jakarta Sans'" }}>{m.limitQty - (m.limitUsed || 0)} vagas</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {config.socialProofMode !== "off" && (
+        <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {(config.socialProofMode === "downloads" || config.socialProofMode === "both") && (
+            <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>📥 {getMatDownloads(m.id)} downloads</span>
+          )}
+          {(config.socialProofMode === "recent" || config.socialProofMode === "both") && (
+            <>
+              {config.socialProofMode === "both" && <span style={{ color: T.progressTrack }}>·</span>}
+              <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", fontStyle: "italic" }}>{getRecentPerson(m.id)}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginTop: 3, paddingTop: 9, borderTop: `1px solid ${T.progressTrack}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{m.date}</span>
+          {ago && <span style={{ fontSize: 10, color: T.newText, fontFamily: "'Plus Jakarta Sans'", fontWeight: 600 }}>{ago}</span>}
+        </div>
+        {(() => {
+          const cost = m.creditCost || 0;
+          if (isDl) return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>Abrir ↓</span>;
+          if (cost === 0 || isFree || isFlashActive) return <span style={{ fontSize: 12, fontWeight: 600, color: isFlashActive ? "#e8443a" : T.accent }}>{isFlashActive ? "Grátis por tempo limitado →" : "Baixar ↓"}</span>;
+          if (surveyDone) return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>Baixar ↓</span>;
+          if (creditsEnabled && cost > 0) return <span style={{ fontSize: 12, fontWeight: 600, color: userCredits >= cost ? T.gold : T.textFaint }}>🎯 {cost} crédito{cost > 1 ? "s" : ""}</span>;
+          if (m.unlockType === "data") return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>📋 Completar perfil →</span>;
+          if (m.unlockType === "survey") return <span style={{ fontSize: 12, fontWeight: 600, color: T.gold }}>🔍 Responder pesquisa →</span>;
+          return <span style={{ fontSize: 12, fontWeight: 600, color: T.textFaint }}>Desbloquear →</span>;
+        })()}
+      </div>
+    </div>
+  );
+}));
 
 export default function VollHub() {
   const [view, setView] = useState("linktree");
@@ -62,7 +192,7 @@ export default function VollHub() {
 
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [unlockTarget, setUnlockTarget] = useState(null);
-  const setUnlock = (m) => { setUnlockTarget(m); setPreviewImgIdx(0); };
+  const setUnlock = useCallback((m) => { setUnlockTarget(m); setPreviewImgIdx(0); }, []);
   // Credits system
   const [userCredits, setUserCredits] = useState(3);
   const [userCreditsEarned, setUserCreditsEarned] = useState({});
@@ -77,7 +207,7 @@ export default function VollHub() {
   // Funnel system
   const [funnelStep, setFunnelStep] = useState("download"); // "questions" | "download" | "cta"
   const [funnelAnswers, setFunnelAnswers] = useState({});
-  const selectMat = (m) => {
+  const selectMat = useCallback((m) => {
     if (!m) { setSelectedMaterial(null); return; }
     const f = m.funnel;
     const alreadyDl = downloaded.includes(m.id);
@@ -85,7 +215,7 @@ export default function VollHub() {
     setFunnelAnswers({});
     setFunnelStep(hasQuestions ? "questions" : "download");
     setSelectedMaterial(m);
-  };
+  }, [downloaded]);
   const creditsEnabled = config.creditsEnabled === "true";
   const getQuizzes = useCallback(() => {
     const raw = config.quizzes;
@@ -485,8 +615,8 @@ export default function VollHub() {
     });
   }, [now]);
 
-  const formatCountdown = (target) => fmtCountdown(target, now);
-  const isUrgent = (target) => checkUrgent(target, now);
+  const formatCountdown = useCallback((target) => fmtCountdown(target, now), [now]);
+  const isUrgent = useCallback((target) => checkUrgent(target, now), [now]);
   const waDigits = userWhatsApp.replace(/\D/g, "");
   const waDigitsCount = waDigits.length;
   const waValidBR = waDigits.length === 11 && waDigits[2] === "9" && parseInt(waDigits.slice(0, 2)) >= 11 && parseInt(waDigits.slice(0, 2)) <= 99;
@@ -754,7 +884,7 @@ export default function VollHub() {
       showT("Não foi possível conectar. Verifique sua internet e se o site está no ar.");
     }
   };
-  const markNewAsSeen = (id) => { if (!seenNewIds.includes(id)) setSeenNewIds((p) => [...p, id]); };
+  const markNewAsSeen = useCallback((id) => { setSeenNewIds((p) => p.includes(id) ? p : [...p, id]); }, []);
 
   const activeMats = useMemo(() => materials.filter((m) => m.active), [materials]);
   const newMats = useMemo(() => activeMats.filter((m) => m.createdAt > lastVisitTs && !seenNewIds.includes(m.id)), [activeMats, lastVisitTs, seenNewIds]);
@@ -821,148 +951,20 @@ export default function VollHub() {
 
 
 
-  // ─── MATERIAL CARD (reusable) ───
-  const MaterialCard = ({ m, index, isSpotlight, isNew }) => {
-    const isFree = m.unlockType === "free" || (m.unlockType === "data" && profileComplete);
-    const isSurvey = m.unlockType === "survey";
-    const surveyDone = isSurvey && surveyAnswers[m.id];
-    const isDl = downloaded.includes(m.id);
-    const ul = getUnlockLabel(m);
-    const ago = timeAgo(m.createdAt);
-    const hasExpiry = m.expiresAt && m.expiresAt > now;
-    const expiryUrgent = isUrgent(m.expiresAt);
-    const hasLimit = m.limitQty && (m.limitQty - (m.limitUsed || 0)) > 0;
-    const limitLow = hasLimit && (m.limitQty - (m.limitUsed || 0)) <= 10;
-    const isFlashActive = m.isFlash && m.flashUntil && m.flashUntil > now;
-
-    return (
-      <div
-        ref={isSpotlight ? spotlightRef : null}
-        onClick={() => {
-          if (isNew) markNewAsSeen(m.id);
-          const cost = m.creditCost || 0;
-          const alreadyDownloaded = downloaded.includes(m.id);
-          // Already downloaded = always accessible
-          if (alreadyDownloaded) { selectMat(m); return; }
-          // Free material (cost 0) or flash
-          if (cost === 0 || isFree || isFlashActive || surveyDone) { selectMat(m); return; }
-          // Credits system check
-          if (creditsEnabled && cost > 0) {
-            if (userCredits >= cost) { selectMat(m); return; }
-            else { setShowCreditStore(true); showT(`Você precisa de ${cost} crédito${cost > 1 ? "s" : ""} para baixar. Ganhe créditos! 🎯`); return; }
-          }
-          if (m.unlockType === "data") { if (profileComplete) { selectMat(m); } else { setView("profile"); showT("Complete seu perfil para desbloquear! 📋"); } return; }
-          if (m.unlockType === "survey") { setCurrentSurvey(m); setTempAnswers({}); setPreviewImgIdx(0); return; }
-          setUnlock(m); // social
-        }}
-        style={{
-          background: isFlashActive ? (theme === "dark" ? "linear-gradient(135deg, #1a1210, #0d0a08)" : "linear-gradient(135deg, #fdf0e8, #fdf8f4)") : isSpotlight ? T.spotBg : T.cardBg,
-          border: isFlashActive ? `2px solid #e8443a55` : isSpotlight ? `2px solid ${T.spotBorder}` : `1px solid ${T.cardBorder}`,
-          borderRadius: 16, padding: 15, display: "flex", gap: 12, alignItems: "flex-start",
-          cursor: "pointer", position: "relative", flexWrap: "wrap",
-          opacity: animateIn ? (isDl || isFree || isFlashActive || surveyDone || (m.creditCost || 0) === 0 || (creditsEnabled && userCredits >= (m.creditCost || 0)) ? 1 : 0.7) : 0,
-          transform: animateIn ? "translateY(0)" : "translateY(25px)",
-          transition: `all 0.4s ease ${index * 0.07}s`,
-          boxShadow: isFlashActive ? "0 0 20px #e8443a15" : isSpotlight ? `0 0 20px ${T.accent}15` : "none",
-        }}
-      >
-        {/* Badges row */}
-        <div style={{ position: "absolute", top: 9, right: 9, display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "65%" }}>
-          {isFlashActive && (
-            <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 7, background: "#e8443a22", border: "1px solid #e8443a44", fontFamily: "'Plus Jakarta Sans'", animation: "pulse 1.5s ease-in-out infinite" }}>
-              <span style={{ fontSize: 9 }}>⚡</span><span style={{ fontSize: 10, fontWeight: 700, color: "#e8443a" }}>FLASH</span>
-            </div>
-          )}
-          {isNew && !isDl && (
-            <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 7, background: T.newBg, border: `1px solid ${T.newBorder}`, fontFamily: "'Plus Jakarta Sans'", animation: "pulse 2s ease-in-out infinite" }}>
-              <span style={{ fontSize: 9 }}>🔥</span><span style={{ fontSize: 10, fontWeight: 700, color: T.newText }}>NOVO</span>
-            </div>
-          )}
-          {!isFree && !isFlashActive && (
-            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 7, background: T.badgeBg, border: `1px solid ${T.badgeBorder}`, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>
-              <span style={{ fontSize: 10 }}>🔒</span><span style={{ fontSize: 10, fontWeight: 600 }}>{ul.label}</span>
-            </div>
-          )}
-          {isFree && isDl && (
-            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 7, background: T.dlBg, border: `1px solid ${T.dlBorder}`, fontFamily: "'Plus Jakarta Sans'" }}>
-              <span style={{ fontSize: 10 }}>✅</span><span style={{ fontSize: 10, fontWeight: 600, color: T.accent }}>Baixado</span>
-            </div>
-          )}
-        </div>
-
-        {isSpotlight && (
-          <div style={{ width: "100%", marginBottom: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1.5, fontFamily: "'Plus Jakarta Sans'" }}>📌 Você veio buscar este material</span>
-          </div>
-        )}
-
-        <div style={{ width: 50, height: 50, borderRadius: 13, background: isFree || isFlashActive || surveyDone ? T.matIcon : T.matIconLock, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <span style={{ fontSize: 26, filter: isFree || isFlashActive || surveyDone ? "none" : "grayscale(1) opacity(0.4)" }}>{m.icon}</span>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 10, fontWeight: 600, color: T.accentDark, textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Plus Jakarta Sans'" }}>{m.category}</span>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 3, lineHeight: 1.3, color: isFree || isFlashActive ? T.text : T.textFaint }}>{m.title}</h3>
-          <p style={{ fontSize: 12, marginTop: 3, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5, color: isFree || isFlashActive ? T.textMuted : T.textFaint }}>{m.description}</p>
-        </div>
-
-        {/* Urgency bar - only show if actually configured */}
-        {(hasExpiry || (hasLimit && m.limitQty > 0) || (isFlashActive && !isFree)) && (
-          <div style={{ width: "100%", display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {hasExpiry && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, background: expiryUrgent ? "#e8443a15" : T.gold + "15", border: `1px solid ${expiryUrgent ? "#e8443a33" : T.gold + "33"}` }}>
-                <span style={{ fontSize: 11 }}>⏰</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: expiryUrgent ? "#e8443a" : T.gold, fontFamily: "'Plus Jakarta Sans'", fontVariantNumeric: "tabular-nums" }}>{formatCountdown(m.expiresAt)}</span>
-              </div>
-            )}
-            {isFlashActive && !hasExpiry && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, background: "#e8443a15", border: "1px solid #e8443a33" }}>
-                <span style={{ fontSize: 11 }}>⚡</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#e8443a", fontFamily: "'Plus Jakarta Sans'", fontVariantNumeric: "tabular-nums" }}>{formatCountdown(m.flashUntil)}</span>
-              </div>
-            )}
-            {hasLimit && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, background: limitLow ? "#e8443a15" : T.accent + "15", border: `1px solid ${limitLow ? "#e8443a33" : T.accent + "33"}` }}>
-                <span style={{ fontSize: 11 }}>🔢</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: limitLow ? "#e8443a" : T.accent, fontFamily: "'Plus Jakarta Sans'" }}>{m.limitQty - (m.limitUsed || 0)} vagas</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Social proof */}
-        {config.socialProofMode !== "off" && (
-          <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            {(config.socialProofMode === "downloads" || config.socialProofMode === "both") && (
-              <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'" }}>📥 {getMatDownloads(m.id)} downloads</span>
-            )}
-            {(config.socialProofMode === "recent" || config.socialProofMode === "both") && (
-              <>
-                {config.socialProofMode === "both" && <span style={{ color: T.progressTrack }}>·</span>}
-                <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", fontStyle: "italic" }}>{getRecentPerson(m.id)}</span>
-              </>
-            )}
-          </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginTop: 3, paddingTop: 9, borderTop: `1px solid ${T.progressTrack}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>{m.date}</span>
-            {ago && <span style={{ fontSize: 10, color: T.newText, fontFamily: "'Plus Jakarta Sans'", fontWeight: 600 }}>{ago}</span>}
-          </div>
-          {(() => {
-            const cost = m.creditCost || 0;
-            if (isDl) return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>Abrir ↓</span>;
-            if (cost === 0 || isFree || isFlashActive) return <span style={{ fontSize: 12, fontWeight: 600, color: isFlashActive ? "#e8443a" : T.accent }}>{isFlashActive ? "Grátis por tempo limitado →" : "Baixar ↓"}</span>;
-            if (surveyDone) return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>Baixar ↓</span>;
-            if (creditsEnabled && cost > 0) return <span style={{ fontSize: 12, fontWeight: 600, color: userCredits >= cost ? T.gold : T.textFaint }}>🎯 {cost} crédito{cost > 1 ? "s" : ""}</span>;
-            if (m.unlockType === "data") return <span style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>📋 Completar perfil →</span>;
-            if (m.unlockType === "survey") return <span style={{ fontSize: 12, fontWeight: 600, color: T.gold }}>🔍 Responder pesquisa →</span>;
-            return <span style={{ fontSize: 12, fontWeight: 600, color: T.textFaint }}>Desbloquear →</span>;
-          })()}
-        </div>
-      </div>
-    );
-  };
+  // ─── CARD CLICK HANDLER (stable callback for MaterialCard) ───
+  const handleCardClick = useCallback((m, { isNew, isFree, isFlashActive, surveyDone, isDl }) => {
+    if (isNew) markNewAsSeen(m.id);
+    const cost = m.creditCost || 0;
+    if (isDl) { selectMat(m); return; }
+    if (cost === 0 || isFree || isFlashActive || surveyDone) { selectMat(m); return; }
+    if (creditsEnabled && cost > 0) {
+      if (userCredits >= cost) { selectMat(m); return; }
+      else { setShowCreditStore(true); showT(`Você precisa de ${cost} crédito${cost > 1 ? "s" : ""} para baixar. Ganhe créditos! 🎯`); return; }
+    }
+    if (m.unlockType === "data") { if (profileComplete) { selectMat(m); } else { setView("profile"); showT("Complete seu perfil para desbloquear! 📋"); } return; }
+    if (m.unlockType === "survey") { setCurrentSurvey(m); setTempAnswers({}); setPreviewImgIdx(0); return; }
+    setUnlock(m);
+  }, [creditsEnabled, userCredits, profileComplete, markNewAsSeen, selectMat, setShowCreditStore, showT, setView, setCurrentSurvey, setTempAnswers, setPreviewImgIdx, setUnlock]);
 
   // ─── LOADING ───
   if (dbLoading) return (
@@ -1609,12 +1611,18 @@ export default function VollHub() {
           {spotlightMat && (
             <div style={{ marginBottom: 20 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, color: T.accent, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>📌 Seu material</h2>
-              <MaterialCard m={spotlightMat} index={0} isSpotlight isNew={newMats.some((nm) => nm.id === spotlightMat.id)} />
+              <MaterialCard ref={spotlightRef} m={spotlightMat} index={0} isSpotlight isNew={newMats.some((nm) => nm.id === spotlightMat.id)}
+                downloaded={downloaded} surveyAnswers={surveyAnswers} profileComplete={profileComplete} creditsEnabled={creditsEnabled} userCredits={userCredits}
+                animateIn={animateIn} theme={theme} T={T} now={now} config={config}
+                onCardClick={handleCardClick} formatCountdown={formatCountdown} isUrgent={isUrgent} getMatDownloads={getMatDownloads} getRecentPerson={getRecentPerson} />
             </div>
           )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {(showDownloadedOnly ? otherMats.filter(m => downloaded.includes(m.id)) : otherMats).map((m, i) => (
-            <MaterialCard key={m.id} m={m} index={i + (spotlightMat ? 1 : 0)} isSpotlight={false} isNew={newMats.some((nm) => nm.id === m.id)} />
+            <MaterialCard key={m.id} m={m} index={i + (spotlightMat ? 1 : 0)} isSpotlight={false} isNew={newMats.some((nm) => nm.id === m.id)}
+              downloaded={downloaded} surveyAnswers={surveyAnswers} profileComplete={profileComplete} creditsEnabled={creditsEnabled} userCredits={userCredits}
+              animateIn={animateIn} theme={theme} T={T} now={now} config={config}
+              onCardClick={handleCardClick} formatCountdown={formatCountdown} isUrgent={isUrgent} getMatDownloads={getMatDownloads} getRecentPerson={getRecentPerson} />
           ))}
           {showDownloadedOnly && otherMats.filter(m => downloaded.includes(m.id)).length === 0 && (
             <div style={{ textAlign: "center", padding: "24px 16px", background: T.cardBg, borderRadius: 16, border: `1px solid ${T.cardBorder}` }}>
