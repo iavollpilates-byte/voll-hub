@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense, memo, forwardRef } from "react";
-import { flushSync } from "react-dom";
 import { useSupabase } from "./useSupabase";
 import { useUserSession } from "./hooks/useUserSession";
 import { useGamification } from "./hooks/useGamification";
@@ -364,6 +363,7 @@ export default function VollHub() {
     const vParam = params.get("view");
     if (mParam) setDeepLinkMatId(parseInt(mParam, 10));
     if (vParam === "landing" || vParam === "cadastro") setView("landing");
+    else if (vParam === "hub" || vParam === "materiais") setView("hub");
     db.incrementPageView();
   }, []);
 
@@ -734,12 +734,10 @@ export default function VollHub() {
       const isHubLink = isHubByUrl || link.id === "hub";
       if (isHubLink) {
         const nextView = (userName && userWhatsApp) ? "hub" : "landing";
-        flushSync(() => setView(nextView));
-        const params = new URLSearchParams(window.location.search);
-        params.set("view", nextView);
-        window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+        const newUrl = `${window.location.pathname}?view=${nextView}`;
         const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
         saveBioLinks(updated);
+        window.location.assign(newUrl);
         return;
       }
       if (url && (url.startsWith("http") || url.startsWith("mailto:") || url.startsWith("/"))) {
