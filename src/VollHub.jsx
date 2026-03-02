@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense, memo, forwardRef } from "react";
+import { flushSync } from "react-dom";
 import { useSupabase } from "./useSupabase";
 import { useUserSession } from "./hooks/useUserSession";
 import { useGamification } from "./hooks/useGamification";
@@ -733,7 +734,7 @@ export default function VollHub() {
       const isHubLink = isHubByUrl || link.id === "hub";
       if (isHubLink) {
         const nextView = (userName && userWhatsApp) ? "hub" : "landing";
-        setView(nextView);
+        flushSync(() => setView(nextView));
         const params = new URLSearchParams(window.location.search);
         params.set("view", nextView);
         window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
