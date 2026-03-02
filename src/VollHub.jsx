@@ -728,20 +728,15 @@ export default function VollHub() {
   if (view === "linktree") {
     const activeLinks = bioLinks.filter(l => l.active && l.id !== "board" && l.id !== "calendario" && l.title !== "Board" && l.title !== "Calendário");
     const handleLinkClick = (link) => {
-      console.log("[VollHub] Link click:", link?.id, link?.title, "url:", link?.url);
       const url = (link.url || "").trim();
       const isHubByUrl = url === "_hub" || url === "hub" || url.replace(/^_/, "") === "hub";
       const isHubLink = isHubByUrl || link.id === "hub";
       if (isHubLink) {
-        try {
-          if (userName && userWhatsApp) {
-            setView("hub");
-          } else {
-            setView("landing");
-          }
-        } catch (e) {
-          try { setView("landing"); } catch (_) {}
-        }
+        const nextView = (userName && userWhatsApp) ? "hub" : "landing";
+        setView(nextView);
+        const params = new URLSearchParams(window.location.search);
+        params.set("view", nextView);
+        window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
         const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
         saveBioLinks(updated);
         return;
