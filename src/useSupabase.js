@@ -124,21 +124,21 @@ export function useSupabase() {
   const setAdminToken = (token) => { adminTokenRef.current = token }
 
   const adminFetch = async (body) => {
-    const res = await fetch('/api/admin', {
+    const res = await withTimeout(25000, fetch('/api/admin', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${adminTokenRef.current}`
       },
       body: JSON.stringify(body)
-    })
+    }))
     let result = null
     try {
       result = await res.json()
     } catch (_) {
       result = null
     }
-    if (!res.ok) throw new Error(result.error || 'Erro na API admin')
+    if (!res.ok) throw new Error(result?.error || 'Erro na API admin')
     return result
   }
 
@@ -296,7 +296,9 @@ export function useSupabase() {
       action: 'insert', table: 'materials',
       data: matToDb(mat), returnSingle: true
     })
-    const newMat = matFromDb(result.data)
+    const row = Array.isArray(result?.data) ? result.data[0] : result?.data
+    if (!row) throw new Error('API não retornou o material criado')
+    const newMat = matFromDb(row)
     setMaterials(p => [newMat, ...p])
     return newMat
   }

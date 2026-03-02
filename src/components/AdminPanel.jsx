@@ -113,7 +113,7 @@ export default function AdminPanel({
       setNewMat({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] }); setShowNewForm(false); showT("Criado! ✅");
     } catch (e) {
       console.error("Erro ao criar material:", e);
-      showT("Erro: " + (e.message || "Falha ao criar material"));
+      showT(e?.message === "timeout" ? "Demorou demais. Tente novamente." : ("Erro: " + (e.message || "Falha ao criar material")));
     } finally {
       setCreatingMaterial(false);
     }
