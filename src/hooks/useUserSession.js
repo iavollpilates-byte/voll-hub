@@ -3,6 +3,14 @@ import { normalizeWhatsApp } from "../utils";
 
 const LS_KEY = "vollhub_user";
 
+// Timeout para hidratação: após 15s resolve com null para não travar a UI
+function withTimeoutResolveNull(ms, promise) {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(null), ms);
+    promise.then((res) => { clearTimeout(t); resolve(res); }).catch(() => { clearTimeout(t); resolve(null); });
+  });
+}
+
 // Em dev (React.StrictMode) o efeito roda 2x; reutilizamos a mesma busca ao Supabase
 let sessionHydratePromise = null;
 
@@ -93,7 +101,7 @@ export function useUserSession(db, showT) {
     if (!sessionHydratePromise) {
       sessionHydratePromise = (async () => {
         try {
-          return await db.findLeadByWhatsApp(normalizedWA);
+          return await withTimeoutResolveNull(15000, db.findLeadByWhatsApp(normalizedWA));
         } catch (e) {
           console.error("useUserSession: failed to load from Supabase", e);
           return null;

@@ -98,6 +98,13 @@ const adminFromDb = (r) => ({
 // Em dev o React.StrictMode dispara efeitos 2x; compartilhamos a mesma carga para não duplicar requisições ao Supabase
 let loadAllPromise = null
 
+function withTimeout(ms, promise) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms)
+    promise.then((res) => { clearTimeout(t); resolve(res) }).catch((err) => { clearTimeout(t); reject(err) })
+  })
+}
+
 // ─── HOOK ───
 export function useSupabase() {
   const [materials, setMaterials] = useState([])
@@ -139,12 +146,13 @@ export function useSupabase() {
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
-      const [matRes, cfgRes, refRes, phaseRes] = await Promise.all([
+      const dataPromise = Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('config').select('*'),
         supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
         supabase.from('phases').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       ])
+      const [matRes, cfgRes, refRes, phaseRes] = await withTimeout(45000, dataPromise)
       if (matRes.error) throw matRes.error
       if (cfgRes.error) throw cfgRes.error
 
@@ -179,7 +187,7 @@ export function useSupabase() {
       return { materials: materialsData, reflections: reflectionsData, phases: phasesData, config: cfgObj }
     } catch (e) {
       console.error('Supabase load error:', e)
-      setError(e.message)
+      setError(e.message === 'timeout' ? 'Demorou demais. Tente recarregar.' : e.message)
       return null
     } finally {
       setLoading(false)
