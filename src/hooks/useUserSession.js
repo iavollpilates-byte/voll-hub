@@ -115,6 +115,7 @@ export function useUserSession(db, showT) {
       }
       setSessionLoading(false);
     });
+    return () => { mountedRef.current = false; };
   }, [db, hydrateFromLead]);
 
   const isLoggedIn = !!(userName && userWhatsApp && !sessionLoading);
