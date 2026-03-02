@@ -172,7 +172,14 @@ export function useSupabase() {
     }
   }, [])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setLoading(false)
+      setError('Demorou demais. Tente recarregar.')
+    }, 50000)
+    loadAll().finally(() => clearTimeout(safetyTimer))
+    return () => clearTimeout(safetyTimer)
+  }, [loadAll])
 
   // ─── ADMIN USERS (loaded via secure API) ───
   const loadAdminUsers = async () => {
