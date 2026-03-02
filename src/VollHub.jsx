@@ -728,6 +728,7 @@ export default function VollHub() {
   if (view === "linktree") {
     const activeLinks = bioLinks.filter(l => l.active && l.id !== "board" && l.id !== "calendario" && l.title !== "Board" && l.title !== "Calendário");
     const handleLinkClick = (link) => {
+      console.log("[VollHub] Link click:", link?.id, link?.title, "url:", link?.url);
       const url = (link.url || "").trim();
       const isHubByUrl = url === "_hub" || url === "hub" || url.replace(/^_/, "") === "hub";
       const isHubLink = isHubByUrl || link.id === "hub";
