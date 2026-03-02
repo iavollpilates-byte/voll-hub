@@ -4,8 +4,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { pin } = req.body || {};
-  const pinStr = pin != null ? String(pin).trim() : '';
-  if (!pinStr) return res.status(400).json({ error: 'PIN obrigatório' });
+  if (!pin) return res.status(400).json({ error: 'PIN obrigatório' });
 
   const adminPin = process.env.ADMIN_PIN;
   const adminToken = process.env.ADMIN_TOKEN;
@@ -13,7 +12,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ADMIN_TOKEN não configurado no Vercel. Defina em Settings > Environment Variables.' });
   }
 
-  if (adminPin && pinStr === String(adminPin).trim()) {
+  if (adminPin && pin === adminPin) {
     return res.status(200).json({
       token: adminToken,
       admin: {
@@ -37,7 +36,7 @@ export default async function handler(req, res) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { data, error } = await supabase.from('admin_users').select('id, name, pin, role, permissions').eq('pin', pinStr).limit(1);
+    const { data, error } = await supabase.from('admin_users').select('id, name, pin, role, permissions').eq('pin', pin).limit(1);
 
     if (error) {
       return res.status(500).json({ error: 'Erro ao consultar usuários admin: ' + error.message });

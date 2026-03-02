@@ -50,10 +50,6 @@ const leadFromDb = (r) => {
     streakCount: r.streak_count || 0, streakLastDate: r.streak_last_date || '', streakBest: r.streak_best || 0,
     totalDays: r.total_days || 0, reflectionsRead: r.reflections_read || [], milestonesAchieved: r.milestones_achieved || [],
     avatarUrl: r.avatar_url || '',
-    onboardingDone: !!r.onboarding_done,
-    seenHubOnce: !!r.seen_hub_once,
-    photoAnnounceSeen: !!r.photo_announce_seen,
-    refVotes: r.ref_votes || {},
     createdAt: r.created_at, updatedAt: r.updated_at,
   }
 }
@@ -78,10 +74,6 @@ const leadToDb = (l) => ({
   credits: l.credits ?? 3, credits_earned: l.creditsEarned || {},
   streak_count: l.streakCount || 0, streak_last_date: l.streakLastDate || '', streak_best: l.streakBest || 0,
   total_days: l.totalDays || 0, reflections_read: l.reflectionsRead || [], milestones_achieved: l.milestonesAchieved || [],
-  ...(l.onboardingDone !== undefined && { onboarding_done: !!l.onboardingDone }),
-  ...(l.seenHubOnce !== undefined && { seen_hub_once: !!l.seenHubOnce }),
-  ...(l.photoAnnounceSeen !== undefined && { photo_announce_seen: !!l.photoAnnounceSeen }),
-  ...(l.refVotes !== undefined && { ref_votes: l.refVotes }),
 })
 
 // Payload sem email/credits/credits_earned para DB que ainda não rodou a migração
@@ -95,16 +87,6 @@ const adminFromDb = (r) => ({
   id: r.id, name: r.name, pin: r.pin, role: r.role, permissions: r.permissions || {},
 })
 
-// Em dev o React.StrictMode dispara efeitos 2x; compartilhamos a mesma carga para não duplicar requisições ao Supabase
-let loadAllPromise = null
-
-function withTimeout(ms, promise) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('timeout')), ms)
-    promise.then((res) => { clearTimeout(t); resolve(res) }).catch((err) => { clearTimeout(t); reject(err) })
-  })
-}
-
 // ─── HOOK ───
 export function useSupabase() {
   const [materials, setMaterials] = useState([])
@@ -116,50 +98,51 @@ export function useSupabase() {
   const [supportRequests, setSupportRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [leadsLoading, setLeadsLoading] = useState(false)
-  const [leaderboard, setLeaderboard] = useState([])
 
   // ─── ADMIN TOKEN (for secure server-side operations) ───
   const adminTokenRef = useRef(null)
-  const loadSafetyTimerRef = useRef(null)
   const setAdminToken = (token) => { adminTokenRef.current = token }
 
   const adminFetch = async (body) => {
-    const res = await withTimeout(25000, fetch('/api/admin', {
+    const res = await fetch('/api/admin', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${adminTokenRef.current}`
       },
       body: JSON.stringify(body)
-    }))
-    let result = null
-    try {
-      result = await res.json()
-    } catch (_) {
-      result = null
-    }
-    if (!res.ok) throw new Error(result?.error || 'Erro na API admin')
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Erro na API admin')
     return result
   }
 
-  // ─── LOAD ALL (public data only — no leads; admin loads leads via loadLeads) ───
+  // ─── LOAD ALL (public data only — admin_users loaded separately after auth) ───
   const loadAll = useCallback(async () => {
     try {
       setLoading(true)
-      const dataPromise = Promise.all([
+      const PAGE = 1000
+      const [matRes, cfgRes, refRes, phaseRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('config').select('*'),
         supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
         supabase.from('phases').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       ])
-      const [matRes, cfgRes, refRes, phaseRes] = await withTimeout(45000, dataPromise)
       if (matRes.error) throw matRes.error
       if (cfgRes.error) throw cfgRes.error
 
-      const materialsData = (matRes.data || []).map(matFromDb)
-      const reflectionsData = (refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at }))
-      const phasesData = (phaseRes.data || []).map(phaseFromDb)
+      let allLeads = []
+      for (let offset = 0; offset < 50000; offset += PAGE) {
+        const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false }).range(offset, offset + PAGE - 1)
+        if (error) throw error
+        allLeads = allLeads.concat(data || [])
+        if (!data || data.length < PAGE) break
+      }
+
+      setMaterials((matRes.data || []).map(matFromDb))
+      setLeads(allLeads.map(leadFromDb))
+      setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
+      setPhases((phaseRes.data || []).map(phaseFromDb))
 
       const cfgObj = {}
       ;(cfgRes.data || []).forEach(r => {
@@ -172,10 +155,6 @@ export function useSupabase() {
           cfgObj[String(k).toLowerCase()] = v
         }
       })
-
-      setMaterials(materialsData)
-      setReflections(reflectionsData)
-      setPhases(phasesData)
       setConfig(cfgObj)
       setError(null)
 
@@ -185,76 +164,15 @@ export function useSupabase() {
           if (result.data) setAdminUsers(result.data.map(adminFromDb))
         } catch (_) {}
       }
-      return { materials: materialsData, reflections: reflectionsData, phases: phasesData, config: cfgObj }
     } catch (e) {
       console.error('Supabase load error:', e)
-      setError(e.message === 'timeout' ? 'Demorou demais. Tente recarregar.' : e.message)
-      return null
+      setError(e.message)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    if (!loadAllPromise) loadAllPromise = loadAll()
-    const clearLoadSafetyTimer = () => {
-      if (loadSafetyTimerRef.current) {
-        clearTimeout(loadSafetyTimerRef.current)
-        loadSafetyTimerRef.current = null
-      }
-    }
-    loadSafetyTimerRef.current = setTimeout(() => {
-      loadSafetyTimerRef.current = null
-      setLoading(false)
-      setError('Demorou demais. Tente recarregar.')
-    }, 50000)
-    const apply = (result) => {
-      clearLoadSafetyTimer()
-      if (result) {
-        setMaterials(result.materials)
-        setReflections(result.reflections)
-        setPhases(result.phases)
-        setConfig(result.config)
-        setError(null)
-      }
-      setLoading(false)
-    }
-    loadAllPromise.then(apply).catch(() => {
-      clearLoadSafetyTimer()
-      setLoading(false)
-    })
-    return () => clearLoadSafetyTimer()
-  }, [loadAll])
-
-  const loadLeads = useCallback(async (offset = 0, limit = 1000, append = false) => {
-    if (!adminTokenRef.current) return
-    try {
-      setLeadsLoading(true)
-      const result = await adminFetch({ action: 'list_leads', limit, offset })
-      const data = result.data || []
-      if (append && offset > 0) setLeads(prev => [...prev, ...data])
-      else setLeads(data)
-    } catch (e) {
-      console.error('loadLeads error:', e)
-    } finally {
-      setLeadsLoading(false)
-    }
-  }, [])
-
-  const fetchLeaderboard = useCallback(async (opts = {}) => {
-    const limit = opts.limit || 50
-    const me = opts.me ? encodeURIComponent(opts.me) : ''
-    const url = `/api/leaderboard?limit=${limit}${me ? `&me=${me}` : ''}`
-    try {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error('Leaderboard failed')
-      const data = await res.json()
-      setLeaderboard(Array.isArray(data) ? data : [])
-    } catch (e) {
-      console.error('fetchLeaderboard error:', e)
-      setLeaderboard([])
-    }
-  }, [])
+  useEffect(() => { loadAll() }, [loadAll])
 
   // ─── ADMIN USERS (loaded via secure API) ───
   const loadAdminUsers = async () => {
@@ -309,15 +227,15 @@ export function useSupabase() {
 
   // ─── MATERIALS ───
   const addMaterial = async (mat) => {
-    const result = await adminFetch({
-      action: 'insert', table: 'materials',
-      data: matToDb(mat), returnSingle: true
-    })
-    const row = Array.isArray(result?.data) ? result.data[0] : result?.data
-    if (!row) throw new Error('API não retornou o material criado')
-    const newMat = matFromDb(row)
-    setMaterials(p => [newMat, ...p])
-    return newMat
+    try {
+      const result = await adminFetch({
+        action: 'insert', table: 'materials',
+        data: matToDb(mat), returnSingle: true
+      })
+      const newMat = matFromDb(result.data)
+      setMaterials(p => [newMat, ...p])
+      return newMat
+    } catch (e) { console.error(e); return null }
   }
 
   const updateMaterial = async (id, updates) => {
@@ -352,20 +270,11 @@ export function useSupabase() {
   }
 
   const deleteMaterial = async (id) => {
-    let removedMaterial = null
-    setMaterials((p) => {
-      const found = p.find((m) => m.id === id)
-      if (found) removedMaterial = found
-      return p.filter((m) => m.id !== id)
-    })
     try {
       await adminFetch({ action: 'delete', table: 'materials', match: { id } })
+      setMaterials(p => p.filter(m => m.id !== id))
       return true
-    } catch (e) {
-      console.error(e)
-      if (removedMaterial) setMaterials((p) => [...p, removedMaterial])
-      return false
-    }
+    } catch (e) { console.error(e); return false }
   }
 
   // ─── LEADS (user-facing — direct Supabase) ───
@@ -403,7 +312,6 @@ export function useSupabase() {
       streakCount: 'streak_count', streakLastDate: 'streak_last_date', streakBest: 'streak_best',
       totalDays: 'total_days', reflectionsRead: 'reflections_read', milestonesAchieved: 'milestones_achieved',
       avatarUrl: 'avatar_url',
-      onboardingDone: 'onboarding_done', seenHubOnce: 'seen_hub_once', photoAnnounceSeen: 'photo_announce_seen', refVotes: 'ref_votes',
     }
     Object.entries(updates).forEach(([k, v]) => {
       if (keyMap[k]) dbUpdates[keyMap[k]] = v
@@ -417,17 +325,18 @@ export function useSupabase() {
 
   const findLeadByWhatsApp = async (wa) => {
     const digits = String(wa).replace(/\D/g, '')
-    const candidates = []
-    if (digits.length >= 10) {
-      candidates.push(digits)
-      if (digits.length === 11) candidates.push('55' + digits)
-      if (digits.length === 13 && digits.startsWith('55')) candidates.push(digits.slice(2))
-    }
-    const unique = [...new Set(candidates)]
-    if (unique.length === 0) return null
-
-    const { data } = await supabase.from('leads').select('*').in('whatsapp', unique).limit(1)
+    let { data } = await supabase.from('leads').select('*').eq('whatsapp', wa).limit(1)
     if (data && data.length > 0) return leadFromDb(data[0])
+    if (digits.length === 13 && digits.startsWith('55')) {
+      const { data: data2 } = await supabase.from('leads').select('*').eq('whatsapp', digits.slice(2)).limit(1)
+      if (data2 && data2.length > 0) return leadFromDb(data2)
+      const { data: data3 } = await supabase.from('leads').select('*').eq('whatsapp', digits).limit(1)
+      if (data3 && data3.length > 0) return leadFromDb(data3[0])
+    }
+    if (digits.length === 11) {
+      const { data: data4 } = await supabase.from('leads').select('*').eq('whatsapp', '55' + digits).limit(1)
+      if (data4 && data4.length > 0) return leadFromDb(data4[0])
+    }
     return null
   }
 
@@ -595,7 +504,6 @@ export function useSupabase() {
 
   return {
     materials, leads, adminUsers, config, reflections, phases, supportRequests, loading, error,
-    leaderboard, leadsLoading, loadLeads, fetchLeaderboard,
     setMaterials, setLeads, setPhases,
     addMaterial, updateMaterial, deleteMaterial,
     addLead, updateLead, findLeadByWhatsApp,

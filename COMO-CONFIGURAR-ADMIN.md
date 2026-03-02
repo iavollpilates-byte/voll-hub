@@ -1,23 +1,6 @@
 # Como configurar o login Admin (passo a passo)
 
-Se ao digitar o PIN aparece **"Servidor indisponível"**, **"Não foi possível conectar"**, **"Erro no servidor (500)"** ou **"PIN incorreto"** (mesmo com o PIN certo), siga estes passos.
-
----
-
-## Rodar o projeto em local (com login Admin funcionando)
-
-Se você está usando **`npm run dev`** (Vite), o frontend abre em `http://localhost:5173` (ou 5174), mas as rotas **`/api/*`** (como login por PIN) **não existem** nesse servidor. Por isso o login pode dar sempre "PIN incorreto" ou erro de rede.
-
-Para ter **frontend + API** rodando em local (e o PIN funcionar):
-
-1. Instale o Vercel CLI (uma vez):  
-   `npm i -g vercel`
-2. Na pasta do projeto, crie um arquivo **`.env.local`** com as mesmas variáveis do Vercel (ex.: `ADMIN_PIN`, `ADMIN_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`). Não commite esse arquivo.
-3. Rode:  
-   **`vercel dev`**
-4. Acesse o endereço que aparecer (ex.: `http://localhost:3000`). Aí o login com PIN usa a API local e as variáveis do `.env.local`.
-
-Resumo: **`npm run dev`** = só frontend (PIN não funciona). **`vercel dev`** = frontend + API (PIN funciona com `.env.local`).
+Se ao digitar o PIN aparece **"Servidor indisponível"**, **"Não foi possível conectar"** ou **"Erro no servidor (500)"**, siga estes passos.
 
 ---
 

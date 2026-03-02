@@ -1,4 +1,4 @@
-const CACHE_STATIC = 'voll-hub-static-v3';
+const CACHE_STATIC = 'voll-hub-static-v2';
 const CACHE_API = 'voll-hub-api-v1';
 const STATIC_ASSETS = ['/', '/index.html'];
 
@@ -28,21 +28,18 @@ self.addEventListener('fetch', (e) => {
 
   if (request.method !== 'GET') return;
 
-  // App shell: same origin — network-first so deploys are seen immediately (no stale click handlers)
+  // App shell: same origin (HTML, JS, CSS, etc.)
   if (url.origin === self.location.origin) {
-    const isDocument = request.mode === 'navigate' || request.destination === 'document';
-    const isScriptOrStyle = request.destination === 'script' || request.destination === 'style' || request.destination === '';
-    const fetchOpts = isDocument ? { cache: 'reload' } : {}; // force fresh HTML so users get latest JS after deploy
     e.respondWith(
-      fetch(request, fetchOpts)
+      fetch(request)
         .then((res) => {
           const clone = res.clone();
-          if (res.status === 200 && (isDocument || isScriptOrStyle)) {
+          if (res.status === 200 && (request.destination === 'document' || request.destination === 'script' || request.destination === 'style' || request.destination === '')) {
             caches.open(CACHE_STATIC).then((c) => c.put(request, clone));
           }
           return res;
         })
-        .catch(() => caches.match(request).then((cached) => cached || (isDocument ? caches.match('/index.html') : null)))
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
     );
     return;
   }

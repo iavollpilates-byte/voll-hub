@@ -34,7 +34,6 @@ export default function AdminPanel({
   currentAdmin, setCurrentAdmin, isMaster, can,
   showT, animateIn, Toast,
   materials, leads, adminUsers, dbReflections, dbPhases,
-  leadsLoading, loadLeads,
   bioLinks, saveBioLinks,
   activeMats, totalDl, getMatDownloads, getRecentPerson,
   creditsEnabled, todayStr,
@@ -54,15 +53,12 @@ export default function AdminPanel({
   const [newMat, setNewMat] = useState({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [], creditCost: 0 });
   const [showIconPicker, setShowIconPicker] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [creatingMaterial, setCreatingMaterial] = useState(false);
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", pin: "", permissions: { materials_view: true, materials_edit: false, leads_view: true, leads_export: false, leads_whatsapp: false, textos_edit: false, users_manage: false } });
   const [editUserId, setEditUserId] = useState(null);
   const [searchLead, setSearchLead] = useState("");
   const [leadFilter, setLeadFilter] = useState("all");
   const [atuaPilatesFilter, setAtuaPilatesFilter] = useState("");
-  const [leadSortKey, setLeadSortKey] = useState("lastVisit");
-  const [leadSortDir, setLeadSortDir] = useState("desc");
   const [showBulkWA, setShowBulkWA] = useState(false);
   const [bulkMsg, setBulkMsg] = useState("Olá {nome}! 👋 Temos novos materiais exclusivos no VOLL Pilates Hub. Acesse agora!");
   const [bulkWAIndex, setBulkWAIndex] = useState(-1);
@@ -92,31 +88,15 @@ export default function AdminPanel({
 
   const updCfg = (k, v) => { db.updateConfig(k, v); addLog(`Editou config: ${k}`); };
   const updMat = (id, k, v) => { const mat = materials.find(m => m.id === id); db.updateMaterial(id, { [k]: v }); addLog(`Editou material "${mat?.title || id}": ${k}`); };
-  const deleteMat = (id) => {
-    setConfirmDeleteId(null);
-    setEditId(null);
-    showT("Excluído! 🗑️");
-    db.deleteMaterial(id).then((ok) => {
-      if (!ok) showT("Erro ao excluir. Tente novamente.");
-    });
-  };
+  const deleteMat = async (id) => { const ok = await db.deleteMaterial(id); setConfirmDeleteId(null); setEditId(null); if (ok) showT("Excluído! 🗑️"); else showT("Erro ao excluir. Tente novamente."); };
 
   const addMat = async () => {
     if (!newMat.title.trim()) return showT("Preencha o título!");
-    setCreatingMaterial(true);
-    showT("Criando material...");
     const today = new Date(); const d = `${String(today.getDate()).padStart(2, "0")} ${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][today.getMonth()]} ${today.getFullYear()}`;
-    try {
-      const created = await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
-      if (!created) { showT("Erro ao criar material. Tente novamente."); return; }
-      addLog(`Criou material "${newMat.title}"`);
-      setNewMat({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] }); setShowNewForm(false); showT("Criado! ✅");
-    } catch (e) {
-      console.error("Erro ao criar material:", e);
-      showT(e?.message === "timeout" ? "Demorou demais. Tente novamente." : ("Erro: " + (e.message || "Falha ao criar material")));
-    } finally {
-      setCreatingMaterial(false);
-    }
+    const created = await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
+    if (!created) { showT("Erro ao criar material. Tente novamente."); return; }
+    addLog(`Criou material "${newMat.title}"`);
+    setNewMat({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [] }); setShowNewForm(false); showT("Criado! ✅");
   };
 
   const copyLink = (id) => {
@@ -150,32 +130,6 @@ export default function AdminPanel({
     [...new Set(leads.map(l => l.atuaPilates).filter(Boolean))].sort(),
     [leads]
   );
-
-  const toggleLeadSort = useCallback((key) => {
-    setLeadSortKey(prev => {
-      if (prev === key) { setLeadSortDir(d => d === "asc" ? "desc" : "asc"); return key; }
-      setLeadSortDir(key === "name" ? "asc" : "desc");
-      return key;
-    });
-  }, []);
-
-  const sortedLeads = useMemo(() => {
-    const sorted = [...segmentedLeads];
-    sorted.sort((a, b) => {
-      let va, vb;
-      switch (leadSortKey) {
-        case "name": va = a.name.toLowerCase(); vb = b.name.toLowerCase(); break;
-        case "downloads": va = a.downloads.length; vb = b.downloads.length; break;
-        case "visits": va = a.visits || 0; vb = b.visits || 0; break;
-        case "lastVisit": va = a.lastVisit || ""; vb = b.lastVisit || ""; break;
-        default: return 0;
-      }
-      if (va < vb) return leadSortDir === "asc" ? -1 : 1;
-      if (va > vb) return leadSortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return sorted;
-  }, [segmentedLeads, leadSortKey, leadSortDir]);
 
   const dlCountByMat = useMemo(() => {
     const map = {};
@@ -340,7 +294,7 @@ export default function AdminPanel({
       <div style={{ paddingTop: 8, borderTop: `1px solid ${T.cardBorder}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <label style={{ fontSize: 10, fontWeight: 700, color: "#e8443a", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Plus Jakarta Sans'" }}>⚡ Funil de qualificação</label>
-          <button onClick={() => { onChange("funnel", mat.funnel ? null : { questions: [], cta: null }); }} style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: mat.funnel ? "#e8443a22" : T.inputBg, color: mat.funnel ? "#e8443a" : T.textFaint, border: `1px solid ${mat.funnel ? "#e8443a44" : T.inputBorder}` }}>{mat.funnel ? "✅ Ativo" : "Desativado"}</button>
+          <button onClick={() => onChange("funnel", mat.funnel ? null : { questions: [], cta: null })} style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: mat.funnel ? "#e8443a22" : T.inputBg, color: mat.funnel ? "#e8443a" : T.textFaint, border: `1px solid ${mat.funnel ? "#e8443a44" : T.inputBorder}` }}>{mat.funnel ? "✅ Ativo" : "Desativado"}</button>
         </div>
         {mat.funnel && (() => {
           const funnel = mat.funnel;
@@ -543,18 +497,12 @@ export default function AdminPanel({
             UnlockEditor={UnlockEditor}
             setShowIconPicker={setShowIconPicker}
             sInp={sInp}
-            creatingMaterial={creatingMaterial}
           />
         )}
 
         {/* LEADS */}
         {adminTab === "leads" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {leads.length === 0 && leadsLoading && (
-              <p style={{ textAlign: "center", color: T.textMuted, fontSize: 14, padding: 24, fontFamily: "'Plus Jakarta Sans'" }}>Carregando leads…</p>
-            )}
-            {!(leads.length === 0 && leadsLoading) && (
-            <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <input style={{ ...inp, flex: "1 1 200px" }} placeholder="🔍 Buscar por nome ou WhatsApp..." value={searchLead} onChange={(e) => setSearchLead(e.target.value)} key="lead-search" />
               <div style={{ minWidth: 160 }}>
@@ -566,8 +514,8 @@ export default function AdminPanel({
               </div>
             </div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {can("leads_export") && <button onClick={() => exportCSV(sortedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📊 Exportar CSV</button>}
-              {can("leads_export") && <button onClick={() => copyAllNumbers(sortedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📋 Copiar números</button>}
+              {can("leads_export") && <button onClick={() => exportCSV(segmentedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📊 Exportar CSV</button>}
+              {can("leads_export") && <button onClick={() => copyAllNumbers(segmentedLeads)} style={{ padding: "6px 12px", borderRadius: 8, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 12, fontWeight: 600, flex: 1 }}>📋 Copiar números</button>}
               {can("leads_whatsapp") && <button onClick={() => setShowBulkWA(true)} style={{ padding: "6px 12px", borderRadius: 8, background: "#25D36622", border: "1px solid #25D36644", color: "#25D366", fontSize: 12, fontWeight: 600, flex: 1 }}>💬 Enviar em massa</button>}
             </div>
             <div style={{ display: "flex", gap: 2, padding: 2, background: T.tabBg, borderRadius: 8, border: `1px solid ${T.tabBorder}` }}>
@@ -603,23 +551,13 @@ export default function AdminPanel({
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "'Plus Jakarta Sans'" }}>
                 <thead>
                   <tr style={{ borderBottom: `2px solid ${T.cardBorder}` }}>
-                    {[
-                      { label: "Nome", key: "name" },
-                      { label: "WhatsApp" },
-                      { label: "Seg." },
-                      { label: "Downloads", key: "downloads" },
-                      { label: "Visitas", key: "visits" },
-                      { label: "Última", key: "lastVisit" },
-                      { label: "" },
-                    ].map(h => (
-                      <th key={h.label || "_actions"} onClick={h.key ? () => toggleLeadSort(h.key) : undefined} style={{ textAlign: "left", padding: "8px 10px", color: leadSortKey === h.key ? T.accent : T.textMuted, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap", cursor: h.key ? "pointer" : "default", userSelect: "none" }}>
-                        {h.label}{leadSortKey === h.key ? (leadSortDir === "asc" ? " ▲" : " ▼") : ""}
-                      </th>
+                    {["Nome", "WhatsApp", "Seg.", "Downloads", "Visitas", "Última", ""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: T.textMuted, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedLeads.map((l) => {
+                  {segmentedLeads.map((l) => {
                     const seg = getLeadSegment(l);
                     const segColor = seg === "hot" ? T.gold : seg === "warm" ? T.accent : T.textFaint;
                     return (
@@ -662,18 +600,13 @@ export default function AdminPanel({
                 </tbody>
               </table>
             </div>
-            <p style={{ color: T.textFaint, fontSize: 11, textAlign: "center", marginTop: 6, fontFamily: "'Plus Jakarta Sans'" }}>{sortedLeads.length} de {leads.length} lead{leads.length !== 1 && "s"}</p>
-            {loadLeads && (
-              <button type="button" onClick={() => loadLeads(leads.length, 1000, true)} disabled={leadsLoading} style={{ padding: "10px 16px", borderRadius: 10, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.accent, fontSize: 13, fontWeight: 600, alignSelf: "center", fontFamily: "'Plus Jakarta Sans'" }}>{leadsLoading ? "Carregando…" : "Carregar mais"}</button>
-            )}
-            </>
-            )}
+            <p style={{ color: T.textFaint, fontSize: 11, textAlign: "center", marginTop: 6, fontFamily: "'Plus Jakarta Sans'" }}>{segmentedLeads.length} de {leads.length} lead{leads.length !== 1 && "s"}</p>
           </div>
         )}
 
         {/* BULK WHATSAPP MODAL */}
         {showBulkWA && (() => {
-          const bulkList = bulkWAListOverride || sortedLeads;
+          const bulkList = bulkWAListOverride || segmentedLeads;
           const sending = bulkWAIndex >= 0;
           const currentLead = sending ? bulkList[bulkWAIndex] : null;
           const total = bulkList.length;

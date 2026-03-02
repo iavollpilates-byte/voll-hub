@@ -44,11 +44,6 @@ export default class ErrorBoundary extends Component {
           <p style={{ fontSize: 14, color: muted, marginBottom: 24, maxWidth: 320 }}>
             Ocorreu um erro inesperado. Tente recarregar a página.
           </p>
-          {err?.message && (
-            <p style={{ fontSize: 12, color: muted, marginBottom: 16, maxWidth: 360, wordBreak: "break-word", textAlign: "center" }}>
-              {err.message}
-            </p>
-          )}
           {showDebug && err && (
             <pre style={{ fontSize: 11, color: muted, textAlign: "left", maxWidth: "100%", overflow: "auto", marginBottom: 16, padding: 12, background: "rgba(0,0,0,0.1)", borderRadius: 8 }}>
               {err.message}
