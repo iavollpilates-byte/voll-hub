@@ -728,16 +728,16 @@ export default function VollHub() {
   if (view === "linktree") {
     const activeLinks = bioLinks.filter(l => l.active && l.id !== "board" && l.id !== "calendario" && l.title !== "Board" && l.title !== "Calendário");
     const handleLinkClick = (link) => {
-      // Track click
-      const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
-      saveBioLinks(updated);
-      // Navigate
-      if (link.url === "_hub") {
-        if (userName && userWhatsApp) { setView("hub"); return; }
-        setView("landing");
+      const url = (link.url || "").trim();
+      const isHub = url === "_hub" || url === "hub" || url.replace(/^_/, "") === "hub";
+      if (isHub) {
+        if (userName && userWhatsApp) { setView("hub"); } else { setView("landing"); }
       } else {
         window.open(link.url, "_blank");
       }
+      // Track click after navigation so a failed save doesn't block the user
+      const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
+      saveBioLinks(updated);
     };
 
     return (
