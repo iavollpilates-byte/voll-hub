@@ -121,6 +121,7 @@ export function useSupabase() {
 
   // ─── ADMIN TOKEN (for secure server-side operations) ───
   const adminTokenRef = useRef(null)
+  const loadSafetyTimerRef = useRef(null)
   const setAdminToken = (token) => { adminTokenRef.current = token }
 
   const adminFetch = async (body) => {
@@ -196,7 +197,19 @@ export function useSupabase() {
 
   useEffect(() => {
     if (!loadAllPromise) loadAllPromise = loadAll()
+    const clearLoadSafetyTimer = () => {
+      if (loadSafetyTimerRef.current) {
+        clearTimeout(loadSafetyTimerRef.current)
+        loadSafetyTimerRef.current = null
+      }
+    }
+    loadSafetyTimerRef.current = setTimeout(() => {
+      loadSafetyTimerRef.current = null
+      setLoading(false)
+      setError('Demorou demais. Tente recarregar.')
+    }, 50000)
     const apply = (result) => {
+      clearLoadSafetyTimer()
       if (result) {
         setMaterials(result.materials)
         setReflections(result.reflections)
@@ -206,7 +219,11 @@ export function useSupabase() {
       }
       setLoading(false)
     }
-    loadAllPromise.then(apply).catch(() => setLoading(false))
+    loadAllPromise.then(apply).catch(() => {
+      clearLoadSafetyTimer()
+      setLoading(false)
+    })
+    return () => clearLoadSafetyTimer()
   }, [loadAll])
 
   const loadLeads = useCallback(async (offset = 0, limit = 1000, append = false) => {

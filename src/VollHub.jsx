@@ -144,6 +144,12 @@ const MaterialCard = memo(forwardRef(function MaterialCard({
 export default function VollHub() {
   const [view, setView] = useState("linktree");
   const [theme, setTheme] = useState("light");
+  const [safetyShow, setSafetyShow] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSafetyShow(true), 20000);
+    return () => clearTimeout(t);
+  }, []);
 
   // ─── SUPABASE (must be before anything that uses config) ───
   const db = useSupabase();
@@ -726,7 +732,7 @@ export default function VollHub() {
   }, [creditsEnabled, userCredits, profileComplete, markNewAsSeen, selectMat, setShowCreditStore, showT, setView, setCurrentSurvey, setTempAnswers, setPreviewImgIdx, setUnlock]);
 
   // ─── LOADING ───
-  if (dbLoading || sessionLoading) return (
+  if ((dbLoading || sessionLoading) && !safetyShow) return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: T.bg, fontFamily: "'Outfit'" }}>
       <style>{getCSS(T)}</style>
       <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>⚡</div>

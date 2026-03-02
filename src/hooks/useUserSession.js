@@ -64,6 +64,7 @@ export function useUserSession(db, showT) {
   const mountedRef = useRef(false);
   const hydratedRef = useRef(false);
   const hydrationStartedRef = useRef(false);
+  const safetyTimerRef = useRef(null);
 
   const hydrateFromLead = useCallback((lead) => {
     if (!lead) return;
@@ -111,14 +112,31 @@ export function useUserSession(db, showT) {
         }
       })();
     }
+    const clearSafetyTimer = () => {
+      if (safetyTimerRef.current) {
+        clearTimeout(safetyTimerRef.current);
+        safetyTimerRef.current = null;
+      }
+    };
+    safetyTimerRef.current = setTimeout(() => {
+      safetyTimerRef.current = null;
+      setSessionLoading(false);
+    }, 20000);
     sessionHydratePromise.then((lead) => {
+      clearSafetyTimer();
       if (lead && mountedRef.current) {
         hydrateFromLead(lead);
         if (lead.name !== identity.name) setUserName(lead.name);
       }
       setSessionLoading(false);
+    }).catch(() => {
+      clearSafetyTimer();
+      setSessionLoading(false);
     });
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+      clearSafetyTimer();
+    };
   }, [db, hydrateFromLead]);
 
   const isLoggedIn = !!(userName && userWhatsApp && !sessionLoading);
