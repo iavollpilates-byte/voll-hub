@@ -360,7 +360,11 @@ export default function VollHub() {
     urlParamsRef.current = true;
     const params = new URLSearchParams(window.location.search);
     const mParam = params.get("m");
-    const vParam = params.get("view");
+    let vParam = params.get("view");
+    if (!vParam && typeof window !== "undefined" && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      vParam = hashParams.get("view");
+    }
     if (mParam) setDeepLinkMatId(parseInt(mParam, 10));
     if (vParam === "landing" || vParam === "cadastro") setView("landing");
     else if (vParam === "hub" || vParam === "materiais") setView("hub");
@@ -371,13 +375,30 @@ export default function VollHub() {
   useEffect(() => {
     if (sessionLoading) return;
     const params = new URLSearchParams(window.location.search);
+    let vParam = params.get("view");
+    if (!vParam && typeof window !== "undefined" && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      vParam = hashParams.get("view");
+    }
     const mParam = params.get("m");
-    const vParam = params.get("view");
     if (mParam || vParam === "hub" || vParam === "materiais") {
       if (userName && userWhatsApp) setView("hub");
       else if (view === "linktree") setView("landing");
     }
   }, [sessionLoading, userName, userWhatsApp]);
+
+  // React to hash change (e.g. click on <a href="/#view=hub"> without full reload)
+  useEffect(() => {
+    const onHashChange = () => {
+      if (typeof window === "undefined" || !window.location.hash) return;
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const v = hashParams.get("view");
+      if (v === "hub" || v === "materiais") setView("hub");
+      else if (v === "landing" || v === "cadastro") setView("landing");
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   // Scroll to spotlight when entering hub with deep link
   useEffect(() => {
@@ -735,9 +756,9 @@ export default function VollHub() {
       if (isHubLink) {
         const nextView = (userName && userWhatsApp) ? "hub" : "landing";
         const newUrl = `${window.location.pathname}?view=${nextView}`;
+        window.location.replace(newUrl);
         const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
         saveBioLinks(updated);
-        window.location.assign(newUrl);
         return;
       }
       if (url && (url.startsWith("http") || url.startsWith("mailto:") || url.startsWith("/"))) {
@@ -782,16 +803,20 @@ export default function VollHub() {
               const hasImg = !!link.imageUrl;
               const isHero = isHL && i === 0;
               const grad = isHL ? (link.color || "linear-gradient(135deg, #1a3a30, #0d2920)") : "";
-              return (
-                <div key={link.id} onClick={() => handleLinkClick(link)} className={`bio-card${isHero ? " bio-hero" : ""}`} style={{
-                  borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative",
-                  border: isHL ? `2px solid ${T.gold}` : `1px solid ${T.cardBorder}`,
-                  background: hasImg ? "transparent" : (grad || T.cardBg),
-                  opacity: animateIn ? 1 : 0,
-                  transform: animateIn ? "translateY(0) scale(1)" : "translateY(15px) scale(0.97)",
-                  transition: `all 0.4s ease ${i * 0.06}s`,
-                  boxShadow: isHero ? `0 6px 30px ${T.gold}44, 0 0 0 1px ${T.gold}22` : isHL ? `0 4px 20px ${T.gold}33` : "0 2px 8px rgba(0,0,0,0.06)",
-                }}>
+              const linkUrl = (link.url || "").trim();
+              const isHubLink = linkUrl === "_hub" || linkUrl === "hub" || linkUrl.replace(/^_/, "") === "hub" || link.id === "hub";
+              const hubHref = isHubLink ? `${window.location.pathname}${window.location.search || ""}#view=${(userName && userWhatsApp) ? "hub" : "landing"}` : null;
+              const cardStyle = {
+                borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative",
+                border: isHL ? `2px solid ${T.gold}` : `1px solid ${T.cardBorder}`,
+                background: hasImg ? "transparent" : (grad || T.cardBg),
+                opacity: animateIn ? 1 : 0,
+                transform: animateIn ? "translateY(0) scale(1)" : "translateY(15px) scale(0.97)",
+                transition: `all 0.4s ease ${i * 0.06}s`,
+                boxShadow: isHero ? `0 6px 30px ${T.gold}44, 0 0 0 1px ${T.gold}22` : isHL ? `0 4px 20px ${T.gold}33` : "0 2px 8px rgba(0,0,0,0.06)",
+              };
+              const cardContent = (
+                <>
                   {isHL && <div style={{ position: "absolute", top: isHero ? 10 : 8, right: isHero ? 12 : 10, fontSize: isHero ? 11 : 10, fontWeight: 700, color: T.gold, background: `${T.gold}22`, padding: isHero ? "4px 10px" : "3px 8px", borderRadius: 6, zIndex: 2, fontFamily: "'Plus Jakarta Sans'", letterSpacing: 0.5, border: `1px solid ${T.gold}33`, pointerEvents: "none" }}>{link.badge || "🔥 DESTAQUE"}</div>}
                   {hasImg ? (
                     <img src={link.imageUrl} alt={link.title} style={{ width: "100%", display: "block", maxHeight: 120, objectFit: "cover" }} />
@@ -805,6 +830,20 @@ export default function VollHub() {
                       <span style={{ fontSize: isHero ? 20 : 16, color: isHL ? T.gold : T.accent, flexShrink: 0 }}>›</span>
                     </div>
                   )}
+                </>
+              );
+              if (hubHref) {
+                return (
+                  <a key={link.id} href={hubHref} className={`bio-card${isHero ? " bio-hero" : ""}`} style={{ ...cardStyle, textDecoration: "none", color: "inherit" }} onClick={() => {
+                    const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l); saveBioLinks(updated);
+                  }}>
+                    {cardContent}
+                  </a>
+                );
+              }
+              return (
+                <div key={link.id} onClick={() => handleLinkClick(link)} className={`bio-card${isHero ? " bio-hero" : ""}`} style={cardStyle}>
+                  {cardContent}
                 </div>
               );
             })}

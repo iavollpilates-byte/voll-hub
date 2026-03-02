@@ -63,6 +63,7 @@ export function useUserSession(db, showT) {
 
   const mountedRef = useRef(false);
   const hydratedRef = useRef(false);
+  const hydrationStartedRef = useRef(false);
 
   const hydrateFromLead = useCallback((lead) => {
     if (!lead) return;
@@ -87,6 +88,8 @@ export function useUserSession(db, showT) {
   useEffect(() => {
     if (mountedRef.current) return;
     mountedRef.current = true;
+    if (hydrationStartedRef.current) return;
+    hydrationStartedRef.current = true;
 
     const identity = readIdentityFromLS();
     if (!identity) {
@@ -109,7 +112,7 @@ export function useUserSession(db, showT) {
       })();
     }
     sessionHydratePromise.then((lead) => {
-      if (lead) {
+      if (lead && mountedRef.current) {
         hydrateFromLead(lead);
         if (lead.name !== identity.name) setUserName(lead.name);
       }
