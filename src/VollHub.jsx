@@ -729,13 +729,25 @@ export default function VollHub() {
     const activeLinks = bioLinks.filter(l => l.active && l.id !== "board" && l.id !== "calendario" && l.title !== "Board" && l.title !== "Calendário");
     const handleLinkClick = (link) => {
       const url = (link.url || "").trim();
-      const isHub = url === "_hub" || url === "hub" || url.replace(/^_/, "") === "hub";
-      if (isHub) {
-        if (userName && userWhatsApp) { setView("hub"); } else { setView("landing"); }
-      } else {
+      const isHubByUrl = url === "_hub" || url === "hub" || url.replace(/^_/, "") === "hub";
+      const isHubLink = isHubByUrl || link.id === "hub";
+      if (isHubLink) {
+        try {
+          if (userName && userWhatsApp) {
+            setView("hub");
+          } else {
+            setView("landing");
+          }
+        } catch (e) {
+          try { setView("landing"); } catch (_) {}
+        }
+        const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
+        saveBioLinks(updated);
+        return;
+      }
+      if (url && (url.startsWith("http") || url.startsWith("mailto:") || url.startsWith("/"))) {
         window.open(link.url, "_blank");
       }
-      // Track click after navigation so a failed save doesn't block the user
       const updated = bioLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
       saveBioLinks(updated);
     };
@@ -785,7 +797,7 @@ export default function VollHub() {
                   transition: `all 0.4s ease ${i * 0.06}s`,
                   boxShadow: isHero ? `0 6px 30px ${T.gold}44, 0 0 0 1px ${T.gold}22` : isHL ? `0 4px 20px ${T.gold}33` : "0 2px 8px rgba(0,0,0,0.06)",
                 }}>
-                  {isHL && <div style={{ position: "absolute", top: isHero ? 10 : 8, right: isHero ? 12 : 10, fontSize: isHero ? 11 : 10, fontWeight: 700, color: T.gold, background: `${T.gold}22`, padding: isHero ? "4px 10px" : "3px 8px", borderRadius: 6, zIndex: 2, fontFamily: "'Plus Jakarta Sans'", letterSpacing: 0.5, border: `1px solid ${T.gold}33` }}>{link.badge || "🔥 DESTAQUE"}</div>}
+                  {isHL && <div style={{ position: "absolute", top: isHero ? 10 : 8, right: isHero ? 12 : 10, fontSize: isHero ? 11 : 10, fontWeight: 700, color: T.gold, background: `${T.gold}22`, padding: isHero ? "4px 10px" : "3px 8px", borderRadius: 6, zIndex: 2, fontFamily: "'Plus Jakarta Sans'", letterSpacing: 0.5, border: `1px solid ${T.gold}33`, pointerEvents: "none" }}>{link.badge || "🔥 DESTAQUE"}</div>}
                   {hasImg ? (
                     <img src={link.imageUrl} alt={link.title} style={{ width: "100%", display: "block", maxHeight: 120, objectFit: "cover" }} />
                   ) : (
