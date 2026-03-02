@@ -95,6 +95,9 @@ const adminFromDb = (r) => ({
   id: r.id, name: r.name, pin: r.pin, role: r.role, permissions: r.permissions || {},
 })
 
+// Em dev o React.StrictMode dispara efeitos 2x; compartilhamos a mesma carga para não duplicar requisições ao Supabase
+let loadAllPromise = null
+
 // ─── HOOK ───
 export function useSupabase() {
   const [materials, setMaterials] = useState([])
@@ -122,7 +125,12 @@ export function useSupabase() {
       },
       body: JSON.stringify(body)
     })
-    const result = await res.json()
+    let result = null
+    try {
+      result = await res.json()
+    } catch (_) {
+      result = null
+    }
     if (!res.ok) throw new Error(result.error || 'Erro na API admin')
     return result
   }
@@ -140,9 +148,9 @@ export function useSupabase() {
       if (matRes.error) throw matRes.error
       if (cfgRes.error) throw cfgRes.error
 
-      setMaterials((matRes.data || []).map(matFromDb))
-      setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
-      setPhases((phaseRes.data || []).map(phaseFromDb))
+      const materialsData = (matRes.data || []).map(matFromDb)
+      const reflectionsData = (refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at }))
+      const phasesData = (phaseRes.data || []).map(phaseFromDb)
 
       const cfgObj = {}
       ;(cfgRes.data || []).forEach(r => {
@@ -155,6 +163,10 @@ export function useSupabase() {
           cfgObj[String(k).toLowerCase()] = v
         }
       })
+
+      setMaterials(materialsData)
+      setReflections(reflectionsData)
+      setPhases(phasesData)
       setConfig(cfgObj)
       setError(null)
 
@@ -164,15 +176,30 @@ export function useSupabase() {
           if (result.data) setAdminUsers(result.data.map(adminFromDb))
         } catch (_) {}
       }
+      return { materials: materialsData, reflections: reflectionsData, phases: phasesData, config: cfgObj }
     } catch (e) {
       console.error('Supabase load error:', e)
       setError(e.message)
+      return null
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => {
+    if (!loadAllPromise) loadAllPromise = loadAll()
+    const apply = (result) => {
+      if (result) {
+        setMaterials(result.materials)
+        setReflections(result.reflections)
+        setPhases(result.phases)
+        setConfig(result.config)
+        setError(null)
+      }
+      setLoading(false)
+    }
+    loadAllPromise.then(apply).catch(() => setLoading(false))
+  }, [loadAll])
 
   const loadLeads = useCallback(async (offset = 0, limit = 1000, append = false) => {
     if (!adminTokenRef.current) return
@@ -298,11 +325,20 @@ export function useSupabase() {
   }
 
   const deleteMaterial = async (id) => {
+    let removedMaterial = null
+    setMaterials((p) => {
+      const found = p.find((m) => m.id === id)
+      if (found) removedMaterial = found
+      return p.filter((m) => m.id !== id)
+    })
     try {
       await adminFetch({ action: 'delete', table: 'materials', match: { id } })
-      setMaterials(p => p.filter(m => m.id !== id))
       return true
-    } catch (e) { console.error(e); return false }
+    } catch (e) {
+      console.error(e)
+      if (removedMaterial) setMaterials((p) => [...p, removedMaterial])
+      return false
+    }
   }
 
   // ─── LEADS (user-facing — direct Supabase) ───
@@ -354,11 +390,16 @@ export function useSupabase() {
 
   const findLeadByWhatsApp = async (wa) => {
     const digits = String(wa).replace(/\D/g, '')
-    const candidates = [...new Set([wa, digits])]
-    if (digits.length === 13 && digits.startsWith('55')) candidates.push(digits.slice(2))
-    if (digits.length === 11) candidates.push('55' + digits)
+    const candidates = []
+    if (digits.length >= 10) {
+      candidates.push(digits)
+      if (digits.length === 11) candidates.push('55' + digits)
+      if (digits.length === 13 && digits.startsWith('55')) candidates.push(digits.slice(2))
+    }
+    const unique = [...new Set(candidates)]
+    if (unique.length === 0) return null
 
-    const { data } = await supabase.from('leads').select('*').in('whatsapp', candidates).limit(1)
+    const { data } = await supabase.from('leads').select('*').in('whatsapp', unique).limit(1)
     if (data && data.length > 0) return leadFromDb(data[0])
     return null
   }

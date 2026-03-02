@@ -54,6 +54,7 @@ export default function AdminPanel({
   const [newMat, setNewMat] = useState({ title: "", description: "", category: "", icon: "📄", date: "", unlockType: "free", socialMethod: null, surveyQuestions: [], downloadUrl: "", expiresAt: null, limitQty: null, limitUsed: 0, isFlash: false, flashUntil: null, previewBullets: [], previewImages: [], creditCost: 0 });
   const [showIconPicker, setShowIconPicker] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [creatingMaterial, setCreatingMaterial] = useState(false);
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", pin: "", permissions: { materials_view: true, materials_edit: false, leads_view: true, leads_export: false, leads_whatsapp: false, textos_edit: false, users_manage: false } });
   const [editUserId, setEditUserId] = useState(null);
@@ -91,10 +92,19 @@ export default function AdminPanel({
 
   const updCfg = (k, v) => { db.updateConfig(k, v); addLog(`Editou config: ${k}`); };
   const updMat = (id, k, v) => { const mat = materials.find(m => m.id === id); db.updateMaterial(id, { [k]: v }); addLog(`Editou material "${mat?.title || id}": ${k}`); };
-  const deleteMat = async (id) => { const ok = await db.deleteMaterial(id); setConfirmDeleteId(null); setEditId(null); if (ok) showT("Excluído! 🗑️"); else showT("Erro ao excluir. Tente novamente."); };
+  const deleteMat = (id) => {
+    setConfirmDeleteId(null);
+    setEditId(null);
+    showT("Excluído! 🗑️");
+    db.deleteMaterial(id).then((ok) => {
+      if (!ok) showT("Erro ao excluir. Tente novamente.");
+    });
+  };
 
   const addMat = async () => {
     if (!newMat.title.trim()) return showT("Preencha o título!");
+    setCreatingMaterial(true);
+    showT("Criando material...");
     const today = new Date(); const d = `${String(today.getDate()).padStart(2, "0")} ${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][today.getMonth()]} ${today.getFullYear()}`;
     try {
       const created = await db.addMaterial({ ...newMat, date: newMat.date || d, active: true });
@@ -104,6 +114,8 @@ export default function AdminPanel({
     } catch (e) {
       console.error("Erro ao criar material:", e);
       showT("Erro: " + (e.message || "Falha ao criar material"));
+    } finally {
+      setCreatingMaterial(false);
     }
   };
 
@@ -328,7 +340,7 @@ export default function AdminPanel({
       <div style={{ paddingTop: 8, borderTop: `1px solid ${T.cardBorder}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <label style={{ fontSize: 10, fontWeight: 700, color: "#e8443a", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Plus Jakarta Sans'" }}>⚡ Funil de qualificação</label>
-          <button onClick={() => onChange("funnel", mat.funnel ? null : { questions: [], cta: null })} style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: mat.funnel ? "#e8443a22" : T.inputBg, color: mat.funnel ? "#e8443a" : T.textFaint, border: `1px solid ${mat.funnel ? "#e8443a44" : T.inputBorder}` }}>{mat.funnel ? "✅ Ativo" : "Desativado"}</button>
+          <button onClick={() => { onChange("funnel", mat.funnel ? null : { questions: [], cta: null }); }} style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: mat.funnel ? "#e8443a22" : T.inputBg, color: mat.funnel ? "#e8443a" : T.textFaint, border: `1px solid ${mat.funnel ? "#e8443a44" : T.inputBorder}` }}>{mat.funnel ? "✅ Ativo" : "Desativado"}</button>
         </div>
         {mat.funnel && (() => {
           const funnel = mat.funnel;
@@ -531,6 +543,7 @@ export default function AdminPanel({
             UnlockEditor={UnlockEditor}
             setShowIconPicker={setShowIconPicker}
             sInp={sInp}
+            creatingMaterial={creatingMaterial}
           />
         )}
 

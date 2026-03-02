@@ -288,7 +288,7 @@ export default function VollHub() {
   // Load leads only when admin opens panel (must be after currentAdmin is defined)
   useEffect(() => {
     if (view === "admin" && currentAdmin && db.setAdminToken) {
-      db.loadLeads(0, 1000);
+      db.loadLeads(0, 2000);
     }
   }, [view, currentAdmin, db]);
 
@@ -384,6 +384,13 @@ export default function VollHub() {
       setTimeout(() => spotlightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 400);
     }
   }, [view, deepLinkMatId]);
+
+  // Auto-open material modal when opening hub via direct link (?m=id)
+  useEffect(() => {
+    if (!deepLinkMatId || view !== "hub") return;
+    const found = materials.find((m) => m.id === deepLinkMatId && m.active);
+    if (found) setSelectedMaterial(found);
+  }, [deepLinkMatId, materials, view, setSelectedMaterial]);
 
   // Fechar modais com tecla Escape (acessibilidade)
   useEffect(() => {

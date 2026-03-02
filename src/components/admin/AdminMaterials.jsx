@@ -6,6 +6,7 @@ export default function AdminMaterials({
   editId, setEditId, showNewForm, setShowNewForm, newMat, setNewMat,
   addMat, updMat, deleteMat, copyLink, linkCopied, confirmDeleteId, setConfirmDeleteId,
   dlCountByMat, UnlockEditor, setShowIconPicker, sInp,
+  creatingMaterial = false,
 }) {
   const [matFilterCategory, setMatFilterCategory] = useState("");
   const [matFilterStatus, setMatFilterStatus] = useState("all");
@@ -61,7 +62,7 @@ export default function AdminMaterials({
           <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>🔗 Link do material (Canva, Drive, PDF, etc)</label><input value={newMat.downloadUrl || ""} onChange={(e) => setNewMat((p) => ({ ...p, downloadUrl: e.target.value }))} style={sInp} placeholder="https://www.canva.com/..." /></div>
           <div style={{ display: "flex", gap: 6 }}><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Categoria</label><input value={newMat.category} onChange={(e) => setNewMat((p) => ({ ...p, category: e.target.value }))} style={sInp} placeholder="Ex: Marketing" /></div><div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'" }}>Data</label><input value={newMat.date} onChange={(e) => setNewMat((p) => ({ ...p, date: e.target.value }))} style={sInp} placeholder="Auto" /></div></div>
           <UnlockEditor mat={newMat} onChange={(k, v) => setNewMat((p) => ({ ...p, [k]: v }))} />
-          <button onClick={addMat} style={{ width: "100%", padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, marginTop: 2 }}>✅ Criar material</button>
+          <button onClick={addMat} disabled={creatingMaterial} style={{ width: "100%", padding: "10px", borderRadius: 10, background: creatingMaterial ? "rgba(0,0,0,0.2)" : "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700, marginTop: 2, cursor: creatingMaterial ? "wait" : "pointer" }}>{creatingMaterial ? "⏳ Criando..." : "✅ Criar material"}</button>
         </div>
       ))}
 

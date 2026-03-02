@@ -3,6 +3,9 @@ import { normalizeWhatsApp } from "../utils";
 
 const LS_KEY = "vollhub_user";
 
+// Em dev (React.StrictMode) o efeito roda 2x; reutilizamos a mesma busca ao Supabase
+let sessionHydratePromise = null;
+
 function readIdentityFromLS() {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -22,6 +25,10 @@ function saveIdentityToLS(name, whatsapp) {
 function clearIdentityFromLS() {
   try { localStorage.removeItem(LS_KEY); } catch (_) {}
 }
+
+// Evita hidratação duplicada no dev (React.StrictMode dispara efeitos 2x)
+let sessionHydrateLastRun = 0
+const SESSION_DEBOUNCE_MS = 500
 
 export function useUserSession(db, showT) {
   const [userName, setUserName] = useState("");
@@ -83,19 +90,23 @@ export function useUserSession(db, showT) {
     setUserName(identity.name);
     setUserWhatsApp(normalizedWA);
 
-    (async () => {
-      try {
-        const lead = await db.findLeadByWhatsApp(normalizedWA);
-        if (lead) {
-          hydrateFromLead(lead);
-          if (lead.name !== identity.name) setUserName(lead.name);
+    if (!sessionHydratePromise) {
+      sessionHydratePromise = (async () => {
+        try {
+          return await db.findLeadByWhatsApp(normalizedWA);
+        } catch (e) {
+          console.error("useUserSession: failed to load from Supabase", e);
+          return null;
         }
-      } catch (e) {
-        console.error("useUserSession: failed to load from Supabase", e);
-      } finally {
-        setSessionLoading(false);
+      })();
+    }
+    sessionHydratePromise.then((lead) => {
+      if (lead) {
+        hydrateFromLead(lead);
+        if (lead.name !== identity.name) setUserName(lead.name);
       }
-    })();
+      setSessionLoading(false);
+    });
   }, [db, hydrateFromLead]);
 
   const isLoggedIn = !!(userName && userWhatsApp && !sessionLoading);
