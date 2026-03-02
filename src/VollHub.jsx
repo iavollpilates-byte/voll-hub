@@ -434,13 +434,25 @@ export default function VollHub() {
   }, [view]);
 
   // Auto-expire: when expiresAt passes, convert to data unlock
+  const expiredUpdatedRef = useRef(new Set());
+  const flashUpdatedRef = useRef(new Set());
   useEffect(() => {
+    let willUpdate = 0;
+    let willFlash = 0;
     materials.forEach((m) => {
       if (m.expiresAt && m.expiresAt <= now && m.unlockType === "free") {
-        db.updateMaterial(m.id, { unlockType: "data", expiresAt: null });
+        if (!expiredUpdatedRef.current.has(m.id)) {
+          expiredUpdatedRef.current.add(m.id);
+          willUpdate++;
+          db.updateMaterial(m.id, { unlockType: "data", expiresAt: null });
+        }
       }
       if (m.isFlash && m.flashUntil && m.flashUntil <= now) {
-        db.updateMaterial(m.id, { isFlash: false, flashUntil: null });
+        if (!flashUpdatedRef.current.has(m.id)) {
+          flashUpdatedRef.current.add(m.id);
+          willFlash++;
+          db.updateMaterial(m.id, { isFlash: false, flashUntil: null });
+        }
       }
     });
   }, [now]);
