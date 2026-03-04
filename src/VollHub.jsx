@@ -750,7 +750,10 @@ export default function VollHub() {
     return map;
   }, [leads]);
   const getMatDownloads = useCallback((matId) => {
-    return (dlByMat[matId] || 0) + (config.socialProofBoost || 0) + (matId * 17 % 50);
+    const real = Number(dlByMat[matId]) || 0;
+    const boost = Math.min(Number(config.socialProofBoost) || 0, 9999);
+    const variation = (Number(matId) * 17) % 50;
+    return Math.min(real + boost + variation, 99999);
   }, [dlByMat, config.socialProofBoost]);
   const getRecentPerson = useCallback((matId) => {
     const toArr = (v) => Array.isArray(v) ? v : typeof v === "string" ? v.split(",").map(s => s.trim()).filter(Boolean) : [];
