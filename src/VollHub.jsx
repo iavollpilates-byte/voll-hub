@@ -677,6 +677,9 @@ export default function VollHub() {
       if (mat.funnel?.cta?.url && !downloaded.includes(mat.id)) {
         showT(`"${mat.title}" baixado! ✅`);
         setFunnelStep("cta");
+      } else if ((config.bannerAllAccessLink || "").trim()) {
+        showT(`"${mat.title}" baixado! ✅`);
+        setFunnelStep("cta_global");
       } else {
         showT(`"${mat.title}" baixado! ✅`); setSelectedMaterial(null);
       }
@@ -1584,6 +1587,22 @@ export default function VollHub() {
             <button onClick={() => setShowDownloadedOnly(false)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: !showDownloadedOnly ? T.accent + "22" : T.statBg, color: !showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${!showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>Todos</button>
             <button onClick={() => setShowDownloadedOnly(true)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: showDownloadedOnly ? T.accent + "22" : T.statBg, color: showDownloadedOnly ? T.accent : T.textFaint, border: `1px solid ${showDownloadedOnly ? T.accent + "44" : T.statBorder}` }}>📥 Baixados</button>
           </div>
+          {/* Banner propaganda do curso — dentro da aba Materiais */}
+          {(config.ctaBannerTitle || config.ctaBannerDesc) && (
+            <div style={{ marginBottom: 16 }}>
+              <a href={(config.bannerAllAccessLink || "").trim() || undefined} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", color: "inherit", background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `2px solid ${T.gold}44`, borderRadius: 16, padding: "18px 20px", boxShadow: `0 4px 20px ${T.gold}22` }} onClick={(e) => { if (!(config.bannerAllAccessLink || "").trim()) e.preventDefault(); }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, #c4950022, #FFD86322)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 28 }}>🎓</span></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "'Plus Jakarta Sans'" }}>Curso completo</span>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: T.text, margin: "4px 0 6px", lineHeight: 1.3 }}>{config.ctaBannerTitle || "Quer acesso a tudo?"}</h3>
+                    <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5, marginBottom: 10 }}>{config.ctaBannerDesc || ""}</p>
+                    <span style={{ display: "inline-block", padding: "10px 18px", borderRadius: 12, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 14, fontWeight: 700, boxShadow: "0 3px 14px #c4950044" }}>{(config.bannerAllAccessLink || "").trim() ? (config.ctaBannerBtn || "Conhecer →") : (config.ctaBannerBtn || "Em breve")}</span>
+                  </div>
+                </div>
+              </a>
+            </div>
+          )}
           {deepLinkMatId && !spotlightMat && (
             <div style={{ marginBottom: 16, padding: "16px 18px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14 }}>
               <p style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6 }}>Material não encontrado</p>
@@ -1846,14 +1865,31 @@ export default function VollHub() {
               </>
             )}
 
-            {/* STEP: CTA (post-download) */}
+            {/* STEP: CTA (post-download) — material funnel CTA, mais chamativo */}
             {funnelStep === "cta" && fCta && (
               <>
-                <div style={{ width: 76, height: 76, borderRadius: 20, background: "linear-gradient(135deg, #c4950022, #FFD86322)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><span style={{ fontSize: 48 }}>{fCta.icon || "🚀"}</span></div>
-                <h2 style={{ fontSize: 19, fontWeight: 700, color: T.text, textAlign: "center" }}>{fCta.title || "Próximo passo"}</h2>
-                <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", marginTop: 6, marginBottom: 14 }}>{fCta.description || ""}</p>
-                <a href={fCta.url} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 15, fontWeight: 700, boxShadow: "0 4px 20px #c4950033", textAlign: "center", textDecoration: "none" }}>{fCta.buttonText || "Quero saber mais →"}</a>
-                <button onClick={() => setSelectedMaterial(null)} style={{ width: "100%", padding: 12, borderRadius: 12, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600, marginTop: 8 }}>Fechar</button>
+                <div style={{ width: 88, height: 88, borderRadius: 24, background: "linear-gradient(135deg, #c4950030, #FFD86330)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, border: `2px solid ${T.gold}44`, boxShadow: `0 6px 24px ${T.gold}33` }}><span style={{ fontSize: 52 }}>{fCta.icon || "🚀"}</span></div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6, display: "block" }}>Próximo passo</span>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: T.text, textAlign: "center", lineHeight: 1.3, marginBottom: 8 }}>{fCta.title || "Próximo passo"}</h2>
+                <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", marginBottom: 20 }}>{fCta.description || ""}</p>
+                <a href={fCta.url} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", padding: "18px", borderRadius: 16, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 16, fontWeight: 800, boxShadow: "0 6px 24px #c4950044", textAlign: "center", textDecoration: "none" }}>{fCta.buttonText || "Quero saber mais →"}</a>
+                <button onClick={() => setSelectedMaterial(null)} style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent", border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600, marginTop: 10 }}>Fechar</button>
+              </>
+            )}
+
+            {/* STEP: CTA global (pós-download quando material não tem funnel.cta) */}
+            {funnelStep === "cta_global" && (
+              <>
+                <div style={{ width: 88, height: 88, borderRadius: 24, background: "linear-gradient(135deg, #c4950030, #FFD86330)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, border: `2px solid ${T.gold}44`, boxShadow: `0 6px 24px ${T.gold}33` }}><span style={{ fontSize: 52 }}>🎓</span></div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6, display: "block" }}>Curso completo</span>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: T.text, textAlign: "center", lineHeight: 1.3, marginBottom: 8 }}>{config.ctaBannerTitle || "Quer acesso a tudo?"}</h2>
+                <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", marginBottom: 20 }}>{config.ctaBannerDesc || ""}</p>
+                {(config.bannerAllAccessLink || "").trim() ? (
+                  <a href={config.bannerAllAccessLink.trim()} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", padding: "18px", borderRadius: 16, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 16, fontWeight: 800, boxShadow: "0 6px 24px #c4950044", textAlign: "center", textDecoration: "none" }}>{config.ctaBannerBtn || "Conhecer o curso →"}</a>
+                ) : (
+                  <div style={{ width: "100%", padding: "16px", borderRadius: 14, background: T.statBg, border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 14, textAlign: "center" }}>{config.ctaBannerBtn || "Em breve"}</div>
+                )}
+                <button onClick={() => setSelectedMaterial(null)} style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent", border: `1px solid ${T.statBorder}`, color: T.textFaint, fontSize: 13, fontWeight: 600, marginTop: 10 }}>Fechar</button>
               </>
             )}
           </div>
