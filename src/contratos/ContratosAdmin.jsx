@@ -408,7 +408,9 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
 
         {tab === 'template' && (
           <div>
-            <label style={{ display: 'block', fontSize: 12, color: '#9ab5ad', marginBottom: 4 }}>Texto do modelo (use {{RAZAO_SOCIAL}}, {{ALUNO_NOME}}, {{VALOR}}, {{DATA}}, {{MULTA_SIM_NAO}}, {{MULTA_TEXTO}}, etc.)</label>
+            <label style={{ display: 'block', fontSize: 12, color: '#9ab5ad', marginBottom: 4 }}>
+              {'Texto do modelo (use {{RAZAO_SOCIAL}}, {{ALUNO_NOME}}, {{VALOR}}, {{DATA}}, {{MULTA_SIM_NAO}}, {{MULTA_TEXTO}}, etc.)'}
+            </label>
             <textarea
               style={{ ...styles.textarea, minHeight: 320 }}
               value={template.body}
