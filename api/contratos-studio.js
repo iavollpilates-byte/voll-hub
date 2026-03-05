@@ -35,6 +35,11 @@ export default async function handler(req, res) {
       endereco: (body.endereco || '').toString().trim(),
       cnpj: (body.cnpj || '').toString().trim(),
       telefone: (body.telefone || '').toString().trim(),
+      email: (body.email || '').toString().trim(),
+      cidade: (body.cidade || '').toString().trim(),
+      estado: (body.estado || '').toString().trim(),
+      responsavel_tecnico: (body.responsavel_tecnico || '').toString().trim(),
+      registro_profissional: (body.registro_profissional || '').toString().trim(),
       updated_at: new Date().toISOString(),
     }
     const { data: existing } = await supabase

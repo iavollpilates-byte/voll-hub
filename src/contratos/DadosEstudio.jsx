@@ -42,6 +42,11 @@ export default function DadosEstudio({ user }) {
     endereco: '',
     cnpj: '',
     telefone: '',
+    email: '',
+    cidade: '',
+    estado: '',
+    responsavel_tecnico: '',
+    registro_profissional: '',
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -134,6 +139,43 @@ export default function DadosEstudio({ user }) {
           value={form.telefone}
           onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))}
           placeholder="(11) 3333-3333"
+        />
+        <label style={styles.label}>E-mail</label>
+        <input
+          type="email"
+          style={styles.input}
+          value={form.email}
+          onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+          placeholder="contato@estudio.com"
+        />
+        <label style={styles.label}>Cidade</label>
+        <input
+          style={styles.input}
+          value={form.cidade}
+          onChange={(e) => setForm((p) => ({ ...p, cidade: e.target.value }))}
+          placeholder="São Paulo"
+        />
+        <label style={styles.label}>Estado (UF)</label>
+        <input
+          style={styles.input}
+          value={form.estado}
+          onChange={(e) => setForm((p) => ({ ...p, estado: e.target.value }))}
+          placeholder="SP"
+          maxLength={2}
+        />
+        <label style={styles.label}>Responsável técnico</label>
+        <input
+          style={styles.input}
+          value={form.responsavel_tecnico}
+          onChange={(e) => setForm((p) => ({ ...p, responsavel_tecnico: e.target.value }))}
+          placeholder="Nome do responsável técnico"
+        />
+        <label style={styles.label}>Registro profissional (CREF/CREFITO)</label>
+        <input
+          style={styles.input}
+          value={form.registro_profissional}
+          onChange={(e) => setForm((p) => ({ ...p, registro_profissional: e.target.value }))}
+          placeholder="Ex.: CREF 12345-G/SP"
         />
         <button type="submit" style={styles.btn} disabled={loading}>
           {loading ? 'Salvando...' : 'Salvar dados do estúdio'}

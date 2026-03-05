@@ -63,7 +63,10 @@ const styles = {
 export default function InserirAluno({ user }) {
   const [students, setStudents] = useState([])
   const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({ nome: '', cpf: '', email: '', telefone: '' })
+  const [form, setForm] = useState({
+    nome: '', cpf: '', rg: '', data_nascimento: '', email: '', telefone: '',
+    endereco: '', cidade: '', estado: '',
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -104,7 +107,7 @@ export default function InserirAluno({ user }) {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setForm({ nome: '', cpf: '', email: '', telefone: '' })
+        setForm({ nome: '', cpf: '', rg: '', data_nascimento: '', email: '', telefone: '', endereco: '', cidade: '', estado: '' })
         setEditingId(null)
         loadStudents()
       } else {
@@ -121,8 +124,13 @@ export default function InserirAluno({ user }) {
     setForm({
       nome: s.nome || '',
       cpf: s.cpf || '',
+      rg: s.rg || '',
+      data_nascimento: s.data_nascimento || '',
       email: s.email || '',
       telefone: s.telefone || '',
+      endereco: s.endereco || '',
+      cidade: s.cidade || '',
+      estado: s.estado || '',
     })
     setEditingId(s.id)
   }
@@ -139,7 +147,7 @@ export default function InserirAluno({ user }) {
         loadStudents()
         if (editingId === id) {
           setEditingId(null)
-          setForm({ nome: '', cpf: '', email: '', telefone: '' })
+          setForm({ nome: '', cpf: '', rg: '', data_nascimento: '', email: '', telefone: '', endereco: '', cidade: '', estado: '' })
         }
       }
     } catch (_) {}
@@ -200,6 +208,43 @@ export default function InserirAluno({ user }) {
             onChange={(e) => setForm((p) => ({ ...p, cpf: e.target.value }))}
             placeholder="000.000.000-00"
           />
+          <label style={styles.label}>RG</label>
+          <input
+            style={styles.input}
+            value={form.rg}
+            onChange={(e) => setForm((p) => ({ ...p, rg: e.target.value }))}
+            placeholder="00.000.000-0"
+          />
+          <label style={styles.label}>Data de nascimento</label>
+          <input
+            style={styles.input}
+            value={form.data_nascimento}
+            onChange={(e) => setForm((p) => ({ ...p, data_nascimento: e.target.value }))}
+            placeholder="DD/MM/AAAA"
+          />
+          <label style={styles.label}>Endereço completo</label>
+          <input
+            style={styles.input}
+            value={form.endereco}
+            onChange={(e) => setForm((p) => ({ ...p, endereco: e.target.value }))}
+            placeholder="Rua, número, bairro, CEP"
+          />
+          <label style={styles.label}>Cidade / Estado</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <input
+              style={{ ...styles.input, flex: 1, marginBottom: 0 }}
+              value={form.cidade}
+              onChange={(e) => setForm((p) => ({ ...p, cidade: e.target.value }))}
+              placeholder="Cidade"
+            />
+            <input
+              style={{ ...styles.input, width: 60, marginBottom: 0 }}
+              value={form.estado}
+              onChange={(e) => setForm((p) => ({ ...p, estado: e.target.value.toUpperCase().slice(0, 2) }))}
+              placeholder="UF"
+              maxLength={2}
+            />
+          </div>
           <label style={styles.label}>Email</label>
           <input
             type="email"
@@ -222,7 +267,7 @@ export default function InserirAluno({ user }) {
             <button
               type="button"
               style={{ ...styles.btn, background: 'rgba(255,255,255,0.15)' }}
-              onClick={() => { setEditingId(null); setForm({ nome: '', cpf: '', email: '', telefone: '' }); }}
+              onClick={() => { setEditingId(null); setForm({ nome: '', cpf: '', rg: '', data_nascimento: '', email: '', telefone: '', endereco: '', cidade: '', estado: '' }); }}
             >
               Cancelar
             </button>

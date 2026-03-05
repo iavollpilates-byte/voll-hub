@@ -34,8 +34,13 @@ export default async function handler(req, res) {
       user_id: userId,
       nome: (body.nome || '').toString().trim(),
       cpf: (body.cpf || '').toString().trim(),
+      rg: (body.rg || '').toString().trim(),
+      data_nascimento: (body.data_nascimento || '').toString().trim(),
       email: (body.email || '').toString().trim(),
       telefone: (body.telefone || '').toString().trim(),
+      endereco: (body.endereco || '').toString().trim(),
+      cidade: (body.cidade || '').toString().trim(),
+      estado: (body.estado || '').toString().trim(),
     }
     const { data, error } = await supabase.from('contratos_students').insert(row).select().single()
     if (error) return res.status(500).json({ error: error.message })
@@ -57,8 +62,13 @@ export default async function handler(req, res) {
     const updates = {
       nome: (body.nome || '').toString().trim(),
       cpf: (body.cpf || '').toString().trim(),
+      rg: (body.rg || '').toString().trim(),
+      data_nascimento: (body.data_nascimento || '').toString().trim(),
       email: (body.email || '').toString().trim(),
       telefone: (body.telefone || '').toString().trim(),
+      endereco: (body.endereco || '').toString().trim(),
+      cidade: (body.cidade || '').toString().trim(),
+      estado: (body.estado || '').toString().trim(),
       updated_at: new Date().toISOString(),
     }
     const { data, error } = await supabase

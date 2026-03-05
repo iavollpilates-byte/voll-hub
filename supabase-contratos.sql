@@ -23,6 +23,11 @@ create table if not exists contratos_studios (
   endereco text default '',
   cnpj text default '',
   telefone text default '',
+  email text default '',
+  cidade text default '',
+  estado text default '',
+  responsavel_tecnico text default '',
+  registro_profissional text default '',
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   unique(user_id)
@@ -34,8 +39,13 @@ create table if not exists contratos_students (
   user_id bigint not null references contratos_users(id) on delete cascade,
   nome text not null,
   cpf text default '',
+  rg text default '',
+  data_nascimento text default '',
   email text default '',
   telefone text default '',
+  endereco text default '',
+  cidade text default '',
+  estado text default '',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -120,3 +130,41 @@ create policy "contratos_template_no_direct" on contratos_template for all using
 create index if not exists idx_contratos_studios_user_id on contratos_studios(user_id);
 create index if not exists idx_contratos_students_user_id on contratos_students(user_id);
 create index if not exists idx_contratos_users_email on contratos_users(email);
+
+-- Migração: novos campos (executar se as tabelas já existiam antes desta atualização)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_studios' AND column_name = 'email') THEN
+    ALTER TABLE contratos_studios ADD COLUMN email text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_studios' AND column_name = 'cidade') THEN
+    ALTER TABLE contratos_studios ADD COLUMN cidade text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_studios' AND column_name = 'estado') THEN
+    ALTER TABLE contratos_studios ADD COLUMN estado text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_studios' AND column_name = 'responsavel_tecnico') THEN
+    ALTER TABLE contratos_studios ADD COLUMN responsavel_tecnico text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_studios' AND column_name = 'registro_profissional') THEN
+    ALTER TABLE contratos_studios ADD COLUMN registro_profissional text default '';
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_students' AND column_name = 'rg') THEN
+    ALTER TABLE contratos_students ADD COLUMN rg text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_students' AND column_name = 'data_nascimento') THEN
+    ALTER TABLE contratos_students ADD COLUMN data_nascimento text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_students' AND column_name = 'endereco') THEN
+    ALTER TABLE contratos_students ADD COLUMN endereco text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_students' AND column_name = 'cidade') THEN
+    ALTER TABLE contratos_students ADD COLUMN cidade text default '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contratos_students' AND column_name = 'estado') THEN
+    ALTER TABLE contratos_students ADD COLUMN estado text default '';
+  END IF;
+END $$;
