@@ -415,7 +415,9 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
               onChange={(e) => setTemplate((t) => ({ ...t, body: e.target.value }))}
               placeholder="Texto do contrato com placeholders..."
             />
-            <label style={{ display: 'block', fontSize: 12, color: '#9ab5ad', marginTop: 16, marginBottom: 4 }}>Opcionais (JSON array, ex.: [{"key":"valor","label":"Valor","type":"text"},{"key":"incluirMulta","label":"Incluir multa","type":"boolean"}]</label>
+            <label style={{ display: 'block', fontSize: 12, color: '#9ab5ad', marginTop: 16, marginBottom: 4 }}>
+              {'Opcionais (JSON array, ex.: [{"key":"valor","label":"Valor","type":"text"},{"key":"incluirMulta","label":"Incluir multa","type":"boolean"}]'}
+            </label>
             <textarea
               style={{ ...styles.textarea, minHeight: 80 }}
               value={typeof template.optionals === 'string' ? template.optionals : JSON.stringify(template.optionals, null, 2)}
