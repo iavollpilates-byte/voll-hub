@@ -28,6 +28,7 @@ Se ao digitar o PIN aparece **"Servidor indisponível"**, **"Não foi possível 
    - `verify-pin.js`
    - `admin.js`
    - `generate-reflection.js`
+   - Para o Gerador de Contratos: `contratos-auth.js`, `contratos-studio.js`, `contratos-students.js`, `contratos-verify-admin.js`, `contratos-admin.js`
 3. Se não tiver, o repositório está incompleto. Peça para alguém enviar a pasta `api` ou restaure do Git.
 
 ---
@@ -126,3 +127,26 @@ Se ainda der erro, anote **a mensagem exata** que aparece (e, se puder, o que ap
 4. Deployments → Redeploy.
 5. Testar a API no console (Passo 5).
 6. Testar o login no site com o PIN definido em `ADMIN_PIN`.
+
+---
+
+## Gerador de Contratos (`/contratos`)
+
+Se você usa o **Gerador de Contratos** (link direto: `https://seu-dominio.com/contratos`), configure o seguinte.
+
+**1. Banco de dados**
+
+No Supabase, abra o **SQL Editor** e execute o conteúdo do arquivo **`supabase-contratos.sql`** (na raiz do projeto). Isso cria as tabelas `contratos_users`, `contratos_studios`, `contratos_students`, `contratos_admin` e `contratos_generated`.
+
+**2. Variáveis no Vercel (Environment Variables)**
+
+| Nome (Key) | Uso | Exemplo |
+|------------|-----|--------|
+| `CONTRATOS_JWT_SECRET` | Segredo para assinar o token de login dos donos de estúdio. Use uma string longa e aleatória. | `minha-chave-secreta-contratos-xyz-123` |
+| `ADMIN_PIN_CONTRATOS` | Opcional. PIN do super-admin do módulo Contratos (ex.: 9512). Se não definir, o PIN é lido da tabela `contratos_admin` no Supabase. | `9512` |
+
+As variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` já usadas no Hub são as mesmas para o Contratos.
+
+**3. Após salvar as variáveis**
+
+Faça um **Redeploy** (Passo 4 acima) para as novas variáveis valerem. Depois acesse `https://seu-dominio.com/contratos` para cadastrar ou entrar com uma conta de dono de estúdio. O admin do módulo (lista de usuários) usa o PIN 9512 (ou o valor em `ADMIN_PIN_CONTRATOS`), na aba **Admin** dentro do Gerador de Contratos (após logar com qualquer conta).
