@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG = {
   profileSectionTitle: "Ganhe créditos",
   sectionTitle: "Materiais disponíveis",
   ctaBannerTitle: "Quer acesso a tudo?", ctaBannerDesc: "Todos os materiais + conteúdos exclusivos", ctaBannerBtn: "Em breve",
+  ctaBannerBadge: "Curso completo",
   socialProofMode: "downloads",
   socialProofNames: ["Maria", "João", "Ana", "Pedro", "Carla", "Lucas", "Julia", "Rafael", "Camila", "Bruno"],
   socialProofMinutes: [3, 12, 25, 47, 68, 95, 120, 180, 240, 310],

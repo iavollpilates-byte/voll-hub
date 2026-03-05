@@ -1638,6 +1638,7 @@ export default function AdminPanel({
                       <>
                         <CmsField label="Banner título" ck="ctaBannerTitle" />
                         <CmsField label="Banner descrição" ck="ctaBannerDesc" />
+                        <CmsField label="Banner etiqueta (ex: Curso completo)" ck="ctaBannerBadge" />
                         <CmsField label="Banner botão" ck="ctaBannerBtn" />
                         <CmsField label="Banner link (curso)" ck="bannerAllAccessLink" />
                       </>

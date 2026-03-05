@@ -1555,6 +1555,22 @@ export default function VollHub() {
           </div>
         </div>
         <button type="button" onClick={() => setHubTab("materials")} style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 15, fontWeight: 700, border: "none", fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", marginBottom: 24 }}>Ver todos os materiais →</button>
+        {/* Banner propaganda do curso — na aba Início */}
+        {(config.ctaBannerTitle || config.ctaBannerDesc) && (
+          <div style={{ marginBottom: 24 }}>
+            <a href={(config.bannerAllAccessLink || "").trim() || undefined} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", color: "inherit", background: theme === "dark" ? "linear-gradient(135deg, #1a1a10, #0d1210)" : "linear-gradient(135deg, #fdf8e8, #fdf0d0)", border: `2px solid ${T.gold}44`, borderRadius: 16, padding: "18px 20px", boxShadow: `0 4px 20px ${T.gold}22` }} onClick={(e) => { if (!(config.bannerAllAccessLink || "").trim()) e.preventDefault(); }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, #c4950022, #FFD86322)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 28 }}>🎓</span></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "'Plus Jakarta Sans'" }}>{(config.ctaBannerBadge || "").trim() || "Curso completo"}</span>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: T.text, margin: "4px 0 6px", lineHeight: 1.3 }}>{config.ctaBannerTitle || "Quer acesso a tudo?"}</h3>
+                  <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5, marginBottom: 10 }}>{config.ctaBannerDesc || ""}</p>
+                  <span style={{ display: "inline-block", padding: "10px 18px", borderRadius: 12, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 14, fontWeight: 700, boxShadow: "0 3px 14px #c4950044" }}>{(config.bannerAllAccessLink || "").trim() ? (config.ctaBannerBtn || "Conhecer →") : (config.ctaBannerBtn || "Em breve")}</span>
+                </div>
+              </div>
+            </a>
+          </div>
+        )}
           </>
         )}
 
@@ -1594,7 +1610,7 @@ export default function VollHub() {
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
                   <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, #c4950022, #FFD86322)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 28 }}>🎓</span></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "'Plus Jakarta Sans'" }}>Curso completo</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "'Plus Jakarta Sans'" }}>{(config.ctaBannerBadge || "").trim() || "Curso completo"}</span>
                     <h3 style={{ fontSize: 16, fontWeight: 800, color: T.text, margin: "4px 0 6px", lineHeight: 1.3 }}>{config.ctaBannerTitle || "Quer acesso a tudo?"}</h3>
                     <p style={{ fontSize: 13, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.5, marginBottom: 10 }}>{config.ctaBannerDesc || ""}</p>
                     <span style={{ display: "inline-block", padding: "10px 18px", borderRadius: 12, background: "linear-gradient(135deg, #c49500, #FFD863)", color: "#1a1a12", fontSize: 14, fontWeight: 700, boxShadow: "0 3px 14px #c4950044" }}>{(config.bannerAllAccessLink || "").trim() ? (config.ctaBannerBtn || "Conhecer →") : (config.ctaBannerBtn || "Em breve")}</span>
@@ -1881,7 +1897,7 @@ export default function VollHub() {
             {funnelStep === "cta_global" && (
               <>
                 <div style={{ width: 88, height: 88, borderRadius: 24, background: "linear-gradient(135deg, #c4950030, #FFD86330)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, border: `2px solid ${T.gold}44`, boxShadow: `0 6px 24px ${T.gold}33` }}><span style={{ fontSize: 52 }}>🎓</span></div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6, display: "block" }}>Curso completo</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: "'Plus Jakarta Sans'", marginBottom: 6, display: "block" }}>{(config.ctaBannerBadge || "").trim() || "Curso completo"}</span>
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: T.text, textAlign: "center", lineHeight: 1.3, marginBottom: 8 }}>{config.ctaBannerTitle || "Quer acesso a tudo?"}</h2>
                 <p style={{ fontSize: 14, color: T.textMuted, fontFamily: "'Plus Jakarta Sans'", lineHeight: 1.6, textAlign: "center", marginBottom: 20 }}>{config.ctaBannerDesc || ""}</p>
                 {(config.bannerAllAccessLink || "").trim() ? (
