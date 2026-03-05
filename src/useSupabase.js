@@ -434,19 +434,19 @@ export function useSupabase() {
 
   // ─── CONFIG ───
   const updateConfig = async (key, value) => {
+    const strVal = String(value);
+    setConfig(p => ({ ...p, [key]: strVal }))
     if (adminTokenRef.current) {
       try {
         await adminFetch({
           action: 'upsert', table: 'config',
-          data: { key, value: String(value), updated_at: new Date().toISOString() }
+          data: { key, value: strVal, updated_at: new Date().toISOString() }
         })
-        setConfig(p => ({ ...p, [key]: String(value) }))
         return true
       } catch (e) { console.error(e); return false }
     }
-    const { error } = await supabase.from('config').upsert({ key, value: String(value), updated_at: new Date().toISOString() })
+    const { error } = await supabase.from('config').upsert({ key, value: strVal, updated_at: new Date().toISOString() })
     if (error) { console.error(error); return false }
-    setConfig(p => ({ ...p, [key]: String(value) }))
     return true
   }
 

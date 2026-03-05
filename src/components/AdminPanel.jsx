@@ -1602,13 +1602,16 @@ export default function AdminPanel({
                   <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>🎯 Banner Dinâmico</h3>
                   <span style={{ fontSize: 14, color: T.textFaint, transition: "transform 0.2s", transform: collapsedSections.banner ? "rotate(0deg)" : "rotate(180deg)" }}>▼</span>
                 </div>
-                {!collapsedSections.banner && (
+                {!collapsedSections.banner && (() => {
+                  // Config vem do DB como string; "false" é truthy em JS — comparar explicitamente com "true"
+                  const isBannerPersonalized = config.bannerPersonalized === true || config.bannerPersonalized === "true";
+                  return (
                   <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: 12 }}>
                     <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                      <button onClick={() => updCfg("bannerPersonalized", true)} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: config.bannerPersonalized ? T.accent + "22" : T.inputBg, color: config.bannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${config.bannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>🎯 Personalizado</button>
-                      <button onClick={() => updCfg("bannerPersonalized", false)} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: !config.bannerPersonalized ? T.accent + "22" : T.inputBg, color: !config.bannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${!config.bannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>✏️ Fixo (manual)</button>
+                      <button onClick={() => updCfg("bannerPersonalized", "true")} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: isBannerPersonalized ? T.accent + "22" : T.inputBg, color: isBannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${isBannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>🎯 Personalizado</button>
+                      <button onClick={() => updCfg("bannerPersonalized", "false")} style={{ flex: 1, padding: "10px 8px", borderRadius: 9, fontSize: 12, fontWeight: 600, background: !isBannerPersonalized ? T.accent + "22" : T.inputBg, color: !isBannerPersonalized ? T.accent : T.textFaint, border: `1px solid ${!isBannerPersonalized ? T.accent + "44" : T.inputBorder}` }}>✏️ Fixo (manual)</button>
                     </div>
-                    {config.bannerPersonalized ? (
+                    {isBannerPersonalized ? (
                       <>
                         <div style={{ padding: "12px 14px", borderRadius: 10, background: T.inputBg, border: `1px solid ${T.inputBorder}`, marginBottom: 10 }}>
                           <p style={{ fontSize: 12, fontWeight: 600, color: T.accent, marginBottom: 8, fontFamily: "'Plus Jakarta Sans'" }}>Regras automáticas:</p>
@@ -1640,7 +1643,8 @@ export default function AdminPanel({
                       </>
                     )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Streak Rewards */}
