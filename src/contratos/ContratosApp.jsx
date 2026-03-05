@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ContratosLogin from './ContratosLogin.jsx'
 import ContratosDashboard from './ContratosDashboard.jsx'
 import { getStoredUser, setStoredUser } from './contratosAuth.js'
