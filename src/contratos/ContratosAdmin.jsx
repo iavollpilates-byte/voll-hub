@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const ADMIN_STORAGE_KEY = 'contratos_admin_token'
 
@@ -124,6 +124,8 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
   const [contracts, setContracts] = useState([])
   const [template, setTemplate] = useState({ body: '', optionals: [] })
   const [templateSaving, setTemplateSaving] = useState(false)
+  const [pasteImportText, setPasteImportText] = useState('')
+  const fileInputRef = useRef(null)
   const [userModal, setUserModal] = useState(null)
   const [userForm, setUserForm] = useState({ name: '', email: '', cpf: '', whatsapp: '', password: '' })
   const [userSaveLoading, setUserSaveLoading] = useState(false)
@@ -289,6 +291,31 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
     }
   }
 
+  const handleImportFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError('')
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        setTemplate((t) => ({ ...t, body: ev.target?.result ?? '' }))
+      } catch (_) {
+        setError('Erro ao ler o arquivo.')
+      }
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+    reader.onerror = () => {
+      setError('Erro ao ler o arquivo.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+    reader.readAsText(file)
+  }
+
+  const handleApplyPasteImport = () => {
+    setTemplate((t) => ({ ...t, body: pasteImportText }))
+    setPasteImportText('')
+  }
+
   const handleSaveTemplate = async () => {
     let optionals = template.optionals
     if (typeof template.optionals === 'string') {
@@ -408,6 +435,27 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
 
         {tab === 'template' && (
           <div>
+            <div style={{ marginBottom: 20, padding: 16, background: 'rgba(26, 46, 40, 0.6)', borderRadius: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Importar contrato como modelo</div>
+              <label style={{ display: 'block', fontSize: 12, color: '#9ab5ad', marginBottom: 4 }}>Importar de arquivo (.txt)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,text/plain"
+                onChange={handleImportFile}
+                style={{ display: 'block', marginBottom: 16, fontSize: 13 }}
+              />
+              <label style={{ display: 'block', fontSize: 12, color: '#9ab5ad', marginBottom: 4 }}>Ou colar texto abaixo e aplicar ao modelo</label>
+              <textarea
+                style={{ ...styles.textarea, minHeight: 120 }}
+                value={pasteImportText}
+                onChange={(e) => setPasteImportText(e.target.value)}
+                placeholder="Cole aqui o texto do contrato..."
+              />
+              <button type="button" style={{ ...styles.btn, ...styles.btnSec, marginTop: 8 }} onClick={handleApplyPasteImport} disabled={!pasteImportText.trim()}>
+                Aplicar ao modelo
+              </button>
+            </div>
             <label style={{ display: 'block', fontSize: 12, color: '#9ab5ad', marginBottom: 4 }}>
               {'Texto do modelo (use {{RAZAO_SOCIAL}}, {{ALUNO_NOME}}, {{VALOR}}, {{DATA}}, {{MULTA_SIM_NAO}}, {{MULTA_TEXTO}}, etc.)'}
             </label>
