@@ -131,25 +131,25 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
 
   const loadUsers = () => {
     if (!adminToken) return
-    fetchApi(adminToken, '/api/contratos-admin-users')
+    fetchApi(adminToken, '/api/contratos-admin')
       .then((data) => { if (data.users) setUsers(data.users); else if (data.error) setError(data.error) })
       .catch(() => setError('Erro ao carregar usuários.'))
   }
   const loadStudios = () => {
     if (!adminToken) return
-    fetchApi(adminToken, '/api/contratos-admin-studios')
+    fetchApi(adminToken, '/api/contratos-admin?list=studios')
       .then((data) => { if (data.studios) setStudios(data.studios); else if (data.error) setError(data.error) })
       .catch(() => setError('Erro ao carregar estúdios.'))
   }
   const loadContracts = () => {
     if (!adminToken) return
-    fetchApi(adminToken, '/api/contratos-admin-contracts')
+    fetchApi(adminToken, '/api/contratos-admin?list=contracts')
       .then((data) => { if (data.contracts) setContracts(data.contracts); else if (data.error) setError(data.error) })
       .catch(() => setError('Erro ao carregar contratos.'))
   }
   const loadTemplate = () => {
     if (!adminToken) return
-    fetchApi(adminToken, '/api/contratos-admin-template')
+    fetchApi(adminToken, '/api/contratos-admin?list=template')
       .then((data) => {
         if (data.template) setTemplate({ body: data.template.body || '', optionals: data.template.optionals || [] })
         else if (data.error) setError(data.error)
@@ -237,7 +237,7 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
     setUserSaveLoading(true)
     try {
       if (userModal === 'create') {
-        const data = await fetchApi(adminToken, '/api/contratos-admin-users', {
+        const data = await fetchApi(adminToken, '/api/contratos-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -259,7 +259,7 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
           whatsapp: (userForm.whatsapp || '').trim(),
         }
         if (userForm.password && userForm.password.length >= 6) payload.password = userForm.password
-        const data = await fetchApi(adminToken, '/api/contratos-admin-users', {
+        const data = await fetchApi(adminToken, '/api/contratos-admin', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -277,7 +277,7 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
   const handleDeleteUser = async (userId) => {
     setError('')
     try {
-      const data = await fetchApi(adminToken, '/api/contratos-admin-users', {
+      const data = await fetchApi(adminToken, '/api/contratos-admin', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: userId }),
@@ -302,7 +302,7 @@ export default function ContratosAdmin({ adminToken, onAdminToken }) {
     setError('')
     setTemplateSaving(true)
     try {
-      const data = await fetchApi(adminToken, '/api/contratos-admin-template', {
+      const data = await fetchApi(adminToken, '/api/contratos-admin', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: template.body, optionals }),
