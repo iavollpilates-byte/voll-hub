@@ -59,6 +59,44 @@ create table if not exists contratos_generated (
   created_at timestamptz default now()
 );
 
+-- 6. Modelo de contrato editável pelo admin (uma linha, id=1)
+create table if not exists contratos_template (
+  id bigint generated always as identity primary key,
+  body text not null default '',
+  optionals jsonb default '[]'::jsonb,
+  updated_at timestamptz default now()
+);
+insert into contratos_template (body, optionals)
+select
+  'CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE PILATES
+
+CONTRATANTE (estúdio):
+{{RAZAO_SOCIAL}}
+Endereço: {{ENDERECO}}
+CNPJ: {{CNPJ}}
+Telefone: {{TELEFONE}}
+
+CONTRATADO (aluno):
+{{ALUNO_NOME}}
+CPF: {{ALUNO_CPF}}
+Endereço: {{ALUNO_ENDERECO}}
+
+OBJETIVO: Prestação de serviços de método Pilates, conforme planejamento e regras do estúdio.
+
+VALOR MENSAL: {{VALOR}}
+
+VIGÊNCIA: O presente contrato tem vigência a partir de {{DATA}}, podendo ser rescindido pelas partes conforme cláusulas abaixo.
+
+CLÁUSULA DE MULTA (RESCISÃO ANTECIPADA): {{MULTA_SIM_NAO}}
+{{MULTA_TEXTO}}
+
+Demais condições serão informadas pelo estúdio. Este documento serve como acordo entre as partes.
+
+Data: {{DATA}}
+_________________________ (Estúdio)     _________________________ (Aluno)',
+  '[{"key":"valor","label":"Valor (ex.: R$ 0,00)","type":"text"},{"key":"incluirMulta","label":"Incluir cláusula de multa por rescisão antecipada","type":"boolean"}]'::jsonb
+where not exists (select 1 from contratos_template limit 1);
+
 -- RLS: contratos_users — API usa service_role
 alter table contratos_users enable row level security;
 create policy "contratos_users_no_direct" on contratos_users for all using (false) with check (false);
@@ -74,6 +112,9 @@ create policy "contratos_admin_no_direct" on contratos_admin for all using (fals
 
 alter table contratos_generated enable row level security;
 create policy "contratos_generated_no_direct" on contratos_generated for all using (false) with check (false);
+
+alter table contratos_template enable row level security;
+create policy "contratos_template_no_direct" on contratos_template for all using (false) with check (false);
 
 -- Índices
 create index if not exists idx_contratos_studios_user_id on contratos_studios(user_id);

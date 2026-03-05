@@ -63,6 +63,12 @@ export default function DadosEstudio({ user }) {
       .catch(() => {})
   }, [user?.token])
 
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(''), 4000)
+    return () => clearTimeout(t)
+  }, [message])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setMessage('')

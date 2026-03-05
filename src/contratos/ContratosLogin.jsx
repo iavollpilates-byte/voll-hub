@@ -88,6 +88,11 @@ const styles = {
   },
 }
 
+const focusVisibleStyle = `
+  .contratos-login-input:focus, .contratos-login-btn:focus, .contratos-login-tab:focus { outline: none; }
+  .contratos-login-input:focus-visible, .contratos-login-btn:focus-visible, .contratos-login-tab:focus-visible { outline: 2px solid #7dd3b0; outline-offset: 2px; }
+`
+
 export default function ContratosLogin({ onLogin }) {
   const [mode, setMode] = useState('login')
   const [loading, setLoading] = useState(false)
@@ -169,6 +174,7 @@ export default function ContratosLogin({ onLogin }) {
 
   return (
     <div style={styles.page}>
+      <style>{focusVisibleStyle}</style>
       <div style={styles.card}>
         <h1 style={styles.title}>Gerador de Contratos</h1>
         <p style={styles.subtitle}>Pilates — Dados do estúdio e do aluno</p>
@@ -176,6 +182,7 @@ export default function ContratosLogin({ onLogin }) {
         <div style={styles.tabs}>
           <button
             type="button"
+            className="contratos-login-tab"
             style={{ ...styles.tab, ...(mode === 'login' ? styles.tabActive : {}) }}
             onClick={() => { setMode('login'); setError('') }}
           >
@@ -183,6 +190,7 @@ export default function ContratosLogin({ onLogin }) {
           </button>
           <button
             type="button"
+            className="contratos-login-tab"
             style={{ ...styles.tab, ...(mode === 'register' ? styles.tabActive : {}) }}
             onClick={() => { setMode('register'); setError('') }}
           >
@@ -195,6 +203,7 @@ export default function ContratosLogin({ onLogin }) {
             <label style={styles.label}>Email</label>
             <input
               type="email"
+              className="contratos-login-input"
               style={styles.input}
               placeholder="seu@email.com"
               value={loginForm.email}
@@ -203,12 +212,13 @@ export default function ContratosLogin({ onLogin }) {
             <label style={styles.label}>Senha</label>
             <input
               type="password"
+              className="contratos-login-input"
               style={styles.input}
               placeholder="••••••••"
               value={loginForm.password}
               onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))}
             />
-            <button type="submit" style={styles.btn} disabled={loading}>
+            <button type="submit" className="contratos-login-btn" style={styles.btn} disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
@@ -217,6 +227,7 @@ export default function ContratosLogin({ onLogin }) {
             <label style={styles.label}>Nome</label>
             <input
               type="text"
+              className="contratos-login-input"
               style={styles.input}
               placeholder="Seu nome"
               value={registerForm.name}
@@ -225,6 +236,7 @@ export default function ContratosLogin({ onLogin }) {
             <label style={styles.label}>Email</label>
             <input
               type="email"
+              className="contratos-login-input"
               style={styles.input}
               placeholder="seu@email.com"
               value={registerForm.email}
@@ -233,6 +245,7 @@ export default function ContratosLogin({ onLogin }) {
             <label style={styles.label}>CPF (opcional)</label>
             <input
               type="text"
+              className="contratos-login-input"
               style={styles.input}
               placeholder="000.000.000-00"
               value={registerForm.cpf}
@@ -241,6 +254,7 @@ export default function ContratosLogin({ onLogin }) {
             <label style={styles.label}>WhatsApp com DDD (opcional)</label>
             <input
               type="text"
+              className="contratos-login-input"
               style={styles.input}
               placeholder="(11) 99999-9999"
               value={registerForm.whatsapp}
@@ -249,12 +263,13 @@ export default function ContratosLogin({ onLogin }) {
             <label style={styles.label}>Senha (mín. 6 caracteres)</label>
             <input
               type="password"
+              className="contratos-login-input"
               style={styles.input}
               placeholder="••••••••"
               value={registerForm.password}
               onChange={(e) => setRegisterForm((p) => ({ ...p, password: e.target.value }))}
             />
-            <button type="submit" style={styles.btn} disabled={loading}>
+            <button type="submit" className="contratos-login-btn" style={styles.btn} disabled={loading}>
               {loading ? 'Cadastrando...' : 'Cadastrar'}
             </button>
           </form>

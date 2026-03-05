@@ -40,6 +40,35 @@ const styles = {
     marginTop: 8,
   },
   btnSec: { background: 'rgba(255,255,255,0.15)' },
+  noStudents: { fontSize: 13, color: '#9ab5ad', marginBottom: 16 },
+}
+
+const PLACEHOLDERS = {
+  RAZAO_SOCIAL: (s) => s?.razao_social || s?.nome_fantasia || '[Razão social / Nome fantasia]',
+  ENDERECO: (s) => s?.endereco || '[Endereço do estúdio]',
+  CNPJ: (s) => s?.cnpj || '[CNPJ]',
+  TELEFONE: (s) => s?.telefone || '[Telefone]',
+  ALUNO_NOME: (_, st) => st?.nome || '[Nome do aluno]',
+  ALUNO_CPF: (_, st) => st?.cpf || '[CPF do aluno]',
+  ALUNO_ENDERECO: (_, st) => st?.endereco || '[Endereço do aluno]',
+}
+
+function buildFromTemplate(body, studio, student, options) {
+  const data = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const valor = options?.valor ?? 'R$ 0,00'
+  const multaSimNao = options?.incluirMulta ? 'Sim' : 'Não'
+  const multaTexto = options?.incluirMulta
+    ? 'Em caso de rescisão antecipada pelo aluno, será aplicada multa conforme combinado entre as partes.'
+    : 'Não há cláusula de multa por rescisão antecipada.'
+  let out = body || ''
+  Object.entries(PLACEHOLDERS).forEach(([key, fn]) => {
+    out = out.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), fn(studio, student))
+  })
+  out = out.replace(/\{\{VALOR\}\}/g, valor)
+  out = out.replace(/\{\{DATA\}\}/g, data)
+  out = out.replace(/\{\{MULTA_SIM_NAO\}\}/g, multaSimNao)
+  out = out.replace(/\{\{MULTA_TEXTO\}\}/g, multaTexto)
+  return out
 }
 
 function buildContractText(studio, student, options) {
@@ -85,6 +114,7 @@ _________________________ (Estúdio)     _________________________ (Aluno)`
 export default function GerarContrato({ user }) {
   const [students, setStudents] = useState([])
   const [studio, setStudio] = useState(null)
+  const [template, setTemplate] = useState(null)
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [options, setOptions] = useState({ valor: 'R$ 0,00', incluirMulta: false })
 
@@ -92,27 +122,36 @@ export default function GerarContrato({ user }) {
     const token = user?.token
     if (!token) return
     Promise.all([
-      fetch(`${window.location.origin}/api/contratos-studio`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json()),
-      fetch(`${window.location.origin}/api/contratos-students`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json()),
-    ]).then(([studioRes, studentsRes]) => {
+      fetch(`${window.location.origin}/api/contratos-studio`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch(`${window.location.origin}/api/contratos-students`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch(`${window.location.origin}/api/contratos-template`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+    ]).then(([studioRes, studentsRes, templateRes]) => {
       if (studioRes.studio) setStudio(studioRes.studio)
       if (Array.isArray(studentsRes.students)) {
         setStudents(studentsRes.students)
-        if (studentsRes.students.length && !selectedStudentId) {
-          setSelectedStudentId(String(studentsRes.students[0].id))
-        }
+        if (studentsRes.students.length && !selectedStudentId) setSelectedStudentId(String(studentsRes.students[0].id))
       }
+      if (templateRes.template?.body != null) setTemplate(templateRes.template)
     }).catch(() => {})
   }, [user?.token])
 
   const selectedStudent = students.find((s) => String(s.id) === String(selectedStudentId))
 
+  const registerGenerated = () => {
+    const token = user?.token
+    if (!token) return
+    fetch(`${window.location.origin}/api/contratos-generated`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ student_id: selectedStudent?.id || null }),
+    }).catch(() => {})
+  }
+
   const handleGenerate = () => {
-    const text = buildContractText(studio, selectedStudent || {}, options)
+    const text = template?.body
+      ? buildFromTemplate(template.body, studio, selectedStudent || {}, options)
+      : buildContractText(studio, selectedStudent || {}, options)
+    registerGenerated()
     const doc = new jsPDF({ format: 'a4', unit: 'mm' })
     const pageW = doc.internal.pageSize.getWidth()
     const margin = 20
@@ -138,7 +177,10 @@ export default function GerarContrato({ user }) {
   }
 
   const handlePrint = () => {
-    const text = buildContractText(studio, selectedStudent || {}, options)
+    const text = template?.body
+      ? buildFromTemplate(template.body, studio, selectedStudent || {}, options)
+      : buildContractText(studio, selectedStudent || {}, options)
+    registerGenerated()
     const doc = new jsPDF({ format: 'a4', unit: 'mm' })
     const pageW = doc.internal.pageSize.getWidth()
     const margin = 20
@@ -168,11 +210,16 @@ export default function GerarContrato({ user }) {
         Escolha o aluno e os opcionais, depois baixe o PDF ou imprima.
       </p>
 
+      {students.length === 0 && (
+        <p style={styles.noStudents}>Cadastre pelo menos um aluno na aba Inserir aluno.</p>
+      )}
+
       <label style={styles.label}>Aluno</label>
       <select
         style={styles.select}
         value={selectedStudentId}
         onChange={(e) => setSelectedStudentId(e.target.value)}
+        disabled={students.length === 0}
       >
         <option value="">Selecione um aluno</option>
         {students.map((s) => (
@@ -199,14 +246,14 @@ export default function GerarContrato({ user }) {
         Incluir cláusula de multa
       </label>
 
-      <button type="button" style={styles.btn} onClick={handleGenerate} disabled={!selectedStudentId}>
+      <button type="button" style={styles.btn} onClick={handleGenerate} disabled={students.length === 0 || !selectedStudentId}>
         Baixar PDF
       </button>
       <button
         type="button"
         style={{ ...styles.btn, ...styles.btnSec }}
         onClick={handlePrint}
-        disabled={!selectedStudentId}
+        disabled={students.length === 0 || !selectedStudentId}
       >
         Imprimir
       </button>

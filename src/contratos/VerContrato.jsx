@@ -33,6 +33,34 @@ const styles = {
   toggle: { marginRight: 8, cursor: 'pointer' },
 }
 
+const PLACEHOLDERS = {
+  RAZAO_SOCIAL: (s) => s?.razao_social || s?.nome_fantasia || '[Razão social / Nome fantasia]',
+  ENDERECO: (s) => s?.endereco || '[Endereço do estúdio]',
+  CNPJ: (s) => s?.cnpj || '[CNPJ]',
+  TELEFONE: (s) => s?.telefone || '[Telefone]',
+  ALUNO_NOME: (_, st) => st?.nome || '[Nome do aluno]',
+  ALUNO_CPF: (_, st) => st?.cpf || '[CPF do aluno]',
+  ALUNO_ENDERECO: (_, st) => st?.endereco || '[Endereço do aluno]',
+}
+
+function buildFromTemplate(body, studio, student, options) {
+  const data = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const valor = options?.valor ?? 'R$ 0,00'
+  const multaSimNao = options?.incluirMulta ? 'Sim' : 'Não'
+  const multaTexto = options?.incluirMulta
+    ? 'Em caso de rescisão antecipada pelo aluno, será aplicada multa conforme combinado entre as partes.'
+    : 'Não há cláusula de multa por rescisão antecipada.'
+  let out = body || ''
+  Object.entries(PLACEHOLDERS).forEach(([key, fn]) => {
+    out = out.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), fn(studio, student))
+  })
+  out = out.replace(/\{\{VALOR\}\}/g, valor)
+  out = out.replace(/\{\{DATA\}\}/g, data)
+  out = out.replace(/\{\{MULTA_SIM_NAO\}\}/g, multaSimNao)
+  out = out.replace(/\{\{MULTA_TEXTO\}\}/g, multaTexto)
+  return out
+}
+
 function buildContractText(studio, student, options) {
   const rs = studio?.razao_social || studio?.nome_fantasia || '[Razão social / Nome fantasia]'
   const end = studio?.endereco || '[Endereço do estúdio]'
@@ -75,6 +103,7 @@ _________________________ (Estúdio)     _________________________ (Aluno)`
 
 export default function VerContrato({ user }) {
   const [studio, setStudio] = useState(null)
+  const [template, setTemplate] = useState(null)
   const [options, setOptions] = useState({
     valor: 'R$ 0,00',
     incluirMulta: false,
@@ -83,25 +112,34 @@ export default function VerContrato({ user }) {
   useEffect(() => {
     const token = user?.token
     if (!token) return
-    fetch(`${window.location.origin}/api/contratos-studio`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.studio && typeof data.studio === 'object') setStudio(data.studio)
+    Promise.all([
+      fetch(`${window.location.origin}/api/contratos-studio`, {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()),
+      fetch(`${window.location.origin}/api/contratos-template`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()),
+    ])
+      .then(([studioRes, templateRes]) => {
+        if (studioRes.studio && typeof studioRes.studio === 'object') setStudio(studioRes.studio)
+        if (templateRes.template?.body != null) setTemplate(templateRes.template)
       })
       .catch(() => {})
   }, [user?.token])
 
   const exampleStudent = { nome: 'Nome do aluno', cpf: 'CPF', endereco: 'Endereço do aluno' }
-  const previewText = buildContractText(studio, exampleStudent, options)
+  const previewText = template?.body
+    ? buildFromTemplate(template.body, studio, exampleStudent, options)
+    : buildContractText(studio, exampleStudent, options)
 
   return (
     <div style={styles.box}>
       <h2 style={styles.h2}>Ver por dentro do contrato</h2>
+      <p style={{ fontSize: 13, color: '#9ab5ad', marginBottom: 8 }}>
+        Abaixo você vê a prévia do contrato com os opcionais. Ao gerar o PDF, os dados do estúdio e do aluno serão preenchidos.
+      </p>
       <p style={{ fontSize: 13, color: '#9ab5ad', marginBottom: 16 }}>
-        Visualize o modelo de contrato. Os opcionais abaixo podem ser alterados na hora de gerar o PDF.
+        Os opcionais podem ser alterados na hora de gerar o PDF.
       </p>
 
       <div style={styles.opts}>

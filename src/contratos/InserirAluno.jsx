@@ -57,6 +57,7 @@ const styles = {
     marginRight: 8,
   },
   err: { fontSize: 13, marginTop: 8, color: '#e07c7c' },
+  emptyHint: { fontSize: 13, color: '#9ab5ad', marginBottom: 16 },
 }
 
 export default function InserirAluno({ user }) {
@@ -150,6 +151,10 @@ export default function InserirAluno({ user }) {
       <p style={{ fontSize: 13, color: '#9ab5ad', marginBottom: 12 }}>
         Cadastre os alunos para gerar contratos. Depois selecione o aluno na hora de gerar o PDF.
       </p>
+
+      {students.length === 0 && (
+        <p style={styles.emptyHint}>Nenhum aluno cadastrado. Use o formulário abaixo para adicionar o primeiro.</p>
+      )}
 
       <ul style={styles.list}>
         {students.map((s) => (

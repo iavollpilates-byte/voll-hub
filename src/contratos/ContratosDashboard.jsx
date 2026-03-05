@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import ContratosAdmin, { getAdminToken, setAdminToken } from './ContratosAdmin.jsx'
+import { useState } from 'react'
 import DadosEstudio from './DadosEstudio.jsx'
 import InserirAluno from './InserirAluno.jsx'
 import VerContrato from './VerContrato.jsx'
@@ -10,7 +9,6 @@ const sections = [
   { id: 'ver', label: 'Ver contrato', Icon: '📄' },
   { id: 'alunos', label: 'Inserir aluno', Icon: '👤' },
   { id: 'gerar', label: 'Gerar contrato', Icon: '📥' },
-  { id: 'admin', label: 'Admin', Icon: '🔧' },
 ]
 
 const styles = {
@@ -79,21 +77,18 @@ const styles = {
   },
 }
 
+const focusVisibleStyle = `
+  .contratos-nav-btn { outline: none; }
+  .contratos-nav-btn:focus-visible { outline: 2px solid #7dd3b0; outline-offset: 2px; }
+  @media (max-width: 480px) { .contratos-main { padding: 16px !important; } }
+`
+
 export default function ContratosDashboard({ user, onLogout }) {
   const [section, setSection] = useState('estudio')
-  const [adminToken, setAdminTokenState] = useState(null)
-
-  useEffect(() => {
-    setAdminTokenState(getAdminToken())
-  }, [])
-
-  const handleAdminToken = (token) => {
-    setAdminToken(token)
-    setAdminTokenState(token)
-  }
 
   return (
     <div style={styles.layout}>
+      <style>{focusVisibleStyle}</style>
       <header style={styles.header}>
         <h1 style={styles.title}>Gerador de Contratos</h1>
         <span style={styles.user}>{user.name || user.email}</span>
@@ -107,6 +102,7 @@ export default function ContratosDashboard({ user, onLogout }) {
           <button
             key={s.id}
             type="button"
+            className="contratos-nav-btn"
             style={{ ...styles.navBtn, ...(section === s.id ? styles.navBtnActive : {}) }}
             onClick={() => setSection(s.id)}
           >
@@ -115,12 +111,11 @@ export default function ContratosDashboard({ user, onLogout }) {
         ))}
       </nav>
 
-      <main style={styles.main}>
+      <main className="contratos-main" style={styles.main}>
         {section === 'estudio' && <DadosEstudio user={user} />}
         {section === 'ver' && <VerContrato user={user} />}
         {section === 'alunos' && <InserirAluno user={user} />}
         {section === 'gerar' && <GerarContrato user={user} />}
-        {section === 'admin' && <ContratosAdmin adminToken={adminToken} onAdminToken={handleAdminToken} />}
       </main>
     </div>
   )
