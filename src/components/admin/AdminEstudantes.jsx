@@ -384,7 +384,7 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
                     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                       <div><label style={{ fontSize: 10, color: T.textFaint }}>Texto da pergunta</label><textarea defaultValue={q.question_text} onBlur={(e) => updateQuestion(q.id, "question_text", e.target.value)} style={{ ...sInp, minHeight: 60 }} /></div>
                       <div><label style={{ fontSize: 10, color: T.textFaint }}>Dimensão</label><select defaultValue={q.dimension} onBlur={(e) => updateQuestion(q.id, "dimension", e.target.value)} style={sInp}>{DIMENSIONS.map((dim) => <option key={dim} value={dim}>{dim}</option>)}</select></div>
-                      <div><label style={{ fontSize: 10, color: T.textFaint }}>Opções (JSON: [{"text":"...","points":0}, ...])</label><textarea defaultValue={JSON.stringify(q.options || [], null, 2)} onBlur={(e) => { try { updateQuestion(q.id, "options", JSON.parse(e.target.value)); } catch (_) { showT("JSON inválido"); } }} style={{ ...sInp, minHeight: 80, fontFamily: "monospace", fontSize: 11 }} /></div>
+                      <div><label style={{ fontSize: 10, color: T.textFaint }}>{'Opções (JSON: [{"text":"...","points":0}, ...])'}</label><textarea defaultValue={JSON.stringify(q.options || [], null, 2)} onBlur={(e) => { try { updateQuestion(q.id, "options", JSON.parse(e.target.value)); } catch (_) { showT("JSON inválido"); } }} style={{ ...sInp, minHeight: 80, fontFamily: "monospace", fontSize: 11 }} /></div>
                     </div>
                   )}
                 </div>
