@@ -71,7 +71,6 @@ export default function EstudanteApp() {
           setStoredSession(t, e)
           setEstudante(e)
         }}
-        onMagicLinkRequested={() => {}}
       />
     )
   }
@@ -130,7 +129,7 @@ export default function EstudanteApp() {
   )
 }
 
-function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
+function EstudanteLanding({ onLoggedIn }) {
   const [mode, setMode] = useState('cadastro')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -138,8 +137,6 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
   const [nameLogin, setNameLogin] = useState('')
   const [emailLogin, setEmailLogin] = useState('')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [successLink, setSuccessLink] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
   const handleCadastro = async (e) => {
@@ -159,10 +156,9 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
     onLoggedIn(result.estudante, result.token)
   }
 
-  const handleMagicLink = async (e) => {
+  const handleEntrar = async (e) => {
     e.preventDefault()
     setError('')
-    setSuccess('')
     if (!emailLogin.trim()) {
       setError('Informe seu e-mail.')
       return
@@ -174,9 +170,10 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
       setError(result.error)
       return
     }
-    setSuccess(nameLogin.trim() ? `Olá, ${nameLogin.trim()}! ${result.message || 'Link gerado.'}` : (result.message || 'Link gerado.'))
-    if (result.link) setSuccessLink(result.link)
-    onMagicLinkRequested()
+    if (result.link) {
+      window.location.href = result.link
+      return
+    }
   }
 
   return (
@@ -207,7 +204,7 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
             </button>
           </form>
         ) : (
-          <form onSubmit={handleMagicLink}>
+          <form onSubmit={handleEntrar}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>Nome</label>
             <input
               type="text"
@@ -225,19 +222,13 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
               style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: 14, marginBottom: 20 }}
             />
             {error && <p style={{ color: '#fca5a5', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-            {success && <p style={{ color: '#86efac', fontSize: 13, marginBottom: 12 }}>{success}</p>}
-            {successLink && (
-              <a href={successLink} style={{ display: 'block', width: '100%', marginTop: 12, padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, #349980, #7DE2C7)', color: '#0d1f1a', fontSize: 15, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
-                Abrir meu link de acesso
-              </a>
-            )}
             <button type="submit" disabled={submitting} style={{ width: '100%', padding: 14, borderRadius: 12, background: 'rgba(52,153,128,0.5)', color: '#7dd3b0', fontSize: 15, fontWeight: 700, border: '1px solid rgba(52,153,128,0.5)', cursor: submitting ? 'not-allowed' : 'pointer' }}>
-              {submitting ? 'Enviando...' : 'Enviar link de acesso'}
+              {submitting ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
         )}
-        <button type="button" onClick={() => { setMode(mode === 'cadastro' ? 'login' : 'cadastro'); setError(''); setSuccess(''); setSuccessLink(null); }} style={{ width: '100%', marginTop: 16, padding: 10, background: 'none', border: 'none', color: 'rgba(125,211,176,0.9)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
-          {mode === 'cadastro' ? 'Já sou cadastrado – enviar link de acesso' : 'Voltar ao cadastro'}
+        <button type="button" onClick={() => { setMode(mode === 'cadastro' ? 'login' : 'cadastro'); setError(''); }} style={{ width: '100%', marginTop: 16, padding: 10, background: 'none', border: 'none', color: 'rgba(125,211,176,0.9)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+          {mode === 'cadastro' ? 'Já sou cadastrado' : 'Voltar ao cadastro'}
         </button>
       </div>
     </div>
