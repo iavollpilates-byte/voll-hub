@@ -3,7 +3,7 @@ import { supabase } from "../../supabaseClient";
 
 const DIMENSIONS = ["Presença Digital", "Posicionamento", "Networking", "Comunicação", "Mentalidade"];
 
-export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, canEditDiagnostico }) {
+export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, canEditDiagnostico, estudanteWhatsApp = "", onSaveEstudanteWhatsApp }) {
   const [subTab, setSubTab] = useState("dados");
   const [estudantes, setEstudantes] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -19,6 +19,11 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
   const [editingDocId, setEditingDocId] = useState(null);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [waInput, setWaInput] = useState(estudanteWhatsApp || "");
+
+  useEffect(() => {
+    setWaInput(estudanteWhatsApp || "");
+  }, [estudanteWhatsApp]);
 
   const sInp = { width: "100%", padding: "8px 10px", borderRadius: 8, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 12, fontFamily: "'Plus Jakarta Sans'" };
 
@@ -199,6 +204,24 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
+      {typeof onSaveEstudanteWhatsApp === "function" && (
+        <div style={{ padding: 12, borderRadius: 10, background: T.statBg, border: `1px solid ${T.cardBorder}` }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 6 }}>WhatsApp para contato dos alunos</p>
+          <input
+            type="text"
+            value={waInput}
+            onChange={(e) => setWaInput(e.target.value)}
+            onBlur={() => {
+              const normalized = (waInput || "").replace(/\D/g, "");
+              onSaveEstudanteWhatsApp(normalized);
+              setWaInput(normalized);
+            }}
+            placeholder="5511999999999"
+            style={{ ...sInp, maxWidth: 220 }}
+          />
+          <p style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>Número no formato internacional (só dígitos). Se preenchido, o botão Fale comigo aparece no header da Área do Estudante. Deixe vazio para ocultar.</p>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {["dados", "documentos", "diagnostico"].map((t) => (
           <button

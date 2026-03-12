@@ -2166,6 +2166,8 @@ export default function AdminPanel({
               addLog={addLog}
               canEditDocs={can("estudantes_edit") || isMaster}
               canEditDiagnostico={can("diagnostico_edit") || isMaster}
+              estudanteWhatsApp={config.estudanteWhatsApp || ""}
+              onSaveEstudanteWhatsApp={(value) => { updCfg("estudanteWhatsApp", value); addLog("Atualizou WhatsApp Área Estudante"); }}
             />
           </div>
         )}
