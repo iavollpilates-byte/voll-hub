@@ -182,8 +182,7 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
   return (
     <div style={{ minHeight: '100vh', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(160deg, #0d1f1a 0%, #1a2e28 50%, #0d1f1a 100%)', color: '#f0f0f0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <div style={{ width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 28, border: '1px solid rgba(255,255,255,0.08)' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, textAlign: 'center' }}>Área do Estudante</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: 24 }}>Cadastro ou Já sou cadastrado</p>
+        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 24, textAlign: 'center' }}>Área do Estudante</h1>
         {mode === 'cadastro' ? (
           <form onSubmit={handleCadastro}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>Nome</label>
@@ -200,19 +199,11 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu@email.com"
-              style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: 14, marginBottom: 12 }}
-            />
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>Telefone (opcional)</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="(00) 00000-0000"
               style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: 14, marginBottom: 20 }}
             />
             {error && <p style={{ color: '#fca5a5', fontSize: 13, marginBottom: 12 }}>{error}</p>}
             <button type="submit" disabled={submitting} style={{ width: '100%', padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, #349980, #7DE2C7)', color: '#0d1f1a', fontSize: 15, fontWeight: 700, border: 'none', cursor: submitting ? 'not-allowed' : 'pointer' }}>
-              {submitting ? 'Cadastrando...' : 'Cadastrar e entrar'}
+              {submitting ? 'Cadastrando...' : 'Fazer Cadastro'}
             </button>
           </form>
         ) : (
