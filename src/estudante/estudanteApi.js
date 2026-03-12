@@ -86,10 +86,10 @@ export async function requestMagicLink(email) {
 export async function requestMagicLinkWithEmail(email) {
   const base = typeof window !== 'undefined' ? window.location.origin : ''
   try {
-    const r = await fetch(`${base}/api/estudante-magic-link`, {
+    const r = await fetch(`${base}/api/support`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      body: JSON.stringify({ action: 'estudanteMagicLink', email: email.trim().toLowerCase() }),
     })
     const data = await r.json().catch(() => ({}))
     if (r.ok && data.ok && data.link) {
