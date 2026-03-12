@@ -6,8 +6,10 @@
 import { createClient } from '@supabase/supabase-js';
 
 function getEstudanteBaseUrl() {
+  // Nunca usar VERCEL_URL: em preview vira host tipo voll-hub-yyki-xxx.vercel.app,
+  // que pode ter Password Protection/SSO e redireciona para vercel.com/sso.
   if (process.env.ESTUDANTE_BASE_URL) return process.env.ESTUDANTE_BASE_URL.replace(/\/$/, '');
-  return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://rafael.grupovoll.com.br';
+  return 'https://rafael.grupovoll.com.br';
 }
 
 async function handleEstudanteMagicLink(req, res, supabase) {
