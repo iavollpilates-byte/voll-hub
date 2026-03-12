@@ -135,6 +135,7 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [nameLogin, setNameLogin] = useState('')
   const [emailLogin, setEmailLogin] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -173,7 +174,7 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
       setError(result.error)
       return
     }
-    setSuccess(result.message || 'Link gerado.')
+    setSuccess(nameLogin.trim() ? `Olá, ${nameLogin.trim()}! ${result.message || 'Link gerado.'}` : (result.message || 'Link gerado.'))
     if (result.link) setSuccessLink(result.link)
     onMagicLinkRequested()
   }
@@ -182,7 +183,7 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
     <div style={{ minHeight: '100vh', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(160deg, #0d1f1a 0%, #1a2e28 50%, #0d1f1a 100%)', color: '#f0f0f0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <div style={{ width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 28, border: '1px solid rgba(255,255,255,0.08)' }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, textAlign: 'center' }}>Área do Estudante</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: 24 }}>Cadastre-se ou acesse com seu e-mail</p>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: 24 }}>Cadastro ou Já sou cadastrado</p>
         {mode === 'cadastro' ? (
           <form onSubmit={handleCadastro}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>Nome</label>
@@ -216,6 +217,14 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
           </form>
         ) : (
           <form onSubmit={handleMagicLink}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>Nome</label>
+            <input
+              type="text"
+              value={nameLogin}
+              onChange={(e) => setNameLogin(e.target.value)}
+              placeholder="Seu nome"
+              style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: 14, marginBottom: 12 }}
+            />
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>E-mail</label>
             <input
               type="email"
@@ -236,8 +245,8 @@ function EstudanteLanding({ onLoggedIn, onMagicLinkRequested }) {
             </button>
           </form>
         )}
-        <button type="button" onClick={() => { setMode(mode === 'cadastro' ? 'login' : 'cadastro'); setError(''); setSuccess(''); }} style={{ width: '100%', marginTop: 16, padding: 10, background: 'none', border: 'none', color: 'rgba(125,211,176,0.9)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
-          {mode === 'cadastro' ? 'Já tenho cadastro – enviar link de acesso' : 'Voltar ao cadastro'}
+        <button type="button" onClick={() => { setMode(mode === 'cadastro' ? 'login' : 'cadastro'); setError(''); setSuccess(''); setSuccessLink(null); }} style={{ width: '100%', marginTop: 16, padding: 10, background: 'none', border: 'none', color: 'rgba(125,211,176,0.9)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+          {mode === 'cadastro' ? 'Já sou cadastrado – enviar link de acesso' : 'Voltar ao cadastro'}
         </button>
       </div>
     </div>
