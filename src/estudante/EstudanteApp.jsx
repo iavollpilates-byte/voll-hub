@@ -156,7 +156,6 @@ function EstudanteLanding({ onLoggedIn }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [nameLogin, setNameLogin] = useState('')
   const [emailLogin, setEmailLogin] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -227,14 +226,6 @@ function EstudanteLanding({ onLoggedIn }) {
           </form>
         ) : (
           <form onSubmit={handleEntrar}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4 }}>Nome</label>
-            <input
-              type="text"
-              value={nameLogin}
-              onChange={(e) => setNameLogin(e.target.value)}
-              placeholder="Seu nome"
-              style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 14, marginBottom: 12 }}
-            />
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4 }}>E-mail</label>
             <input
               type="email"
@@ -260,12 +251,32 @@ function EstudanteLanding({ onLoggedIn }) {
 function EstudanteDocuments() {
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
-  useEffect(() => {
+  const [error, setError] = useState(null)
+
+  const load = useCallback(() => {
+    setError(null)
+    setLoading(true)
     import('./estudanteApi').then(({ listDocuments }) => {
-      listDocuments().then(setDocs).finally(() => setLoading(false))
+      listDocuments()
+        .then(setDocs)
+        .catch(() => setError('Não foi possível carregar os documentos. Tente novamente.'))
+        .finally(() => setLoading(false))
     })
   }, [])
+
+  useEffect(() => { load() }, [load])
+
   if (loading) return <p style={{ color: T.textFaint }}>Carregando documentos...</p>
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <p style={{ color: T.dangerTxt, fontSize: 14, marginBottom: 12 }}>{error}</p>
+        <button type="button" onClick={load} style={{ padding: '10px 20px', borderRadius: 10, background: T.accent, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          Tentar novamente
+        </button>
+      </div>
+    )
+  }
   if (docs.length === 0) return <p style={{ color: T.textFaint, textAlign: 'center' }}>Nenhum documento disponível no momento.</p>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -289,16 +300,22 @@ function EstudanteDiagnostico({ estudanteId, onDone }) {
   const [responses, setResponses] = useState([])
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
-  useEffect(() => {
+  const loadQuestions = useCallback(() => {
+    setLoadError(null)
+    setLoading(true)
     import('./estudanteApi').then(({ listDiagnosticoQuestions }) => {
-      listDiagnosticoQuestions().then((q) => {
-        setQuestions(q)
-        setLoading(false)
-      })
+      listDiagnosticoQuestions()
+        .then((q) => { setQuestions(q); setLoadError(null) })
+        .catch(() => setLoadError('Não foi possível carregar as perguntas. Tente novamente.'))
+        .finally(() => setLoading(false))
     })
   }, [])
+
+  useEffect(() => { loadQuestions() }, [loadQuestions])
 
   const handleAnswer = (questionId, optionIndex, points) => {
     const next = [...responses, { questionId, optionIndex, points }]
@@ -307,6 +324,7 @@ function EstudanteDiagnostico({ estudanteId, onDone }) {
       const res = computeResult(questions, next)
       setResult(res)
       setStep('result')
+      setSaveError(null)
       import('./estudanteApi').then(({ saveDiagnosticoResult }) => {
         setSaving(true)
         saveDiagnosticoResult(estudanteId, {
@@ -315,21 +333,49 @@ function EstudanteDiagnostico({ estudanteId, onDone }) {
           level: res.level,
           dimensionScores: res.dimensionScores,
           recommendations: res.recommendations,
-        }).then(() => setSaving(false)).catch(() => setSaving(false))
+        }).then(() => { setSaving(false); setSaveError(null) }).catch(() => { setSaving(false); setSaveError('Não foi possível salvar seu resultado.') })
       })
     } else {
       setTimeout(() => setCurrentIndex(next.length), 300)
     }
   }
 
+  const retrySave = useCallback(() => {
+    if (!result || !responses.length) return
+    setSaveError(null)
+    setSaving(true)
+    import('./estudanteApi').then(({ saveDiagnosticoResult }) => {
+      saveDiagnosticoResult(estudanteId, {
+        responses,
+        totalScore: result.totalScore,
+        level: result.level,
+        dimensionScores: result.dimensionScores,
+        recommendations: result.recommendations,
+      }).then(() => { setSaving(false); setSaveError(null) }).catch(() => { setSaving(false); setSaveError('Não foi possível salvar seu resultado.') })
+    })
+  }, [estudanteId, result, responses])
+
   if (loading) return <p style={{ color: T.textFaint }}>Carregando...</p>
+  if (loadError) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <p style={{ color: T.dangerTxt, fontSize: 14, marginBottom: 12 }}>{loadError}</p>
+        <button type="button" onClick={loadQuestions} style={{ padding: '10px 20px', borderRadius: 10, background: T.accent, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          Tentar novamente
+        </button>
+      </div>
+    )
+  }
   if (questions.length === 0) return <p style={{ color: T.textFaint }}>Perguntas não configuradas.</p>
 
   if (step === 'result' && result) {
     return (
       <EstudanteDiagnosticoResult
         result={result}
-        onRefazer={() => { setStep('quiz'); setCurrentIndex(0); setResponses([]); setResult(null); }}
+        saveError={saveError}
+        onRetrySave={retrySave}
+        saving={saving}
+        onRefazer={() => { setStep('quiz'); setCurrentIndex(0); setResponses([]); setResult(null); setSaveError(null); }}
         onVerHistorico={onDone}
       />
     )
@@ -375,7 +421,7 @@ function EstudanteDiagnostico({ estudanteId, onDone }) {
   )
 }
 
-function EstudanteDiagnosticoResult({ result, onRefazer, onVerHistorico }) {
+function EstudanteDiagnosticoResult({ result, saveError, onRetrySave, saving, onRefazer, onVerHistorico }) {
   const [scoreAnimated, setScoreAnimated] = useState(0)
   const [config, setConfig] = useState({ diagnosticoCtaUrl: '', diagnosticoCtaText: 'Quero meu plano de ação' })
 
@@ -424,6 +470,14 @@ function EstudanteDiagnosticoResult({ result, onRefazer, onVerHistorico }) {
         ))}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {saveError && (
+          <>
+            <p style={{ color: T.dangerTxt, fontSize: 13 }}>{saveError}</p>
+            <button type="button" onClick={onRetrySave} disabled={saving} style={{ width: '100%', padding: 12, borderRadius: 12, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
+              {saving ? 'Salvando...' : 'Salvar resultado novamente'}
+            </button>
+          </>
+        )}
         <button type="button" onClick={() => downloadDiagnosticoCard(result)} style={{ width: '100%', padding: 14, borderRadius: 12, background: T.dlBg, border: `1px solid ${T.spotBorder}`, color: T.accent, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
           Compartilhe seu resultado (baixar imagem)
         </button>
@@ -446,12 +500,32 @@ function EstudanteDiagnosticoResult({ result, onRefazer, onVerHistorico }) {
 function EstudanteHistorico({ estudanteId }) {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
-  useEffect(() => {
+  const [error, setError] = useState(null)
+
+  const load = useCallback(() => {
+    setError(null)
+    setLoading(true)
     import('./estudanteApi').then(({ listDiagnosticoResults }) => {
-      listDiagnosticoResults(estudanteId).then(setResults).finally(() => setLoading(false))
+      listDiagnosticoResults(estudanteId)
+        .then(setResults)
+        .catch(() => setError('Não foi possível carregar o histórico. Tente novamente.'))
+        .finally(() => setLoading(false))
     })
   }, [estudanteId])
+
+  useEffect(() => { load() }, [load])
+
   if (loading) return <p style={{ color: T.textFaint }}>Carregando histórico...</p>
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <p style={{ color: T.dangerTxt, fontSize: 14, marginBottom: 12 }}>{error}</p>
+        <button type="button" onClick={load} style={{ padding: '10px 20px', borderRadius: 10, background: T.accent, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          Tentar novamente
+        </button>
+      </div>
+    )
+  }
   if (results.length === 0) return <p style={{ color: T.textFaint, textAlign: 'center' }}>Você ainda não fez nenhum diagnóstico. Vá em Diagnóstico de Carreira para começar.</p>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
