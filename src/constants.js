@@ -126,6 +126,9 @@ export const PERM_LABELS = {
   leads_whatsapp: { label: "Enviar WhatsApp", icon: "💬", group: "Leads" },
   textos_edit: { label: "Editar textos e configs", icon: "✏️", group: "CMS" },
   users_manage: { label: "Gerenciar usuários", icon: "🔐", group: "Sistema" },
+  estudantes_view: { label: "Ver estudantes", icon: "🎓", group: "Estudantes" },
+  estudantes_edit: { label: "Editar estudantes / documentos", icon: "✏️", group: "Estudantes" },
+  diagnostico_edit: { label: "Editar diagnóstico / análise", icon: "📊", group: "Estudantes" },
 };
 
 export const THEMES = {

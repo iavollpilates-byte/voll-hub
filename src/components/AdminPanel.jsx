@@ -4,6 +4,7 @@ import { getUnlockLabel, getCSS, formatCountdown as fmtCountdown } from "../util
 import { drawReflectionCanvas } from "../canvasUtils";
 import AdminMaterials from "./admin/AdminMaterials";
 import AdminLog from "./admin/AdminLog";
+import AdminEstudantes from "./admin/AdminEstudantes";
 
 // Contrato das flags ui_* em creditsEarned (mensagens/onboarding) — alinhado ao CMS
 const UI_FLAGS_REGISTRY = [
@@ -54,7 +55,7 @@ export default function AdminPanel({
   const [showIconPicker, setShowIconPicker] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: "", pin: "", permissions: { materials_view: true, materials_edit: false, leads_view: true, leads_export: false, leads_whatsapp: false, textos_edit: false, users_manage: false } });
+  const [newUser, setNewUser] = useState({ name: "", pin: "", permissions: { materials_view: true, materials_edit: false, leads_view: true, leads_export: false, leads_whatsapp: false, textos_edit: false, estudantes_view: false, estudantes_edit: false, diagnostico_edit: false, users_manage: false } });
   const [editUserId, setEditUserId] = useState(null);
   const [searchLead, setSearchLead] = useState("");
   const [leadFilter, setLeadFilter] = useState("all");
@@ -390,6 +391,12 @@ export default function AdminPanel({
         can("leads_view") && ["insights", "📊", "Insights"],
         can("leads_view") && ["support", "💬", "Suporte"],
         isMaster && ["users", "👑", "Usuários"],
+      ].filter(Boolean),
+    },
+    {
+      title: "Estudantes",
+      items: [
+        (can("estudantes_view") || isMaster) && ["estudantes", "🎓", "Estudantes"],
       ].filter(Boolean),
     },
     {
@@ -2147,6 +2154,21 @@ export default function AdminPanel({
         )}
 
         {/* LOG */}
+        {adminTab === "estudantes" && (can("estudantes_view") || isMaster) && (
+          <div style={{ padding: 0, maxWidth: "100%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Estudantes e Diagnóstico</h2>
+            </div>
+            <AdminEstudantes
+              T={T}
+              showT={showT}
+              can={can}
+              addLog={addLog}
+              canEditDocs={can("estudantes_edit") || isMaster}
+              canEditDiagnostico={can("diagnostico_edit") || isMaster}
+            />
+          </div>
+        )}
         {adminTab === "log" && isMaster && <AdminLog T={T} activityLog={activityLog} setActivityLog={setActivityLog} />}
         </div>
       </main>
