@@ -101,8 +101,11 @@ on conflict (key) do nothing;
 insert into storage.buckets (id, name, public) values ('estudante-documents', 'estudante-documents', true)
 on conflict (id) do nothing;
 
+drop policy if exists "public_read_estudante_documents" on storage.objects;
 create policy "public_read_estudante_documents" on storage.objects for select using (bucket_id = 'estudante-documents');
+drop policy if exists "public_insert_estudante_documents" on storage.objects;
 create policy "public_insert_estudante_documents" on storage.objects for insert with check (bucket_id = 'estudante-documents');
+drop policy if exists "public_update_estudante_documents" on storage.objects;
 create policy "public_update_estudante_documents" on storage.objects for update using (bucket_id = 'estudante-documents');
 
 -- ═══════════════════════════════════════════════
@@ -115,11 +118,17 @@ alter table estudante_links enable row level security;
 alter table diagnostico_questions enable row level security;
 alter table diagnostico_results enable row level security;
 
+drop policy if exists "public_estudantes" on estudantes;
 create policy "public_estudantes" on estudantes for all using (true) with check (true);
+drop policy if exists "public_estudante_tokens" on estudante_tokens;
 create policy "public_estudante_tokens" on estudante_tokens for all using (true) with check (true);
+drop policy if exists "public_estudante_documents" on estudante_documents;
 create policy "public_estudante_documents" on estudante_documents for all using (true) with check (true);
+drop policy if exists "public_estudante_links" on estudante_links;
 create policy "public_estudante_links" on estudante_links for all using (true) with check (true);
+drop policy if exists "public_diagnostico_questions" on diagnostico_questions;
 create policy "public_diagnostico_questions" on diagnostico_questions for all using (true) with check (true);
+drop policy if exists "public_diagnostico_results" on diagnostico_results;
 create policy "public_diagnostico_results" on diagnostico_results for all using (true) with check (true);
 
 -- ═══════════════════════════════════════════════
