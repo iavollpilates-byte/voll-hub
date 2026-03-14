@@ -115,6 +115,7 @@ export default function EstudanteApp() {
       <nav style={{ display: 'flex', gap: 4, padding: '12px 20px', overflowX: 'auto', borderBottom: `1px solid ${T.cardBorder}`, background: T.tabBg }}>
         {[
           { id: 'documentos', label: 'Documentos', icon: '📄' },
+          { id: 'links', label: 'Eventos e links', icon: '🔗' },
           { id: 'diagnostico', label: 'Diagnóstico de Carreira', icon: '🎯' },
           { id: 'historico', label: 'Meu histórico', icon: '📊' },
         ].map((t) => (
@@ -144,6 +145,7 @@ export default function EstudanteApp() {
       </nav>
       <main style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
         {tab === 'documentos' && <EstudanteDocuments />}
+        {tab === 'links' && <EstudanteLinks />}
         {tab === 'diagnostico' && <EstudanteDiagnostico estudanteId={estudante.id} onDone={() => setTab('historico')} />}
         {tab === 'historico' && <EstudanteHistorico estudanteId={estudante.id} />}
       </main>
@@ -286,6 +288,51 @@ function EstudanteDocuments() {
           {d.description && <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 12 }}>{d.description}</p>}
           <a href={d.file_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 10, background: `linear-gradient(135deg, ${T.accentDark}, ${T.accent})`, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
             Baixar
+          </a>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EstudanteLinks() {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const load = useCallback(() => {
+    setError(null)
+    setLoading(true)
+    import('./estudanteApi').then(({ listEstudanteLinks }) => {
+      listEstudanteLinks()
+        .then(setItems)
+        .catch(() => setError('Não foi possível carregar os links. Tente novamente.'))
+        .finally(() => setLoading(false))
+    })
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) return <p style={{ color: T.textFaint }}>Carregando...</p>
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <p style={{ color: T.dangerTxt, fontSize: 14, marginBottom: 12 }}>{error}</p>
+        <button type="button" onClick={load} style={{ padding: '10px 20px', borderRadius: 10, background: T.accent, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          Tentar novamente
+        </button>
+      </div>
+    )
+  }
+  if (items.length === 0) return <p style={{ color: T.textFaint, textAlign: 'center' }}>Nenhum link disponível no momento.</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {items.map((l) => (
+        <div key={l.id} style={{ background: T.statBg, borderRadius: 12, padding: 16, border: `1px solid ${T.statBorder}` }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: T.text }}>{l.title}</h3>
+          {l.description && <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 12 }}>{l.description}</p>}
+          <a href={l.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 10, background: `linear-gradient(135deg, ${T.accentDark}, ${T.accent})`, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+            Acessar
           </a>
         </div>
       ))}

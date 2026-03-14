@@ -35,6 +35,17 @@ create table if not exists estudante_documents (
   created_at timestamptz default now()
 );
 
+-- 3b. LINKS (eventos, divulgações para alunos)
+create table if not exists estudante_links (
+  id bigint generated always as identity primary key,
+  title text not null,
+  description text default '',
+  url text not null default '',
+  sort_order integer default 0,
+  active boolean default true,
+  created_at timestamptz default now()
+);
+
 -- 4. PERGUNTAS DO DIAGNÓSTICO (editáveis no admin)
 create table if not exists diagnostico_questions (
   id bigint generated always as identity primary key,
@@ -100,12 +111,14 @@ create policy "public_update_estudante_documents" on storage.objects for update 
 alter table estudantes enable row level security;
 alter table estudante_tokens enable row level security;
 alter table estudante_documents enable row level security;
+alter table estudante_links enable row level security;
 alter table diagnostico_questions enable row level security;
 alter table diagnostico_results enable row level security;
 
 create policy "public_estudantes" on estudantes for all using (true) with check (true);
 create policy "public_estudante_tokens" on estudante_tokens for all using (true) with check (true);
 create policy "public_estudante_documents" on estudante_documents for all using (true) with check (true);
+create policy "public_estudante_links" on estudante_links for all using (true) with check (true);
 create policy "public_diagnostico_questions" on diagnostico_questions for all using (true) with check (true);
 create policy "public_diagnostico_results" on diagnostico_results for all using (true) with check (true);
 

@@ -20,6 +20,10 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [waInput, setWaInput] = useState(estudanteWhatsApp || "");
+  const [links, setLinks] = useState([]);
+  const [showNewLink, setShowNewLink] = useState(false);
+  const [newLink, setNewLink] = useState({ title: "", description: "", url: "", sort_order: 0, active: true });
+  const [editingLinkId, setEditingLinkId] = useState(null);
 
   useEffect(() => {
     setWaInput(estudanteWhatsApp || "");
@@ -51,6 +55,14 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
     setQuestions(data || []);
   }, [showT]);
 
+  const loadLinks = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("estudante_links").select("*").order("sort_order", { ascending: true });
+    setLoading(false);
+    if (error) return showT("Erro ao carregar links: " + error.message);
+    setLinks(data || []);
+  }, [showT]);
+
   const loadResults = useCallback(async () => {
     setLoading(true);
     const { data: resData, error: resErr } = await supabase.from("diagnostico_results").select("*").order("created_at", { ascending: false });
@@ -73,11 +85,12 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
   useEffect(() => {
     if (subTab === "dados") loadEstudantes();
     else if (subTab === "documentos") loadDocuments();
+    else if (subTab === "links") loadLinks();
     else if (subTab === "diagnostico") {
       loadQuestions();
       loadResults();
     }
-  }, [subTab, loadEstudantes, loadDocuments, loadQuestions, loadResults]);
+  }, [subTab, loadEstudantes, loadDocuments, loadLinks, loadQuestions, loadResults]);
 
   const filteredEstudantes = estudantes.filter((e) => {
     const q = searchEstudantes.trim().toLowerCase();
@@ -188,6 +201,48 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
     showT("Excluído! 🗑️");
   };
 
+  const saveLink = async () => {
+    if (!newLink.title.trim()) return showT("Preencha o título.");
+    if (!newLink.url.trim()) return showT("Informe a URL.");
+    const { error } = await supabase.from("estudante_links").insert({
+      title: newLink.title.trim(),
+      description: (newLink.description || "").trim(),
+      url: newLink.url.trim(),
+      sort_order: Number(newLink.sort_order) || 0,
+      active: !!newLink.active,
+    });
+    if (error) return showT("Erro ao criar: " + error.message);
+    addLog?.("Criou link estudante: " + newLink.title);
+    setNewLink({ title: "", description: "", url: "", sort_order: links.length, active: true });
+    setShowNewLink(false);
+    loadLinks();
+    showT("Link criado! ✅");
+  };
+
+  const updateLink = async (id, field, value) => {
+    const payload = {};
+    if (field === "title") payload.title = value;
+    if (field === "description") payload.description = value;
+    if (field === "url") payload.url = value;
+    if (field === "sort_order") payload.sort_order = Number(value) || 0;
+    if (field === "active") payload.active = !!value;
+    const { error } = await supabase.from("estudante_links").update(payload).eq("id", id);
+    if (error) return showT("Erro ao atualizar: " + error.message);
+    setEditingLinkId(null);
+    loadLinks();
+    showT("Atualizado! ✅");
+  };
+
+  const deleteLink = async (id) => {
+    if (!window.confirm("Excluir este link?")) return;
+    const { error } = await supabase.from("estudante_links").delete().eq("id", id);
+    if (error) return showT("Erro ao excluir: " + error.message);
+    addLog?.("Excluiu link estudante id " + id);
+    setEditingLinkId(null);
+    loadLinks();
+    showT("Excluído! 🗑️");
+  };
+
   const updateQuestion = async (id, field, value) => {
     let payload = {};
     if (field === "question_text") payload.question_text = value;
@@ -223,7 +278,7 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
         </div>
       )}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["dados", "documentos", "diagnostico"].map((t) => (
+        {["dados", "documentos", "links", "diagnostico"].map((t) => (
           <button
             key={t}
             type="button"
@@ -241,6 +296,7 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
           >
             {t === "dados" && "👥 Dados dos estudantes"}
             {t === "documentos" && "📄 Documentos"}
+            {t === "links" && "🔗 Links"}
             {t === "diagnostico" && "📊 Diagnóstico"}
           </button>
         ))}
@@ -373,6 +429,90 @@ export default function AdminEstudantes({ T, showT, can, addLog, canEditDocs, ca
             ))}
           </div>
           {documents.length === 0 && <p style={{ fontSize: 12, color: T.textFaint }}>Nenhum documento cadastrado.</p>}
+        </>
+      )}
+
+      {subTab === "links" && !loading && (
+        <>
+          {canEditDocs && (
+            <>
+              {!showNewLink ? (
+                <button type="button" onClick={() => setShowNewLink(true)} style={{ alignSelf: "flex-start", padding: "8px 14px", borderRadius: 10, background: T.accent + "15", border: `2px dashed ${T.accent}44`, color: T.accent, fontSize: 13, fontWeight: 700 }}>
+                  ＋ Novo link
+                </button>
+              ) : (
+                <div style={{ background: T.statBg, border: `2px solid ${T.accent}44`, borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>＋ Novo link</h3>
+                    <button type="button" onClick={() => setShowNewLink(false)} style={{ background: "none", color: T.textFaint, fontSize: 14 }}>✕</button>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: T.textFaint }}>Título</label>
+                    <input value={newLink.title} onChange={(e) => setNewLink((p) => ({ ...p, title: e.target.value }))} style={sInp} placeholder="Ex: Evento online gratuito" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: T.textFaint }}>Descrição (opcional)</label>
+                    <input value={newLink.description} onChange={(e) => setNewLink((p) => ({ ...p, description: e.target.value }))} style={sInp} placeholder="Texto curto para o aluno" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: T.textFaint }}>URL</label>
+                    <input value={newLink.url} onChange={(e) => setNewLink((p) => ({ ...p, url: e.target.value }))} style={sInp} placeholder="https://..." />
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 10, color: T.textFaint }}>Ordem</label>
+                      <input type="number" value={newLink.sort_order} onChange={(e) => setNewLink((p) => ({ ...p, sort_order: Number(e.target.value) || 0 }))} style={sInp} />
+                    </div>
+                    <div style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.text }}>
+                        <input type="checkbox" checked={newLink.active} onChange={(e) => setNewLink((p) => ({ ...p, active: e.target.checked }))} />
+                        Ativo
+                      </label>
+                    </div>
+                  </div>
+                  <button type="button" onClick={saveLink} style={{ padding: "10px", borderRadius: 10, background: "linear-gradient(135deg, #349980, #7DE2C7)", color: "#060a09", fontSize: 13, fontWeight: 700 }}>
+                    Criar link
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {links.map((l) => (
+              <div key={l.id} style={{ background: T.statBg, border: `1px solid ${T.statBorder}`, borderRadius: 10, padding: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{l.title}</h4>
+                    {l.description && <p style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>{l.description}</p>}
+                    <p style={{ fontSize: 11, color: T.textFaint, marginTop: 4 }}>Ordem: {l.sort_order} · {l.active ? "Ativo" : "Inativo"}</p>
+                    <a href={l.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: T.accent }}>{l.url}</a>
+                  </div>
+                  {canEditDocs && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button type="button" onClick={() => setEditingLinkId(editingLinkId === l.id ? null : l.id)} style={{ padding: "6px 10px", borderRadius: 8, background: T.tabBg, border: `1px solid ${T.tabBorder}`, color: T.textMuted, fontSize: 11, fontWeight: 600 }}>
+                        {editingLinkId === l.id ? "Fechar" : "Editar"}
+                      </button>
+                      <button type="button" onClick={() => deleteLink(l.id)} style={{ padding: "6px 10px", borderRadius: 8, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, color: T.dangerTxt, fontSize: 11, fontWeight: 600 }}>
+                        Excluir
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {canEditDocs && editingLinkId === l.id && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.cardBorder}`, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div><label style={{ fontSize: 10, color: T.textFaint }}>Título</label><input defaultValue={l.title} onBlur={(e) => updateLink(l.id, "title", e.target.value)} style={sInp} /></div>
+                    <div><label style={{ fontSize: 10, color: T.textFaint }}>Descrição</label><input defaultValue={l.description || ""} onBlur={(e) => updateLink(l.id, "description", e.target.value)} style={sInp} /></div>
+                    <div><label style={{ fontSize: 10, color: T.textFaint }}>URL</label><input defaultValue={l.url || ""} onBlur={(e) => updateLink(l.id, "url", e.target.value)} style={sInp} /></div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <div><label style={{ fontSize: 10, color: T.textFaint }}>Ordem</label><input type="number" defaultValue={l.sort_order} onBlur={(e) => updateLink(l.id, "sort_order", e.target.value)} style={sInp} /></div>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.text }}><input type="checkbox" defaultChecked={l.active} onChange={(e) => updateLink(l.id, "active", e.target.checked)} />Ativo</label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {links.length === 0 && <p style={{ fontSize: 12, color: T.textFaint }}>Nenhum link cadastrado.</p>}
         </>
       )}
 

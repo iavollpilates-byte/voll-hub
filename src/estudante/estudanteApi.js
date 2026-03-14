@@ -121,6 +121,16 @@ export async function listDocuments() {
   return data || []
 }
 
+export async function listEstudanteLinks() {
+  const { data } = await supabase
+    .from('estudante_links')
+    .select('id, title, description, url, sort_order')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false })
+  return data || []
+}
+
 export async function listDiagnosticoQuestions() {
   const { data } = await supabase
     .from('diagnostico_questions')
