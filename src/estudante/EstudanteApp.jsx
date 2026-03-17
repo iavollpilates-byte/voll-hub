@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { THEMES } from '../constants'
+import { THEMES, DEFAULT_CONFIG } from '../constants'
 import {
   getStoredToken,
   setStoredSession,
@@ -16,6 +16,7 @@ import { downloadDiagnosticoCard } from './diagnosticoShareCard'
 
 const T = THEMES.light
 const BASE_URL = 'https://rafael.grupovoll.com.br'
+const INSTAGRAM_URL = (DEFAULT_CONFIG && DEFAULT_CONFIG.instagramUrl) || 'https://instagram.com/rafael.voll'
 
 function useQueryParam(name) {
   if (typeof window === 'undefined') return null
@@ -91,7 +92,7 @@ export default function EstudanteApp() {
     <div style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: "'Plus Jakarta Sans', sans-serif", paddingBottom: 80 }}>
       <header style={{ padding: '16px 20px', borderBottom: `1px solid ${T.cardBorder}`, background: T.cardBg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: T.text }}>Área do Estudante</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, color: T.textMuted }}>{estudante.name}</span>
           {waNum && (
             <a
@@ -103,6 +104,26 @@ export default function EstudanteApp() {
               💬 Fale comigo
             </a>
           )}
+          <a
+            href={INSTAGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              padding: '6px 12px',
+              borderRadius: 8,
+              background: T.dlBg,
+              border: `1px solid ${T.spotBorder}`,
+              color: T.accentDark,
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            📸 Instagram
+          </a>
           <button
             type="button"
             onClick={() => { clearStoredSession(); setEstudante(null); }}
@@ -305,7 +326,23 @@ function EstudanteLinks() {
     setLoading(true)
     import('./estudanteApi').then(({ listEstudanteLinks }) => {
       listEstudanteLinks()
-        .then(setItems)
+        .then((links) => {
+          const base = Array.isArray(links) ? links : []
+          const hasInstagram = base.some((l) => typeof l.url === 'string' && l.url.includes('instagram.com'))
+          const enriched = hasInstagram
+            ? base
+            : [
+                {
+                  id: 'instagram-oficial',
+                  title: 'Instagram do Rafael',
+                  description: 'Conteúdos diários sobre Pilates, gestão e carreira.',
+                  url: INSTAGRAM_URL,
+                  sort_order: -1,
+                },
+                ...base,
+              ]
+          setItems(enriched)
+        })
         .catch(() => setError('Não foi possível carregar os links. Tente novamente.'))
         .finally(() => setLoading(false))
     })
