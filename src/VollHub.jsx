@@ -3,6 +3,8 @@ import { useSupabase } from "./useSupabase";
 import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, PERM_LABELS, THEMES } from "./constants";
 import { getUnlockLabel, timeAgo, fmtWA, normalizeWhatsApp, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
 import { REFLECTION_STYLES, drawReflectionCanvas, getPreviewDataUrl, wrapCanvasText } from "./canvasUtils";
+import VideosList from "./components/videos/VideosList";
+import VideoDetail from "./components/videos/VideoDetail";
 
 const AdminPanel = lazy(() => import("./components/AdminPanel"));
 
@@ -18,7 +20,7 @@ export default function VollHub() {
 
   // ─── SUPABASE (must be before anything that uses config) ───
   const db = useSupabase();
-  const { materials, leads, adminUsers, reflections: dbReflections, phases: dbPhases, loading: dbLoading, error: dbError } = db;
+  const { materials, leads, adminUsers, videos, reflections: dbReflections, phases: dbPhases, loading: dbLoading, error: dbError } = db;
   const config = { ...DEFAULT_CONFIG, ...db.config };
 
   // Bio links
@@ -67,6 +69,7 @@ export default function VollHub() {
   }, []);
 
   const [selectedMaterial, setSelectedMaterial] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const setUnlock = (m) => { setUnlockTarget(m); setPreviewImgIdx(0); };
   // Credits system
@@ -93,6 +96,10 @@ export default function VollHub() {
     setSelectedMaterial(m);
   };
   const creditsEnabled = config.creditsEnabled === "true";
+  const getLeadIdForEvents = useCallback(async () => {
+    const lead = await db.findLeadByWhatsApp(userWhatsApp);
+    return lead?.id || null;
+  }, [db, userWhatsApp]);
   const getQuizzes = useCallback(() => {
     const raw = config.quizzes;
     if (raw != null && typeof raw === "object") return Array.isArray(raw) ? raw : [];
@@ -159,7 +166,7 @@ export default function VollHub() {
   const [emailPopupSaving, setEmailPopupSaving] = useState(false);
   const [referralVerifying, setReferralVerifying] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
-  const [hubTab, setHubTab] = useState("home"); // "home" | "materials" | "community" — Perfil is view "profile"
+  const [hubTab, setHubTab] = useState("home"); // "home" | "materials" | "videos" | "community" — Perfil is view "profile"
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportType, setSupportType] = useState("error"); // "error" | "suggestion"
   const [supportMessage, setSupportMessage] = useState("");
@@ -812,7 +819,7 @@ export default function VollHub() {
 
   // ─── MATERIAL CARD (reusable) ───
   const MaterialCard = ({ m, index, isSpotlight, isNew }) => {
-    const isFree = m.unlockType === "free" || (m.unlockType === "data" && profileComplete);
+    const isFree = true; // downloads liberados: todo material abre direto
     const isSurvey = m.unlockType === "survey";
     const surveyDone = isSurvey && surveyAnswers[m.id];
     const isDl = downloaded.includes(m.id);
@@ -829,20 +836,8 @@ export default function VollHub() {
         ref={isSpotlight ? spotlightRef : null}
         onClick={() => {
           if (isNew) markNewAsSeen(m.id);
-          const cost = m.creditCost || 0;
-          const alreadyDownloaded = downloaded.includes(m.id);
-          // Already downloaded = always accessible
-          if (alreadyDownloaded) { selectMat(m); return; }
-          // Free material (cost 0) or flash
-          if (cost === 0 || isFree || isFlashActive || surveyDone) { selectMat(m); return; }
-          // Credits system check
-          if (creditsEnabled && cost > 0) {
-            if (userCredits >= cost) { selectMat(m); return; }
-            else { setShowCreditStore(true); showT(`Você precisa de ${cost} crédito${cost > 1 ? "s" : ""} para baixar. Ganhe créditos! 🎯`); return; }
-          }
-          if (m.unlockType === "data") { if (profileComplete) { selectMat(m); } else { setView("profile"); showT("Complete seu perfil para desbloquear! 📋"); } return; }
-          if (m.unlockType === "survey") { setCurrentSurvey(m); setTempAnswers({}); setPreviewImgIdx(0); return; }
-          setUnlock(m); // social
+          // downloads liberados: abre qualquer material direto, sem gate
+          selectMat(m);
         }}
         style={{
           background: isFlashActive ? (theme === "dark" ? "linear-gradient(135deg, #1a1210, #0d0a08)" : "linear-gradient(135deg, #fdf0e8, #fdf8f4)") : isSpotlight ? T.spotBg : T.cardBg,
@@ -1744,6 +1739,39 @@ export default function VollHub() {
         </>
         )}
 
+        {/* ABA AULAS: vídeos longos por tema */}
+        {hubTab === "videos" && (
+          <div style={{ marginBottom: 24, opacity: animateIn ? 1 : 0, transform: animateIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.5s ease" }}>
+            {selectedVideo ? (
+              <VideoDetail
+                T={T}
+                video={selectedVideo}
+                leadId={null}
+                onBack={() => setSelectedVideo(null)}
+                trackEvent={async ({ leadId, videoId, eventType }) => {
+                  const realLeadId = leadId || (await getLeadIdForEvents());
+                  if (!realLeadId) return false;
+                  return db.trackVideoEvent({ leadId: realLeadId, videoId, eventType });
+                }}
+                submitQuestion={async ({ leadId, videoId, question, context }) => {
+                  const realLeadId = leadId || (await getLeadIdForEvents());
+                  if (!realLeadId) return false;
+                  const ok = await db.submitVideoQuestion({ leadId: realLeadId, videoId, question, context });
+                  if (ok) showT("Pergunta enviada! ✅");
+                  else showT("Não foi possível enviar. Tente novamente.");
+                  return ok;
+                }}
+              />
+            ) : (
+              <VideosList
+                T={T}
+                videos={videos || []}
+                onSelect={(v) => { setSelectedVideo(v); try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {} }}
+              />
+            )}
+          </div>
+        )}
+
         {/* ABA COMUNIDADE: ranking */}
         {hubTab === "community" && (config.rankingEnabled === "false" ? (
           <div style={{ marginBottom: 24, textAlign: "center", padding: "32px 20px", background: T.cardBg, borderRadius: 16, border: `1px solid ${T.cardBorder}` }}>
@@ -1801,6 +1829,7 @@ export default function VollHub() {
       <nav role="navigation" aria-label="Menu principal" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: T.cardBg, borderTop: `1px solid ${T.cardBorder}`, display: "flex", justifyContent: "space-around", padding: "10px 8px 12px", paddingBottom: "max(12px, env(safe-area-inset-bottom))", zIndex: 90, boxShadow: "0 -4px 20px rgba(0,0,0,0.08)" }}>
         <button type="button" onClick={() => setHubTab("home")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: hubTab === "home" ? T.accent : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px" }} aria-current={hubTab === "home" ? "page" : undefined}><span style={{ fontSize: 20 }}>🏠</span>Início</button>
         <button type="button" onClick={() => setHubTab("materials")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: hubTab === "materials" ? T.accent : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px" }} aria-current={hubTab === "materials" ? "page" : undefined}><span style={{ fontSize: 20 }}>📚</span>Materiais</button>
+        <button type="button" onClick={() => setHubTab("videos")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: hubTab === "videos" ? T.accent : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px" }} aria-current={hubTab === "videos" ? "page" : undefined}><span style={{ fontSize: 20 }}>🎥</span>Aulas</button>
         <button type="button" onClick={() => setHubTab("community")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: hubTab === "community" ? T.accent : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px" }} aria-current={hubTab === "community" ? "page" : undefined} disabled={config.rankingEnabled === "false"}><span style={{ fontSize: 20 }}>🏆</span>Comunidade</button>
         <button type="button" onClick={() => setView("profile")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", color: T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "'Plus Jakarta Sans'", cursor: "pointer", padding: "6px 12px", position: "relative" }}><span style={{ fontSize: 20 }}>👤</span>Perfil{!profileComplete && <span style={{ position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: "50%", background: T.gold }} />}</button>
       </nav>

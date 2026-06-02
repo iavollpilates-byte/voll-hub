@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG = {
   logoUrl: "",
   profileEnabled: "true",
   bioPhotoUrl: "https://vollpilates.com.br/rafael/wp-content/uploads/2025/04/foto-rafa.webp",
-  creditsEnabled: "true",
+  creditsEnabled: "false",
   creditsInitial: "3",
   creditsReferral: "2",
   creditsReferralMsg: "Oi! Conheça o Hub de Materiais Gratuitos de Pilates do Rafael Juliano. Tem e-books, guias e vídeos incríveis! Acesse: {link}",
@@ -57,12 +57,12 @@ export const DEFAULT_CONFIG = {
   bioStat2: "+85 mil", bioStat2Label: "Instrutores Formados",
 
   // ─── Mensagens e avisos (popups, banners, modais) ───
-  messagesEmailPopupEnabled: "true",
+  messagesEmailPopupEnabled: "false",
   emailPopupTitle: "Informe agora o seu email e receba +2 créditos",
   emailPopupBtnSubmit: "Receber créditos",
   emailPopupBtnDismiss: "Agora não",
 
-  messagesHowWorksAutoShow: "true",
+  messagesHowWorksAutoShow: "false",
   howWorksFooterLink: "Como funciona?",
   howWorksTitle: "💡 Como funciona?",
   howWorksStep1Title: "Materiais gratuitos",
@@ -72,7 +72,7 @@ export const DEFAULT_CONFIG = {
   howWorksStep3Title: "Ganhe mais",
   howWorksStep3Desc: "Complete seu perfil ou indique amigas para ganhar créditos extras.",
 
-  messagesOnboardingEnabled: "true",
+  messagesOnboardingEnabled: "false",
   onboardingWelcomeTitle: "Bem-vinda, {name}!",
   onboardingWelcomeDesc: "Aqui você encontra materiais gratuitos pra turbinar sua carreira no Pilates: e-books, guias, templates e mais.",
   onboardingCreditsTitle: "Créditos",
@@ -83,7 +83,7 @@ export const DEFAULT_CONFIG = {
   onboardingStartBtn: "Começar! 🚀",
   onboardingSkipBtn: "Pular",
 
-  messagesInstallBannerEnabled: "true",
+  messagesInstallBannerEnabled: "false",
   installBannerTitle: "Instale o VOLL Hub na tela inicial — como um app",
   installBannerStepsIos1: "Toque em Compartilhar no Safari",
   installBannerStepsIos2: "Toque em \"Adicionar à Tela de Início\"",
@@ -95,7 +95,7 @@ export const DEFAULT_CONFIG = {
   installBannerBtnDone: "Já instalei",
   installBannerBtnLater: "Agora não",
 
-  messagesPhotoAnnounceEnabled: "true",
+  messagesPhotoAnnounceEnabled: "false",
   photoAnnounceText: "Novidade: adicione sua foto no Perfil e apareça no ranking.",
   photoAnnounceBtnVer: "Ver",
   photoAnnounceBtnFechar: "Fechar",

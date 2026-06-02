@@ -92,6 +92,7 @@ export function useSupabase() {
   const [materials, setMaterials] = useState([])
   const [leads, setLeads] = useState([])
   const [adminUsers, setAdminUsers] = useState([])
+  const [videos, setVideos] = useState([])
   const [config, setConfig] = useState({})
   const [reflections, setReflections] = useState([])
   const [phases, setPhases] = useState([])
@@ -122,11 +123,12 @@ export function useSupabase() {
     try {
       setLoading(true)
       const PAGE = 1000
-      const [matRes, cfgRes, refRes, phaseRes] = await Promise.all([
+      const [matRes, cfgRes, refRes, phaseRes, videoRes] = await Promise.all([
         supabase.from('materials').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('config').select('*'),
         supabase.from('reflections').select('*').order('publish_date', { ascending: false }),
         supabase.from('phases').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
+        supabase.from('videos').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false }),
       ])
       if (matRes.error) throw matRes.error
       if (cfgRes.error) throw cfgRes.error
@@ -143,6 +145,7 @@ export function useSupabase() {
       setLeads(allLeads.map(leadFromDb))
       setReflections((refRes.data || []).map(r => ({ id: r.id, title: r.title, body: r.body, actionText: r.action_text || '', quote: r.quote || '', inspiration: r.inspiration || '', publishDate: r.publish_date, active: r.active, likes: r.likes || 0, dislikes: r.dislikes || 0, imageUrl: r.image_url || '', createdAt: r.created_at })))
       setPhases((phaseRes.data || []).map(phaseFromDb))
+      setVideos(videoRes?.data || [])
 
       const cfgObj = {}
       ;(cfgRes.data || []).forEach(r => {
@@ -510,8 +513,8 @@ export function useSupabase() {
   }
 
   return {
-    materials, leads, adminUsers, config, reflections, phases, supportRequests, loading, error,
-    setMaterials, setLeads, setPhases,
+    materials, leads, adminUsers, videos, config, reflections, phases, supportRequests, loading, error,
+    setMaterials, setLeads, setPhases, setVideos,
     addMaterial, updateMaterial, deleteMaterial,
     addLead, updateLead, findLeadByWhatsApp,
     addAdminUser, updateAdminUser, deleteAdminUser,
@@ -521,6 +524,86 @@ export function useSupabase() {
     uploadReflectionImage, uploadOgImage, uploadProfilePhoto,
     updateConfig, updateConfigBatch,
     setAdminToken,
+    listVideos: async ({ activeOnly = true } = {}) => {
+      const q = supabase.from('videos').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false })
+      const { data, error } = await (activeOnly ? q.eq('active', true) : q)
+      if (error) { console.error(error); return [] }
+      return data || []
+    },
+    trackVideoEvent: async ({ leadId, videoId, eventType }) => {
+      try {
+        await supabase.from('video_events').insert({ lead_id: leadId, video_id: videoId, event_type: eventType })
+        return true
+      } catch (e) { console.error(e); return false }
+    },
+    submitVideoQuestion: async ({ leadId, videoId, question, context }) => {
+      try {
+        const payload = { lead_id: leadId, video_id: videoId, question: String(question || '').trim(), context: context || {} }
+        if (!payload.question) return false
+        const { error } = await supabase.from('video_questions').insert(payload)
+        if (error) { console.error(error); return false }
+        return true
+      } catch (e) { console.error(e); return false }
+    },
+    adminSelect: async ({ table, select = '*', filters, order, range, ilike }) => {
+      try {
+        const result = await adminFetch({ action: 'select', table, data: { select, filters, order, range, ilike } })
+        return result?.data || []
+      } catch (e) { console.error(e); return [] }
+    },
+    addVideo: async (video) => {
+      try {
+        const row = {
+          slug: (video.slug || '').trim() || null,
+          title: (video.title || '').trim(),
+          description: video.description || '',
+          category: video.category || 'marketing',
+          youtube_url: (video.youtubeUrl || video.youtube_url || '').trim(),
+          materials: Array.isArray(video.materials) ? video.materials : [],
+          cta: video.cta && typeof video.cta === 'object' ? video.cta : {},
+          active: video.active !== false,
+          sort_order: video.sortOrder ?? video.sort_order ?? 0,
+        }
+        if (!row.title || !row.youtube_url) return null
+        const result = await adminFetch({ action: 'insert', table: 'videos', data: row, returnSingle: true })
+        const created = result?.data || null
+        if (created) setVideos(p => [created, ...(p || [])])
+        return created
+      } catch (e) { console.error(e); return null }
+    },
+    updateVideo: async (id, updates) => {
+      try {
+        const row = {}
+        if ('slug' in updates) row.slug = (updates.slug || '').trim() || null
+        if ('title' in updates) row.title = (updates.title || '').trim()
+        if ('description' in updates) row.description = updates.description || ''
+        if ('category' in updates) row.category = updates.category || 'marketing'
+        if ('youtubeUrl' in updates) row.youtube_url = (updates.youtubeUrl || '').trim()
+        if ('youtube_url' in updates) row.youtube_url = (updates.youtube_url || '').trim()
+        if ('materials' in updates) row.materials = Array.isArray(updates.materials) ? updates.materials : []
+        if ('cta' in updates) row.cta = updates.cta && typeof updates.cta === 'object' ? updates.cta : {}
+        if ('active' in updates) row.active = updates.active !== false
+        if ('sortOrder' in updates) row.sort_order = updates.sortOrder ?? 0
+        if ('sort_order' in updates) row.sort_order = updates.sort_order ?? 0
+        const result = await adminFetch({ action: 'update', table: 'videos', data: row, match: { id } })
+        const updated = Array.isArray(result?.data) ? result.data[0] : null
+        if (updated) setVideos(p => (p || []).map(v => v.id === id ? updated : v))
+        return true
+      } catch (e) { console.error(e); return false }
+    },
+    deleteVideo: async (id) => {
+      try {
+        await adminFetch({ action: 'delete', table: 'videos', match: { id } })
+        setVideos(p => (p || []).filter(v => v.id !== id))
+        return true
+      } catch (e) { console.error(e); return false }
+    },
+    adminUpdate: async ({ table, data, match }) => {
+      try {
+        await adminFetch({ action: 'update', table, data, match })
+        return true
+      } catch (e) { console.error(e); return false }
+    },
     incrementPageView: async () => {
       try {
         const { data } = await supabase.from('config').select('*').eq('key', 'pageViews').limit(1)

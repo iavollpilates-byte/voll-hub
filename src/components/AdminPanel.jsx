@@ -5,6 +5,9 @@ import { drawReflectionCanvas } from "../canvasUtils";
 import AdminMaterials from "./admin/AdminMaterials";
 import AdminLog from "./admin/AdminLog";
 import AdminEstudantes from "./admin/AdminEstudantes";
+import AdminVideos from "./admin/AdminVideos";
+import AdminVideoQuestions from "./admin/AdminVideoQuestions";
+import AdminVideoProgress from "./admin/AdminVideoProgress";
 
 // Contrato das flags ui_* em creditsEarned (mensagens/onboarding) — alinhado ao CMS
 const UI_FLAGS_REGISTRY = [
@@ -378,6 +381,7 @@ export default function AdminPanel({
       title: "Conteúdo",
       items: [
         can("materials_view") && ["materials", "📄", "Materiais"],
+        can("textos_edit") && ["videos", "🎥", "Aulas"],
         can("textos_edit") && ["bio", "🔗", "Linktree"],
         can("textos_edit") && ["textos", "✏️", "Textos"],
         can("textos_edit") && ["reflections", "💭", "Reflexões"],
@@ -505,6 +509,48 @@ export default function AdminPanel({
             setShowIconPicker={setShowIconPicker}
             sInp={sInp}
           />
+        )}
+
+        {/* VIDEOS */}
+        {adminTab === "videos" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[
+                ["videos_manage", "🎥 Vídeos"],
+                ["videos_progress", "📈 Progresso"],
+                ["videos_questions", "❓ Perguntas"],
+              ].map(([k, lbl]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setCollapsedSections((p) => ({ ...p, videosSub: k }))}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    background: (collapsedSections.videosSub || "videos_manage") === k ? T.accent + "18" : T.statBg,
+                    border: `1px solid ${((collapsedSections.videosSub || "videos_manage") === k) ? T.accent + "44" : T.statBorder}`,
+                    color: ((collapsedSections.videosSub || "videos_manage") === k) ? T.accent : T.textFaint,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    fontFamily: "'Plus Jakarta Sans'",
+                    cursor: "pointer",
+                  }}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            {(collapsedSections.videosSub || "videos_manage") === "videos_manage" && (
+              <AdminVideos T={T} db={db} showT={showT} videos={db.videos || []} />
+            )}
+            {(collapsedSections.videosSub || "videos_manage") === "videos_progress" && (
+              <AdminVideoProgress T={T} db={db} showT={showT} videos={db.videos || []} leads={leads} />
+            )}
+            {(collapsedSections.videosSub || "videos_manage") === "videos_questions" && (
+              <AdminVideoQuestions T={T} db={db} showT={showT} videos={db.videos || []} leads={leads} />
+            )}
+          </div>
         )}
 
         {/* LEADS */}

@@ -36,7 +36,17 @@ export default async function handler(req, res) {
     return res.status(200).json({ data: data || [] });
   }
 
-  const allowedTables = ['materials', 'reflections', 'phases', 'config', 'admin_users', 'support_requests'];
+  const allowedTables = [
+    'materials',
+    'reflections',
+    'phases',
+    'config',
+    'admin_users',
+    'support_requests',
+    'videos',
+    'video_events',
+    'video_questions',
+  ];
   if (!allowedTables.includes(table)) {
     return res.status(400).json({ error: 'Tabela não permitida' });
   }
@@ -44,6 +54,31 @@ export default async function handler(req, res) {
   try {
     let result;
     switch (action) {
+      case 'select': {
+        let q = supabase.from(table).select(data?.select || '*');
+        const order = data?.order;
+        if (order?.column) {
+          q = q.order(order.column, { ascending: order.ascending !== false });
+        }
+        const range = data?.range;
+        if (range && typeof range.from === 'number' && typeof range.to === 'number') {
+          q = q.range(range.from, range.to);
+        }
+        const filters = data?.filters;
+        if (filters && typeof filters === 'object') {
+          Object.entries(filters).forEach(([k, v]) => {
+            if (v == null) return;
+            if (Array.isArray(v)) q = q.in(k, v);
+            else q = q.eq(k, v);
+          });
+        }
+        const ilike = data?.ilike;
+        if (ilike?.column && typeof ilike?.pattern === 'string') {
+          q = q.ilike(ilike.column, ilike.pattern);
+        }
+        result = await q;
+        break;
+      }
       case 'insert': {
         let q = supabase.from(table).insert(data).select();
         if (returnSingle) q = q.single();
