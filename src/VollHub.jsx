@@ -355,7 +355,7 @@ export default function VollHub() {
   const T = THEMES[theme];
 
   useEffect(() => {
-    if (view === "hub" || view === "admin" || view === "profile" || view === "linktree") { setAnimateIn(false); setTimeout(() => setAnimateIn(true), 100); }
+    if (view === "hub" || view === "admin" || view === "profile" || view === "linktree" || view === "launchtree") { setAnimateIn(false); setTimeout(() => setAnimateIn(true), 100); }
   }, [view]);
 
   // Restore profile draft when entering profile view
