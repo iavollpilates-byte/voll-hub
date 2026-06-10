@@ -56,6 +56,12 @@ export const DEFAULT_CONFIG = {
   bioStat1: "+230", bioStat1Label: "Studios VOLL",
   bioStat2: "+85 mil", bioStat2Label: "Instrutores Formados",
 
+  // ─── Linktree de Lançamento (/lancamento) ───
+  launchBioName: "Lançamento VOLL",
+  launchBioLine1: "🚀 Conheça os novos produtos",
+  launchBioLine2: "Escolha o ideal pra você",
+  launchBioPhotoUrl: "",
+
   // ─── Mensagens e avisos (popups, banners, modais) ───
   messagesEmailPopupEnabled: "false",
   emailPopupTitle: "Informe agora o seu email e receba +2 créditos",
@@ -116,6 +122,12 @@ export const DEFAULT_BIO_LINKS = [
   { id: "12", title: "Dúvidas Cursos", subtitle: "Fale com nosso time", icon: "💬", imageUrl: "", url: "https://vollpilates.com.br/rafael/cta/duvidas-cursos", active: true, clicks: 0 },
   { id: "13", title: "Grupos Exclusivos", subtitle: "WhatsApp e Telegram", icon: "👥", imageUrl: "", url: "https://vollpilates.com.br/rafael/grupos-exclusivos/", active: true, clicks: 0 },
   { id: "hub", title: "Materiais Gratuitos", subtitle: "E-books, guias e vídeos exclusivos", icon: "🎁", imageUrl: "", url: "_hub", active: true, clicks: 0, highlight: true, badge: "GRÁTIS", color: "linear-gradient(135deg, #0d2920, #1a3a20)" },
+];
+
+// Links do Linktree de lançamento (editável no Admin → Linktree Lançamento)
+export const DEFAULT_LAUNCH_LINKS = [
+  { id: "l1", title: "Produto 1", subtitle: "Descrição curta do produto", icon: "🚀", imageUrl: "", url: "https://", active: true, clicks: 0, highlight: true, badge: "🔥 NOVO", color: "linear-gradient(135deg, #1a3a30, #0d2920)" },
+  { id: "l2", title: "Produto 2", subtitle: "Descrição curta do produto", icon: "✨", imageUrl: "", url: "https://", active: true, clicks: 0 },
 ];
 
 export const PERM_LABELS = {
