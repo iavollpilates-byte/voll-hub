@@ -39,6 +39,7 @@ export default function AdminPanel({
   showT, animateIn, Toast,
   materials, leads, adminUsers, dbReflections, dbPhases,
   bioLinks, saveBioLinks,
+  launchLinks, saveLaunchLinks,
   activeMats, totalDl, getMatDownloads, getRecentPerson,
   creditsEnabled, todayStr,
   getStreakRules, getMilestones, getQuizzes, getInstaPosts,
@@ -383,6 +384,7 @@ export default function AdminPanel({
         can("materials_view") && ["materials", "📄", "Materiais"],
         can("textos_edit") && ["videos", "🎥", "Aulas"],
         can("textos_edit") && ["bio", "🔗", "Linktree"],
+        can("textos_edit") && ["bioLaunch", "🚀", "Linktree Lançamento"],
         can("textos_edit") && ["textos", "✏️", "Textos"],
         can("textos_edit") && ["reflections", "💭", "Reflexões"],
         can("textos_edit") && ["quizzes", "🧠", "Quizzes"],
@@ -1264,6 +1266,67 @@ export default function AdminPanel({
                   </div>
                 ))}
                 <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>💡 <b>_hub</b> = link pro Hub · Imagem vazia = card texto · ↑↓ reordena</p>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* LINKTREE LANÇAMENTO (/lancamento) */}
+        {adminTab === "bioLaunch" && (() => {
+          const linkInp = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.inputBorder}`, background: T.bg, color: T.text, fontSize: 12, fontFamily: "'Plus Jakarta Sans'", width: "100%" };
+          const updateLink = (id, key, val) => { const nl = (launchLinks || []).map(l => l.id === id ? { ...l, [key]: val } : l); saveLaunchLinks(nl); };
+          const links = launchLinks || [];
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ background: T.gold + "11", border: `1px solid ${T.gold}33`, borderRadius: 10, padding: "10px 12px" }}>
+                <p style={{ fontSize: 12, color: T.text, fontFamily: "'Plus Jakarta Sans'", margin: 0 }}>🚀 Linktree exclusivo do lançamento — acesse em <b>{(config.baseUrl || "").replace(/\/$/, "")}/lancamento</b></p>
+              </div>
+
+              {/* Header do lançamento */}
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8 }}>👤 Cabeçalho do lançamento</h3>
+                <CmsField label="URL da foto (opcional)" ck="launchBioPhotoUrl" />
+                <CmsField label="Título" ck="launchBioName" />
+                <CmsField label="Linha 1" ck="launchBioLine1" />
+                <CmsField label="Linha 2" ck="launchBioLine2" />
+              </div>
+
+              {/* Links do lançamento */}
+              <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>🔗 Produtos / Links</h3>
+                  <button onClick={() => { const nl = [...links, { id: String(Date.now()), title: "Novo Produto", subtitle: "", imageUrl: "", icon: "🔗", url: "https://", active: true, clicks: 0 }]; saveLaunchLinks(nl); }} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: T.accent + "22", color: T.accent, border: `1px solid ${T.accent}44` }}>＋ Novo link</button>
+                </div>
+                {links.map((link, i) => (
+                  <div key={link.id + "-" + i} style={{ background: T.statBg, border: `1px solid ${link.active ? T.statBorder : T.dangerBrd}`, borderRadius: 12, padding: 12, marginBottom: 8, opacity: link.active ? 1 : 0.6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {i > 0 && <button onClick={() => { const nl = [...links]; [nl[i-1], nl[i]] = [nl[i], nl[i-1]]; saveLaunchLinks(nl); }} style={{ width: 28, height: 28, borderRadius: 6, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", color: T.textFaint }}>↑</button>}
+                        {i < links.length - 1 && <button onClick={() => { const nl = [...links]; [nl[i], nl[i+1]] = [nl[i+1], nl[i]]; saveLaunchLinks(nl); }} style={{ width: 28, height: 28, borderRadius: 6, background: T.inputBg, border: `1px solid ${T.inputBorder}`, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", color: T.textFaint }}>↓</button>}
+                        <span style={{ fontSize: 10, color: T.textFaint, background: T.inputBg, padding: "2px 8px", borderRadius: 6 }}>{link.clicks || 0} cliques</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => updateLink(link.id, "active", !link.active)} title={link.active ? "Ocultar link" : "Mostrar link"} style={{ width: 28, height: 28, borderRadius: 6, background: link.active ? T.accent + "22" : T.dangerBg, border: `1px solid ${link.active ? T.accent + "44" : T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{link.active ? "👁" : "🚫"}</button>
+                        <button onClick={() => { saveLaunchLinks(links.filter(l => l.id !== link.id)); showT("Link removido"); }} title="Remover link" style={{ width: 28, height: 28, borderRadius: 6, background: T.dangerBg, border: `1px solid ${T.dangerBrd}`, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Título</label><input value={link.title} onChange={(e) => updateLink(link.id, "title", e.target.value)} style={linkInp} /></div>
+                      <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Subtítulo</label><input value={link.subtitle || ""} onChange={(e) => updateLink(link.id, "subtitle", e.target.value)} style={linkInp} placeholder="Descrição curta" /></div>
+                      <div><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>URL destino</label><input value={link.url} onChange={(e) => updateLink(link.id, "url", e.target.value)} style={linkInp} placeholder="https://..." /></div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <div style={{ width: 70 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>Ícone</label><input value={link.icon || ""} onChange={(e) => updateLink(link.id, "icon", e.target.value)} style={{ ...linkInp, width: 60 }} /></div>
+                        <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: T.textFaint, fontFamily: "'Plus Jakarta Sans'", display: "block", marginBottom: 2 }}>URL da imagem <span style={{ color: T.textFaint }}>(opcional)</span></label><input value={link.imageUrl || ""} onChange={(e) => updateLink(link.id, "imageUrl", e.target.value)} style={linkInp} placeholder="https://..." /></div>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <button onClick={() => updateLink(link.id, "highlight", !link.highlight)} style={{ padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: link.highlight ? `${T.gold}22` : T.inputBg, border: `1px solid ${link.highlight ? T.gold : T.inputBorder}`, color: link.highlight ? T.gold : T.textFaint }}>{link.highlight ? "⭐ Destaque ON" : "☆ Destaque"}</button>
+                        {link.highlight && <input value={link.badge || ""} onChange={(e) => updateLink(link.id, "badge", e.target.value)} style={{ ...linkInp, width: 120 }} placeholder="Badge (ex: 🔥 NOVO)" />}
+                        {link.highlight && <input value={link.color || ""} onChange={(e) => updateLink(link.id, "color", e.target.value)} style={{ ...linkInp, width: 140 }} placeholder="Gradiente (CSS)" />}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <p style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>💡 Imagem vazia = card texto · ↑↓ reordena · 👁 mostra/oculta</p>
               </div>
             </div>
           );

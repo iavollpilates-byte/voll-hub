@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useSupabase } from "./useSupabase";
-import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, PERM_LABELS, THEMES } from "./constants";
+import { ICON_LIBRARY, DEFAULT_CONFIG, DEFAULT_BIO_LINKS, DEFAULT_LAUNCH_LINKS, PERM_LABELS, THEMES } from "./constants";
 import { getUnlockLabel, timeAgo, fmtWA, normalizeWhatsApp, formatCountdown as fmtCountdown, isUrgent as checkUrgent, getTodayStr, getDateStr, getCSS } from "./utils";
 import { REFLECTION_STYLES, drawReflectionCanvas, getPreviewDataUrl, wrapCanvasText } from "./canvasUtils";
 import VideosList from "./components/videos/VideosList";
 import VideoDetail from "./components/videos/VideoDetail";
+import LaunchTree from "./components/LaunchTree";
 
 const AdminPanel = lazy(() => import("./components/AdminPanel"));
 
+const IS_LAUNCH_PATH = typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "") === "/lancamento";
+
 export default function VollHub() {
-  const [view, setView] = useState("linktree");
+  const [view, setView] = useState(IS_LAUNCH_PATH ? "launchtree" : "linktree");
   const [theme, setTheme] = useState("light");
   const [safetyShow, setSafetyShow] = useState(false);
 
@@ -32,6 +35,16 @@ export default function VollHub() {
     }
   }, [db.config.bioLinks]);
   const saveBioLinks = useCallback((links) => { setBioLinks(links); db.updateConfig("bioLinks", JSON.stringify(links)); }, [db]);
+
+  // Launch Linktree links (/lancamento)
+  const [launchLinks, setLaunchLinks] = useState(DEFAULT_LAUNCH_LINKS);
+  const launchLinksLoaded = useRef(false);
+  useEffect(() => {
+    if (db.config.launchBioLinks && !launchLinksLoaded.current) {
+      try { setLaunchLinks(JSON.parse(db.config.launchBioLinks)); launchLinksLoaded.current = true; } catch(e) {}
+    }
+  }, [db.config.launchBioLinks]);
+  const saveLaunchLinks = useCallback((links) => { setLaunchLinks(links); db.updateConfig("launchBioLinks", JSON.stringify(links)); }, [db]);
 
   const [userName, setUserName] = useState("");
   const [userWhatsApp, setUserWhatsApp] = useState("");
@@ -970,6 +983,27 @@ export default function VollHub() {
   // ═══════════════════════════════════════
   // LINKTREE (Bio Page)
   // ═══════════════════════════════════════
+  if (view === "launchtree") {
+    const handleLaunchClick = (link) => {
+      const updated = launchLinks.map(l => l.id === link.id ? { ...l, clicks: (l.clicks || 0) + 1 } : l);
+      saveLaunchLinks(updated);
+      if (link.url === "_hub") { setView("landing"); return; }
+      if (link.url && link.url !== "https://") window.open(link.url, "_blank");
+    };
+    return (
+      <LaunchTree
+        T={T}
+        theme={theme}
+        animateIn={animateIn}
+        isOffline={isOffline}
+        header={{ photoUrl: config.launchBioPhotoUrl || "", name: config.launchBioName || "Lançamento", line1: config.launchBioLine1 || "", line2: config.launchBioLine2 || "" }}
+        links={launchLinks}
+        onLinkClick={handleLaunchClick}
+        onSecretTap={() => setLogoTaps(t => t + 1)}
+      />
+    );
+  }
+
   if (view === "linktree") {
     const activeLinks = bioLinks.filter(l => l.active && l.id !== "board" && l.id !== "calendario" && l.title !== "Board" && l.title !== "Calendário");
     const handleLinkClick = (link) => {
@@ -1156,6 +1190,7 @@ export default function VollHub() {
         showT={showT} animateIn={animateIn} Toast={Toast}
         materials={materials} leads={leads} adminUsers={adminUsers} dbReflections={dbReflections} dbPhases={dbPhases}
         bioLinks={bioLinks} saveBioLinks={saveBioLinks}
+        launchLinks={launchLinks} saveLaunchLinks={saveLaunchLinks}
         activeMats={activeMats} totalDl={totalDl} getMatDownloads={getMatDownloads} getRecentPerson={getRecentPerson}
         creditsEnabled={creditsEnabled} todayStr={todayStr}
         getStreakRules={getStreakRules} getMilestones={getMilestones} getQuizzes={getQuizzes} getInstaPosts={getInstaPosts}
