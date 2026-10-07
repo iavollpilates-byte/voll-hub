@@ -53,7 +53,7 @@ export const DEFAULT_CONFIG = {
   bioName: "RAFAEL JULIANO",
   bioLine1: "💼 Fundador | VOLL Pilates Group",
   bioLine2: "🎯 Marketing, Gestão e Vendas no Pilates",
-  bioStat1: "+230", bioStat1Label: "Studios VOLL",
+  bioStat1: "+250", bioStat1Label: "Studios VOLL",
   bioStat2: "+85 mil", bioStat2Label: "Instrutores Formados",
 
   // ─── Linktree de Lançamento (/lancamento) ───
